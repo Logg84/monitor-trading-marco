@@ -9,7 +9,7 @@ import os
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Recupero e pulizia della chiave API
+# Recupero della chiave API
 api_key = st.secrets.get("GEMINI_API_KEY")
 if api_key:
     api_key = api_key.strip().strip('"').strip("'")
@@ -18,7 +18,7 @@ else:
 
 DB_FILE = "watchlist.csv"
 
-# Caricamento iniziale del database
+# Caricamento del database persistente
 if os.path.exists(DB_FILE):
     try:
         st.session_state.watchlist_df = pd.read_csv(DB_FILE)
@@ -49,21 +49,12 @@ if uploaded_file is not None:
                 base64_data = b64_image(uploaded_file)
                 mime_type = uploaded_file.type
                 
+                # Endpoint ufficiale v1beta per generateContent
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
                 
-                prompt = """
-                Analizza questa immagine di un grafico finanziario. 
-                Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati visivamente sul grafico.
-                Rispondi ESCLUSIVAMENTE con un oggetto JSON valido con questa struttura, senza testo prima o dopo e senza blocchi markdown:
-                {
-                    "ticker": "NOME_TICKER",
-                    "livello_1": 123.45,
-                    "livello_2": 126.80,
-                    "livello_3": 130.00
-                }
-                Se ci sono meno di 3 livelli, imposta a null quelli mancanti. I numeri devono essere puri (senza simboli di valuta).
-                """
+                prompt = "Analizza questa immagine di un grafico finanziario. Trova il Ticker (es. AAPL, EURUSD, BTCUSD) e identifica fino a 3 livelli di prezzo o aree di attenzione principali segnati visivamente."
                 
+                # Configurazione blindata: costringiamo Gemini a rispondere in JSON strutturato e azzeriamo i filtri di sicurezza protettivi
                 payload = {
                     "contents": [{
                         "parts": [
@@ -75,41 +66,45 @@ if uploaded_file is not None:
                                 }
                             }
                         ]
-                    }]
+                    }],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "responseSchema": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "ticker": {"type": "STRING"},
+                                "livello_1": {"type": "NUMBER"},
+                                "livello_2": {"type": "NUMBER"},
+                                "livello_3": {"type": "NUMBER"}
+                            },
+                            "required": ["ticker"]
+                        }
+                    },
+                    "safetySettings": [
+                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                    ]
                 }
                 
                 headers = {'Content-Type': 'application/json'}
                 response = requests.post(url, headers=headers, json=payload)
                 
                 if response.status_code != 200:
-                    st.error(f"Errore dalle API di Google (Stato {response.status_code}): {response.text}")
+                    st.error(f"Errore di rete dalle API di Google (Stato {response.status_code}): {response.text}")
                 else:
                     response_json = response.json()
                     
-                    # RETE DI SICUREZZA STRUTTURALE: Estrazione dinamica e sicura del testo
+                    # Estrazione sicura del testo JSON pre-strutturato
                     text_response = None
                     try:
-                        candidates = response_json.get('candidates', [])
-                        if candidates:
-                            parts = candidates[0].get('content', {}).get('parts', [])
-                            if parts:
-                                text_response = parts[0].get('text', '').strip()
-                    except Exception:
+                        text_response = response_json['candidates'][0]['content']['parts'][0]['text'].strip()
+                    except:
                         pass
                     
-                    # Se l'estrazione standard fallisce, proviamo a fare un dump diagnostico
-                    if not text_response:
-                        st.error(f"Impossibile decodificare la struttura dei dati di Google. Risposta ricevuta: {response_json}")
-                    else:
-                        # Pulizia del testo JSON da eventuali residui di testo o markdown block
-                        if "{" in text_response and "}" in text_response:
-                            start_idx = text_response.find("{")
-                            end_idx = text_response.rfind("}") + 1
-                            clean_text = text_response[start_idx:end_idx]
-                        else:
-                            clean_text = text_response
-                        
-                        data = json.loads(clean_text)
+                    if text_response:
+                        data = json.loads(text_response)
                         
                         nuovo_dato = {
                             "Ticker": str(data.get('ticker', 'SCONOSCIUTO')).upper().strip(),
@@ -118,13 +113,18 @@ if uploaded_file is not None:
                             "Livello 3": data.get('livello_3')
                         }
                         
+                        # Inserimento dati ed eliminazione immediata di eventuali righe vuote o corrotte
                         st.session_state.watchlist_df = pd.concat([st.session_state.watchlist_df, pd.DataFrame([nuovo_dato])], ignore_index=True)
                         st.session_state.watchlist_df.to_csv(DB_FILE, index=False)
                         st.success(f"Analisi Completata! Aggiunto {nuovo_dato['Ticker']} alla Watchlist.")
                         st.rerun()
-            
+                    else:
+                        # Se fallisce, il pannello diagnostico mostra esattamente cosa ha risposto Google senza rompere l'app
+                        st.warning("Google ha risposto ma la struttura dati standard è stata alterata (possibile blocco di sicurezza sul grafico).")
+                        st.json(response_json)
+                        
             except Exception as e:
-                st.error(f"Errore di runtime durante l'analisi: {e}")
+                st.error(f"Errore di esecuzione: {e}")
 
 st.markdown("---")
 
