@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 from PIL import Image
-import io
 import base64
 import json
 import os
@@ -10,9 +9,11 @@ import os
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Controllo della chiave API nei Secrets
+# Recupero e pulizia della chiave API
 api_key = st.secrets.get("GEMINI_API_KEY")
-if not api_key:
+if api_key:
+    api_key = api_key.strip().strip('"').strip("'")
+else:
     st.error("Chiave API di Gemini (GEMINI_API_KEY) non trovata nei Secrets di Streamlit!")
 
 DB_FILE = "watchlist.csv"
@@ -26,7 +27,6 @@ if os.path.exists(DB_FILE):
 else:
     st.session_state.watchlist_df = pd.DataFrame(columns=["Ticker", "Livello 1", "Livello 2", "Livello 3"])
 
-# Funzione per convertire l'immagine in Base64 per la chiamata HTTP diretta
 def b64_image(image_file):
     return base64.b64encode(image_file.getvalue()).decode('utf-8')
 
@@ -44,12 +44,12 @@ if uploaded_file is not None:
         submit_button = st.form_submit_button(label='Analizza Grafico con Gemini')
         
     if submit_button and api_key:
-        with st.spinner("Gemini sta analizzando il grafico tramite canale diretto..."):
+        with st.spinner("Gemini sta analizzando il grafico..."):
             try:
-                # Conversione immagine e preparazione dati per le API REST di Google
                 base64_data = b64_image(uploaded_file)
                 mime_type = uploaded_file.type
                 
+                # URL ufficiale v1beta per gemini-1.5-flash
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
                 
                 prompt = """
@@ -81,34 +81,47 @@ if uploaded_file is not None:
                 
                 headers = {'Content-Type': 'application/json'}
                 response = requests.post(url, headers=headers, json=payload)
-                response_json = response.json()
                 
-                # Estrazione del testo dalla risposta della chiamata HTTP
-                text_response = response_json['candidates'][0]['content']['parts'][0]['text'].strip()
-                
-                if "{" in text_response and "}" in text_response:
-                    start_idx = text_response.find("{")
-                    end_idx = text_response.rfind("}") + 1
-                    clean_text = text_response[start_idx:end_idx]
+                # CONTROLLO 1: Verifica dello stato della risposta HTTP
+                if response.status_code != 200:
+                    st.error(f"Errore dalle API di Google (Stato {response.status_code}): {response.text}")
                 else:
-                    clean_text = text_response
-                
-                data = json.loads(clean_text)
-                
-                nuovo_dato = {
-                    "Ticker": str(data['ticker']).upper().strip(),
-                    "Livello 1": data.get('livello_1'),
-                    "Livello 2": data.get('livello_2'),
-                    "Livello 3": data.get('livello_3')
-                }
-                
-                st.session_state.watchlist_df = pd.concat([st.session_state.watchlist_df, pd.DataFrame([nuovo_dato])], ignore_index=True)
-                st.session_state.watchlist_df.to_csv(DB_FILE, index=False)
-                st.success(f"Analisi Completata! Aggiunto {nuovo_dato['Ticker']} alla Watchlist.")
-                st.rerun()
+                    response_json = response.json()
+                    
+                    # CONTROLLO 2: Verifica sicura della struttura JSON prima dell'estrazione
+                    if 'candidates' in response_json and response_json['candidates']:
+                        candidate = response_json['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content']:
+                            text_response = candidate['content']['parts'][0]['text'].strip()
+                            
+                            # Pulizia da blocchi markdown residui
+                            if "{" in text_response and "}" in text_response:
+                                start_idx = text_response.find("{")
+                                end_idx = text_response.rfind("}") + 1
+                                clean_text = text_response[start_idx:end_idx]
+                            else:
+                                clean_text = text_response
+                            
+                            data = json.loads(clean_text)
+                            
+                            nuovo_dato = {
+                                "Ticker": str(data['ticker']).upper().strip(),
+                                "Livello 1": data.get('livello_1'),
+                                "Livello 2": data.get('livello_2'),
+                                "Livello 3": data.get('livello_3')
+                            }
+                            
+                            st.session_state.watchlist_df = pd.concat([st.session_state.watchlist_df, pd.DataFrame([nuovo_dato])], ignore_index=True)
+                            st.session_state.watchlist_df.to_csv(DB_FILE, index=False)
+                            st.success(f"Analisi Completata! Aggiunto {nuovo_dato['Ticker']} alla Watchlist.")
+                            st.rerun()
+                        else:
+                            st.error(f"Struttura 'content' o 'parts' non trovata nella risposta: {response_json}")
+                    else:
+                        st.error(f"Nessun candidato trovato nella risposta. Dettaglio: {response_json}")
             
             except Exception as e:
-                st.error(f"Errore durante l'analisi diretta: {e}")
+                st.error(f"Errore di runtime durante l'analisi: {e}")
 
 st.markdown("---")
 
