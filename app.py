@@ -1,22 +1,20 @@
 import streamlit as st
 import pandas as pd
-# MODIFICATO: Importazione isolata per evitare conflitti con altri moduli 'google'
-import google.genai as gemini_api
-from google.genai import types
+import requests
 from PIL import Image
+import io
+import base64
 import json
 import os
 
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Configurazione del client Gemini con la nuova libreria isolata
-try:
-    client = gemini_api.Client(api_key=st.secrets["GEMINI_API_KEY"])
-except Exception as e:
-    st.error(f"Errore di configurazione Chiave API: {e}")
+# Controllo della chiave API nei Secrets
+api_key = st.secrets.get("GEMINI_API_KEY")
+if not api_key:
+    st.error("Chiave API di Gemini (GEMINI_API_KEY) non trovata nei Secrets di Streamlit!")
 
-# Nome del file database persistente
 DB_FILE = "watchlist.csv"
 
 # Caricamento iniziale del database
@@ -28,8 +26,12 @@ if os.path.exists(DB_FILE):
 else:
     st.session_state.watchlist_df = pd.DataFrame(columns=["Ticker", "Livello 1", "Livello 2", "Livello 3"])
 
+# Funzione per convertire l'immagine in Base64 per la chiamata HTTP diretta
+def b64_image(image_file):
+    return base64.b64encode(image_file.getvalue()).decode('utf-8')
+
 # --- SEZIONE 1: CARICAMENTO E ANALISI AUTOMATICA ---
-st.subheader("1. Carica Grafico per Analisi Automatica con Gemini")
+st.subheader("1. Carica Grafico per Analisi Automatica")
 
 uploaded_file = st.file_uploader("Trascina qui lo screenshot del grafico", type=['png', 'jpg', 'jpeg', 'webp'])
 
@@ -41,13 +43,19 @@ if uploaded_file is not None:
         st.write("Clicca sul bottone qui sotto per avviare l'analisi visiva dei livelli.")
         submit_button = st.form_submit_button(label='Analizza Grafico con Gemini')
         
-    if submit_button:
-        with st.spinner("Gemini sta analizzando il grafico..."):
+    if submit_button and api_key:
+        with st.spinner("Gemini sta analizzando il grafico tramite canale diretto..."):
             try:
+                # Conversione immagine e preparazione dati per le API REST di Google
+                base64_data = b64_image(uploaded_file)
+                mime_type = uploaded_file.type
+                
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                
                 prompt = """
                 Analizza questa immagine di un grafico finanziario. 
                 Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati visivamente sul grafico.
-                Rispondi ESCLUSIVAMENTE con un oggetto JSON valido con questa struttura, senza testo prima o dopo:
+                Rispondi ESCLUSIVAMENTE con un oggetto JSON valido con questa struttura, senza testo prima o dopo e senza blocchi markdown:
                 {
                     "ticker": "NOME_TICKER",
                     "livello_1": 123.45,
@@ -57,13 +65,26 @@ if uploaded_file is not None:
                 Se ci sono meno di 3 livelli, imposta a null quelli mancanti. I numeri devono essere puri (senza simboli di valuta).
                 """
                 
-                # Chiamata eseguita tramite il modulo isolato e sicuro
-                response = client.models.generate_content(
-                    model='gemini-1.5-flash',
-                    contents=[image, prompt]
-                )
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": prompt},
+                            {
+                                "inlineData": {
+                                    "mimeType": mime_type,
+                                    "data": base64_data
+                                }
+                            }
+                        ]
+                    }]
+                }
                 
-                text_response = response.text.strip()
+                headers = {'Content-Type': 'application/json'}
+                response = requests.post(url, headers=headers, json=payload)
+                response_json = response.json()
+                
+                # Estrazione del testo dalla risposta della chiamata HTTP
+                text_response = response_json['candidates'][0]['content']['parts'][0]['text'].strip()
                 
                 if "{" in text_response and "}" in text_response:
                     start_idx = text_response.find("{")
@@ -87,7 +108,7 @@ if uploaded_file is not None:
                 st.rerun()
             
             except Exception as e:
-                st.error(f"Errore durante l'analisi: {e}")
+                st.error(f"Errore durante l'analisi diretta: {e}")
 
 st.markdown("---")
 
@@ -102,7 +123,7 @@ else:
     st.info("La watchlist è vuota. Carica un'immagine sopra per popolarla.")
     selected_ticker = "AAPL"
 
-# Widget di TradingView sempre allineato
+# Widget di TradingView
 import streamlit.components.v1 as components
 html_code = f"""
 <div class="tradingview-widget-container" style="height:500px;">
@@ -110,14 +131,8 @@ html_code = f"""
   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <script type="text/javascript">
   new TradingView.widget({{
-    "width": "100%",
-    "height": 500,
-    "symbol": "{selected_ticker}",
-    "interval": "D",
-    "theme": "light",
-    "style": "1",
-    "locale": "it",
-    "container_id": "tradingview_chart"
+    "width": "100%", "height": 500, "symbol": "{selected_ticker}",
+    "interval": "D", "theme": "light", "style": "1", "locale": "it", "container_id": "tradingview_chart"
   }});
   </script>
 </div>
