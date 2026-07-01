@@ -8,7 +8,7 @@ import os
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Configurazione Gemini
+# Configurazione Gemini con forzatura della versione API corretta
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except:
@@ -29,14 +29,12 @@ else:
 # --- SEZIONE 1: CARICAMENTO E ANALISI AUTOMATICA ---
 st.subheader("1. Carica Grafico per Analisi Automatica con Gemini")
 
-# MODIFICATO: aggiunto 'webp' tra i formati consentiti
 uploaded_file = st.file_uploader("Trascina qui lo screenshot del grafico", type=['png', 'jpg', 'jpeg', 'webp'])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption='Grafico caricato', use_container_width=False, width=400)
     
-    # Utilizziamo una form per evitare il reset della pagina al click del bottone
     with st.form(key='analisi_form'):
         st.write("Clicca sul bottone qui sotto per avviare l'analisi visiva dei livelli.")
         submit_button = st.form_submit_button(label='Analizza Grafico con Gemini')
@@ -44,11 +42,12 @@ if uploaded_file is not None:
     if submit_button:
         with st.spinner("Gemini sta analizzando il grafico..."):
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # MODIFICATO: Usiamo la stringa di modello aggiornata e stabile
+                model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
                 
                 prompt = """
                 Analizza questa immagine di un grafico finanziario. 
-                Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati sul grafico.
+                Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD, o nomi di crypto/azioni) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati visivamente sul grafico.
                 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido con questa struttura, senza testo prima o dopo:
                 {
                     "ticker": "NOME_TICKER",
@@ -60,10 +59,18 @@ if uploaded_file is not None:
                 """
                 
                 response = model.generate_content([prompt, image])
-                clean_text = response.text.replace("```json", "").replace("```", "").strip()
+                
+                # Pulizia del testo per garantire il parsing JSON corretto
+                clean_text = response.text.strip()
+                if clean_text.startswith("```json"):
+                    clean_text = clean_text.split("```json")[1]
+                if clean_text.endswith("```"):
+                    clean_text = clean_text.split("```")[0]
+                clean_text = clean_text.strip()
+                
                 data = json.loads(clean_text)
                 
-                # Salvataggio immediato nel file CSV locale del server
+                # Salvataggio immediato nel file CSV
                 nuovo_dato = {
                     "Ticker": data['ticker'].upper(),
                     "Livello 1": data['livello_1'],
@@ -85,6 +92,8 @@ st.markdown("---")
 st.subheader("2. La tua Watchlist di Attenzione")
 
 if not st.session_state.watchlist_df.empty:
+    # Rimuove righe duplicate se presenti
+    st.session_state.watchlist_df.drop_duplicates(subset=['Ticker'], keep='last', inplace=True)
     st.dataframe(st.session_state.watchlist_df, use_container_width=True)
     selected_ticker = st.selectbox("Seleziona un ticker dalla lista per aprire il grafico:", st.session_state.watchlist_df['Ticker'].tolist())
 else:
@@ -92,6 +101,7 @@ else:
     selected_ticker = "AAPL"
 
 # Widget di TradingView sempre allineato
+import streamlit.components.v1 as components
 html_code = f"""
 <div class="tradingview-widget-container" style="height:500px;">
   <div id="tradingview_chart"></div>
