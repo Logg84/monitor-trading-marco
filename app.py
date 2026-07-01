@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
-from google import genai
+# MODIFICATO: Importazione isolata per evitare conflitti con altri moduli 'google'
+import google.genai as gemini_api
+from google.genai import types
 from PIL import Image
 import json
 import os
@@ -8,10 +10,9 @@ import os
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Configurazione del client Gemini usando il nuovo SDK ufficiale
+# Configurazione del client Gemini con la nuova libreria isolata
 try:
-    # Il nuovo SDK legge automaticamente la variabile d'ambiente o la configuriamo così:
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    client = gemini_api.Client(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
     st.error(f"Errore di configurazione Chiave API: {e}")
 
@@ -56,7 +57,7 @@ if uploaded_file is not None:
                 Se ci sono meno di 3 livelli, imposta a null quelli mancanti. I numeri devono essere puri (senza simboli di valuta).
                 """
                 
-                # Nuova sintassi del Client ufficiale di Google
+                # Chiamata eseguita tramite il modulo isolato e sicuro
                 response = client.models.generate_content(
                     model='gemini-1.5-flash',
                     contents=[image, prompt]
