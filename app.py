@@ -8,13 +8,13 @@ import os
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Configurazione Gemini con forzatura della versione API corretta
+# Configurazione Gemini
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except:
     st.error("Chiave API di Gemini non trovata nei Secrets di Streamlit!")
 
-# Nome del file database persistente
+# Nome del file database speciale
 DB_FILE = "watchlist.csv"
 
 # Caricamento iniziale del database
@@ -42,12 +42,12 @@ if uploaded_file is not None:
     if submit_button:
         with st.spinner("Gemini sta analizzando il grafico..."):
             try:
-                # MODIFICATO: Usiamo la stringa di modello aggiornata e stabile
-                model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+                # MODIFICATO: Usiamo la stringa pura 'gemini-1.5-flash', la più compatibile in assoluto
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 
                 prompt = """
                 Analizza questa immagine di un grafico finanziario. 
-                Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD, o nomi di crypto/azioni) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati visivamente sul grafico.
+                Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati visivamente sul grafico.
                 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido con questa struttura, senza testo prima o dopo:
                 {
                     "ticker": "NOME_TICKER",
@@ -60,27 +60,30 @@ if uploaded_file is not None:
                 
                 response = model.generate_content([prompt, image])
                 
-                # Pulizia del testo per garantire il parsing JSON corretto
-                clean_text = response.text.strip()
-                if clean_text.startswith("```json"):
-                    clean_text = clean_text.split("```json")[1]
-                if clean_text.endswith("```"):
-                    clean_text = clean_text.split("```")[0]
-                clean_text = clean_text.strip()
+                # Sistema di pulizia stringa robusto per estrarre solo il JSON
+                text_response = response.text.strip()
+                
+                # Se la risposta è avvolta nel markdown di tipo ```json ... ``` lo puliamo
+                if "{" in text_response and "}" in text_response:
+                    start_idx = text_response.find("{")
+                    end_idx = text_response.rfind("}") + 1
+                    clean_text = text_response[start_idx:end_idx]
+                else:
+                    clean_text = text_response
                 
                 data = json.loads(clean_text)
                 
-                # Salvataggio immediato nel file CSV
+                # Salvataggio nel file CSV
                 nuovo_dato = {
-                    "Ticker": data['ticker'].upper(),
-                    "Livello 1": data['livello_1'],
-                    "Livello 2": data['livello_2'],
-                    "Livello 3": data['livello_3']
+                    "Ticker": str(data['ticker']).upper().strip(),
+                    "Livello 1": data.get('livello_1'),
+                    "Livello 2": data.get('livello_2'),
+                    "Livello 3": data.get('livello_3')
                 }
                 
                 st.session_state.watchlist_df = pd.concat([st.session_state.watchlist_df, pd.DataFrame([nuovo_dato])], ignore_index=True)
                 st.session_state.watchlist_df.to_csv(DB_FILE, index=False)
-                st.success(f"Analisi Completata! Aggiunto {data['ticker']} con i relativi livelli.")
+                st.success(f"Analisi Completata! Aggiunto {nuovo_dato['Ticker']} alla Watchlist.")
                 st.rerun()
             
             except Exception as e:
@@ -92,7 +95,6 @@ st.markdown("---")
 st.subheader("2. La tua Watchlist di Attenzione")
 
 if not st.session_state.watchlist_df.empty:
-    # Rimuove righe duplicate se presenti
     st.session_state.watchlist_df.drop_duplicates(subset=['Ticker'], keep='last', inplace=True)
     st.dataframe(st.session_state.watchlist_df, use_container_width=True)
     selected_ticker = st.selectbox("Seleziona un ticker dalla lista per aprire il grafico:", st.session_state.watchlist_df['Ticker'].tolist())
