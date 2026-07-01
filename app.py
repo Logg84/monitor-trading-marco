@@ -82,18 +82,55 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 # ---------------------------------------------------------------
 # CSV: lettura / scrittura
 # ---------------------------------------------------------------
+COLONNE_ATTESE = ["Ticker", "Livello 1", "Livello 2", "Livello 3"]
+
+# Mappa colonne vecchie/alternative -> nuovo schema, per evitare KeyError
+# se il CSV nel repo è stato creato da una versione precedente dell'app.
+ALIAS_COLONNE = {
+    "ticker": "Ticker",
+    "livello": "Livello 1",
+    "livello_1": "Livello 1",
+    "livello_2": "Livello 2",
+    "livello_3": "Livello 3",
+}
+
+
 def carica_watchlist() -> pd.DataFrame:
-    if os.path.exists(CSV_PATH):
-        return pd.read_csv(CSV_PATH)
-    return pd.DataFrame(columns=["Ticker", "Livello 1", "Livello 2", "Livello 3"])
+    if not os.path.exists(CSV_PATH):
+        return pd.DataFrame(columns=COLONNE_ATTESE)
+
+    df = pd.read_csv(CSV_PATH)
+
+    # Migrazione automatica: rinomina eventuali colonne con schema vecchio
+    df = df.rename(columns=ALIAS_COLONNE)
+
+    # Aggiunge colonne mancanti (es. Livello 2/3 se il vecchio CSV ne aveva solo una)
+    for col in COLONNE_ATTESE:
+        if col not in df.columns:
+            df[col] = 0
+
+    df = df[COLONNE_ATTESE]  # ordina/filtra colonne, scarta extra
+
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
+
+    return df
 
 
 def salva_riga(ticker: str, l1: float, l2: float, l3: float):
     df = carica_watchlist()
-    nuova_riga = pd.DataFrame(
-        [{"Ticker": ticker, "Livello 1": l1, "Livello 2": l2, "Livello 3": l3}]
-    )
-    df = pd.concat([df, nuova_riga], ignore_index=True)
+    ticker = ticker.strip().upper()
+
+    if ticker in df["Ticker"].str.upper().values:
+        # Ticker già presente: sovrascrive i livelli sulla riga esistente
+        idx = df[df["Ticker"].str.upper() == ticker].index[0]
+        df.loc[idx, ["Livello 1", "Livello 2", "Livello 3"]] = [l1, l2, l3]
+    else:
+        nuova_riga = pd.DataFrame(
+            [{"Ticker": ticker, "Livello 1": l1, "Livello 2": l2, "Livello 3": l3}]
+        )
+        df = pd.concat([df, nuova_riga], ignore_index=True)
+
     df.to_csv(CSV_PATH, index=False)
     return df
 
@@ -147,7 +184,7 @@ st.divider()
 st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
 
-if df.empty:
+if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
 else:
     st.dataframe(df, use_container_width=True)
