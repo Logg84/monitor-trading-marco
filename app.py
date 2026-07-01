@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 import json
 import os
@@ -8,13 +8,14 @@ import os
 st.set_page_config(page_title="Monitor Trading", layout="wide")
 st.title("Monitoraggio Asset - Ufficio Logistica")
 
-# Configurazione Gemini
+# Configurazione del client Gemini usando il nuovo SDK ufficiale
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except:
-    st.error("Chiave API di Gemini non trovata nei Secrets di Streamlit!")
+    # Il nuovo SDK legge automaticamente la variabile d'ambiente o la configuriamo così:
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+except Exception as e:
+    st.error(f"Errore di configurazione Chiave API: {e}")
 
-# Nome del file database speciale
+# Nome del file database persistente
 DB_FILE = "watchlist.csv"
 
 # Caricamento iniziale del database
@@ -42,9 +43,6 @@ if uploaded_file is not None:
     if submit_button:
         with st.spinner("Gemini sta analizzando il grafico..."):
             try:
-                # MODIFICATO: Usiamo la stringa pura 'gemini-1.5-flash', la più compatibile in assoluto
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                
                 prompt = """
                 Analizza questa immagine di un grafico finanziario. 
                 Trova il Ticker (es. AAPL, EURUSD, TSLA, BTCUSD) e identifica fino a 3 livelli di prezzo o di attenzione principali indicati visivamente sul grafico.
@@ -58,12 +56,14 @@ if uploaded_file is not None:
                 Se ci sono meno di 3 livelli, imposta a null quelli mancanti. I numeri devono essere puri (senza simboli di valuta).
                 """
                 
-                response = model.generate_content([prompt, image])
+                # Nuova sintassi del Client ufficiale di Google
+                response = client.models.generate_content(
+                    model='gemini-1.5-flash',
+                    contents=[image, prompt]
+                )
                 
-                # Sistema di pulizia stringa robusto per estrarre solo il JSON
                 text_response = response.text.strip()
                 
-                # Se la risposta è avvolta nel markdown di tipo ```json ... ``` lo puliamo
                 if "{" in text_response and "}" in text_response:
                     start_idx = text_response.find("{")
                     end_idx = text_response.rfind("}") + 1
@@ -73,7 +73,6 @@ if uploaded_file is not None:
                 
                 data = json.loads(clean_text)
                 
-                # Salvataggio nel file CSV
                 nuovo_dato = {
                     "Ticker": str(data['ticker']).upper().strip(),
                     "Livello 1": data.get('livello_1'),
