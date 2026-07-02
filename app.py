@@ -8,7 +8,65 @@ from google.genai import types
 CSV_PATH = "watchlist.csv"
 MODEL_NAME = "gemini-2.5-flash"  # se non disponibile, provare "gemini-2.0-flash"
 
-st.set_page_config(page_title="Watchlist Grafici", layout="wide")
+st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
+
+# ---------------------------------------------------------------
+# STILE — palette coerente con le linee del grafico (giallo/verde/rosso),
+# font monospace per i numeri (leggibilità dati), spaziature ridotte.
+# ---------------------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+.block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1200px; }
+
+h1 { font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em; margin-bottom: 0.2rem !important; }
+h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 !important;
+     text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0 !important; }
+
+hr { margin: 1.4rem 0 !important; border-color: #232733 !important; }
+
+/* Riga watchlist come card */
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+    display: flex; align-items: center;
+}
+
+.wl-ticker {
+    font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 0.95rem;
+    color: #e8eaed; letter-spacing: 0.02em;
+}
+
+.wl-badge {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 6px; display: inline-block;
+    border: 1px solid transparent;
+}
+.wl-badge.l1 { color: #f0b90b; background: rgba(240,185,11,0.10); border-color: rgba(240,185,11,0.25); }
+.wl-badge.l2 { color: #00c176; background: rgba(0,193,118,0.10); border-color: rgba(0,193,118,0.25); }
+.wl-badge.l3 { color: #ff4d4d; background: rgba(255,77,77,0.10); border-color: rgba(255,77,77,0.25); }
+.wl-badge.empty { color: #4a5568; background: transparent; border: 1px dashed #2d3340; }
+
+.wl-header {
+    font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;
+    padding-bottom: 6px; border-bottom: 1px solid #232733; margin-bottom: 4px;
+}
+
+div[data-testid="stButton"] button {
+    border: 1px solid #2d3340; background: transparent; color: #6b7280;
+    border-radius: 6px; transition: all 0.15s ease;
+}
+div[data-testid="stButton"] button:hover {
+    border-color: #ff4d4d; color: #ff4d4d; background: rgba(255,77,77,0.08);
+}
+
+div[data-testid="stFileUploaderDropzone"] {
+    border: 1px dashed #2d3340; background: #0f1219; border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------
 # CLIENT GEMINI (nuovo SDK ufficiale, NON google-generativeai)
@@ -241,16 +299,50 @@ def elimina_riga(ticker: str):
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
 else:
-    st.write("**Watchlist:**")
+    h1, h2, h3_, h4, h5, h6 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4])
+    for col, label in zip((h1, h2, h3_, h4), ("Ticker", "Livello 1", "Livello 2", "Livello 3")):
+        col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
+    h5.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
+    h6.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
+
+    def badge(valore, classe):
+        if pd.isna(valore) or valore == 0:
+            return f'<span class="wl-badge empty">—</span>'
+        return f'<span class="wl-badge {classe}">{valore:g}</span>'
+
+    if "editing_ticker" not in st.session_state:
+        st.session_state["editing_ticker"] = None
+
     for _, r in df.iterrows():
-        c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.5, 1.5, 0.8])
-        c1.write(r["Ticker"])
-        c2.write(r["Livello 1"])
-        c3.write(r["Livello 2"])
-        c4.write(r["Livello 3"])
-        if c5.button("🗑️", key=f"del_{r['Ticker']}"):
-            elimina_riga(r["Ticker"])
-            st.rerun()
+        ticker_riga = r["Ticker"]
+
+        if st.session_state["editing_ticker"] == ticker_riga:
+            c1, c2, c3, c4, c5, c6 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4])
+            c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
+            nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
+            nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
+            nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
+            if c5.button("💾", key=f"save_{ticker_riga}"):
+                salva_riga(ticker_riga, nl1, nl2, nl3)
+                st.session_state["editing_ticker"] = None
+                st.rerun()
+            if c6.button("✖️", key=f"cancel_{ticker_riga}"):
+                st.session_state["editing_ticker"] = None
+                st.rerun()
+        else:
+            c1, c2, c3, c4, c5, c6 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4])
+            c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
+            c2.markdown(badge(r["Livello 1"], "l1"), unsafe_allow_html=True)
+            c3.markdown(badge(r["Livello 2"], "l2"), unsafe_allow_html=True)
+            c4.markdown(badge(r["Livello 3"], "l3"), unsafe_allow_html=True)
+            if c5.button("✏️", key=f"edit_{ticker_riga}"):
+                st.session_state["editing_ticker"] = ticker_riga
+                st.rerun()
+            if c6.button("🗑️", key=f"del_{ticker_riga}"):
+                elimina_riga(ticker_riga)
+                st.rerun()
+
+    st.write("")
 
     ticker_selezionato = st.selectbox("Seleziona ticker per il grafico", df["Ticker"].unique())
     riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
