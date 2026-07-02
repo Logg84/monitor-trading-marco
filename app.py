@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import yfinance as yf
 from PIL import Image
 from google import genai
 from google.genai import types
@@ -20,7 +21,7 @@ st.markdown("""
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-.block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1200px; }
+.block-container { padding-top: 2rem; padding-bottom: 2rem; padding-left: 2rem; padding-right: 2rem; max-width: 100%; }
 
 h1 { font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em; margin-bottom: 0.2rem !important; }
 h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 !important;
@@ -57,6 +58,13 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
 div[data-testid="stButton"] button {
     border: 1px solid #2d3340; background: transparent; color: #6b7280;
     border-radius: 6px; transition: all 0.15s ease;
+}
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {
+    color: #e8eaed; font-family: 'IBM Plex Mono', monospace; font-weight: 600;
+    text-align: left; border: none; background: transparent; padding-left: 0;
+}
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {
+    color: #f0b90b; background: transparent; border: none;
 }
 div[data-testid="stButton"] button:hover {
     border-color: #ff4d4d; color: #ff4d4d; background: rgba(255,77,77,0.08);
@@ -276,6 +284,21 @@ st.divider()
 st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
 
+@st.cache_data(ttl=86400)
+def determina_exchange(ticker_yf: str) -> str:
+    """Recupera l'exchange reale via yfinance, cache 24h per non rallentare l'app."""
+    mappa_exchange = {
+        "NMS": "nasdaq", "NGM": "nasdaq", "NCM": "nasdaq",
+        "NYQ": "nyse", "ASE": "amex", "PCX": "amex",
+    }
+    try:
+        info = yf.Ticker(ticker_yf).info
+        codice = info.get("exchange", "")
+        return mappa_exchange.get(codice, "nasdaq")
+    except Exception:
+        return "nasdaq"
+
+
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
 
@@ -299,11 +322,11 @@ def elimina_riga(ticker: str):
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
 else:
-    h1, h2, h3_, h4, h5, h6 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4])
+    h1, h2, h3_, h4, h5, h6, h7, h8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
     for col, label in zip((h1, h2, h3_, h4), ("Ticker", "Livello 1", "Livello 2", "Livello 3")):
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
-    h5.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
-    h6.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
+    for col in (h5, h6, h7, h8):
+        col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
 
     def badge(valore, classe):
         if pd.isna(valore) or valore == 0:
@@ -317,7 +340,7 @@ else:
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c6 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4])
+            c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
             c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
             nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
@@ -330,21 +353,34 @@ else:
                 st.session_state["editing_ticker"] = None
                 st.rerun()
         else:
-            c1, c2, c3, c4, c5, c6 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4])
-            c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
+            c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
+            if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
+                st.session_state["ticker_grafico"] = ticker_riga
+                st.rerun()
             c2.markdown(badge(r["Livello 1"], "l1"), unsafe_allow_html=True)
             c3.markdown(badge(r["Livello 2"], "l2"), unsafe_allow_html=True)
             c4.markdown(badge(r["Livello 3"], "l3"), unsafe_allow_html=True)
-            if c5.button("✏️", key=f"edit_{ticker_riga}"):
+            ticker_yf_riga = mappa_ticker_yfinance(ticker_riga)
+            tv_symbol = ticker_yf_riga.replace('=X', '').replace('-', '')
+            tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
+            exch = determina_exchange(ticker_yf_riga)
+            fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
+            c5.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
+            c6.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
+            if c7.button("✏️", key=f"edit_{ticker_riga}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
-            if c6.button("🗑️", key=f"del_{ticker_riga}"):
+            if c8.button("🗑️", key=f"del_{ticker_riga}"):
                 elimina_riga(ticker_riga)
                 st.rerun()
 
     st.write("")
 
-    ticker_selezionato = st.selectbox("Seleziona ticker per il grafico", df["Ticker"].unique())
+    # Ticker selezionato cliccando sul nome nella lista sopra (default: primo della lista)
+    if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
+        st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
+    ticker_selezionato = st.session_state["ticker_grafico"]
+
     riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
     livelli = [
         float(riga[f"Livello {i}"])
@@ -352,11 +388,23 @@ else:
         if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0
     ]
 
-    import yfinance as yf
     import json as _json
 
+    TIMEFRAMES = {
+        "1M": ("1mo", "1d"),
+        "3M": ("3mo", "1d"),
+        "6M": ("6mo", "1d"),
+        "1A": ("1y", "1d"),
+        "5A": ("5y", "1wk"),
+    }
+    st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
+    timeframe = st.radio(
+        "Timeframe", list(TIMEFRAMES.keys()), index=2, horizontal=True, label_visibility="collapsed"
+    )
+    periodo, intervallo = TIMEFRAMES[timeframe]
+
     ticker_yf = mappa_ticker_yfinance(ticker_selezionato)
-    storico = yf.Ticker(ticker_yf).history(period="6mo", interval="1d")
+    storico = yf.Ticker(ticker_yf).history(period=periodo, interval=intervallo)
 
     if storico.empty:
         st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_yf}).")
