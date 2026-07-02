@@ -49,16 +49,15 @@ def carica_watchlist() -> pd.DataFrame:
 
     return df
 
-# Distanza (in %) sotto la quale consideriamo "raggiunto" il livello.
-# Serve perché il controllo è periodico (ogni 15 min), non continuo:
-# raramente il prezzo passerà esattamente sul livello esatto.
-SOGLIA_TRIGGER_PCT = 0.15
+# Distanza (in %) sotto la quale consideriamo "nella zona" del livello.
+# Per operazioni di lungo termine non serve precisione al tick: una zona
+# più ampia intercetta l'avvicinamento al livello, non solo il tocco esatto.
+# Esempio: livello 171.36 con soglia 1% -> zona ~169.6 - 173.1
+SOGLIA_TRIGGER_PCT = 2.0
 
-# Distanza (in %) oltre la quale, se il prezzo si allontana dal livello,
-# "resettiamo" l'alert per permettere una nuova notifica se il prezzo
-# ritorna sul livello in futuro. Evita spam ripetuto ogni 15 minuti
-# mentre il prezzo oscilla vicino al livello.
-SOGLIA_RESET_PCT = 1.0
+# Distanza (in %) oltre la quale, se il prezzo esce dalla zona, resettiamo
+# l'alert per permettere una nuova notifica se il prezzo ci ritorna.
+SOGLIA_RESET_PCT = 5.0
 
 # Crypto conosciute: ticker Yahoo Finance ha il formato BTC-USD, non BTCUSD
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
@@ -147,7 +146,7 @@ def main():
                 msg = (
                     f"🔔 {ticker}\n"
                     f"Prezzo attuale: {prezzo:.4f}\n"
-                    f"Livello {i} raggiunto: {livello:.4f}"
+                    f"Zona livello {i} raggiunta (livello: {livello:.4f}, ±{SOGLIA_TRIGGER_PCT}%)"
                 )
                 invia_telegram(msg)
                 stato[chiave] = True
