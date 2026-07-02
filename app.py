@@ -85,6 +85,8 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 import base64
 import requests
 
+COLONNE_ATTESE = ["Ticker", "Livello 1", "Livello 2", "Livello 3"]
+
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")  # es. "Logg84/monitor-trading-marco"
 
