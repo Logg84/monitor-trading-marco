@@ -213,10 +213,23 @@ with col_result:
 st.divider()
 
 # ---------------------------------------------------------------
-# TABELLA + GRAFICO TRADINGVIEW
+# TABELLA + GRAFICO CON LIVELLI DISEGNATI (Lightweight Charts)
 # ---------------------------------------------------------------
 st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
+
+CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
+
+
+def mappa_ticker_yfinance(ticker: str) -> str:
+    t = ticker.strip().upper()
+    for base in CRYPTO_NOTE:
+        if t == f"{base}USD":
+            return f"{base}-USD"
+    if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
+        return f"{t}=X"
+    return t
+
 
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
@@ -224,27 +237,73 @@ else:
     st.dataframe(df, use_container_width=True)
 
     ticker_selezionato = st.selectbox("Seleziona ticker per il grafico", df["Ticker"].unique())
+    riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
+    livelli = [
+        float(riga[f"Livello {i}"])
+        for i in (1, 2, 3)
+        if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0
+    ]
 
-    tradingview_html = f"""
-    <div class="tradingview-widget-container">
-      <div id="tradingview_chart"></div>
-      <script src="https://s3.tradingview.com/tv.js"></script>
-      <script>
-      new TradingView.widget({{
-        "width": "100%",
-        "height": 600,
-        "symbol": "{ticker_selezionato}",
-        "interval": "D",
-        "timezone": "Europe/Rome",
-        "theme": "dark",
-        "style": "1",
-        "locale": "it",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview_chart"
-      }});
-      </script>
-    </div>
-    """
-    st.components.v1.html(tradingview_html, height=620)
+    import yfinance as yf
+    import json as _json
+
+    ticker_yf = mappa_ticker_yfinance(ticker_selezionato)
+    storico = yf.Ticker(ticker_yf).history(period="6mo", interval="1d")
+
+    if storico.empty:
+        st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_yf}).")
+    else:
+        candele = [
+            {
+                "time": idx.strftime("%Y-%m-%d"),
+                "open": round(r["Open"], 4),
+                "high": round(r["High"], 4),
+                "low": round(r["Low"], 4),
+                "close": round(r["Close"], 4),
+            }
+            for idx, r in storico.iterrows()
+        ]
+
+        colori_livelli = ["#f0b90b", "#00c176", "#ff4d4d"]
+        linee_js = "\n".join(
+            f'candleSeries.createPriceLine({{'
+            f'price: {liv}, color: "{colori_livelli[i % 3]}", '
+            f'lineWidth: 2, lineStyle: 2, '
+            f'title: "Livello {i+1}: {liv}" }});'
+            for i, liv in enumerate(livelli)
+        )
+
+        chart_html = f"""
+        <div id="chart_container" style="width:100%; height:600px;"></div>
+        <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+        <script>
+          const container = document.getElementById('chart_container');
+          const chart = LightweightCharts.createChart(container, {{
+            width: container.clientWidth,
+            height: 600,
+            layout: {{ background: {{ color: '#0e1117' }}, textColor: '#d1d4dc' }},
+            grid: {{
+              vertLines: {{ color: '#1e222d' }},
+              horzLines: {{ color: '#1e222d' }},
+            }},
+            timeScale: {{ borderColor: '#485c7b' }},
+          }});
+
+          const candleSeries = chart.addCandlestickSeries({{
+            upColor: '#26a69a', downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+          }});
+
+          candleSeries.setData({_json.dumps(candele)});
+
+          {linee_js}
+
+          chart.timeScale().fitContent();
+
+          new ResizeObserver(entries => {{
+            chart.applyOptions({{ width: entries[0].contentRect.width }});
+          }}).observe(container);
+        </script>
+        """
+        st.components.v1.html(chart_html, height=620)
