@@ -322,11 +322,19 @@ def elimina_riga(ticker: str):
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
 else:
+    ricerca = st.text_input(
+        "Cerca ticker", placeholder="🔍 Cerca ticker...", label_visibility="collapsed"
+    )
+    df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
+
     h1, h2, h3_, h4, h5, h6, h7, h8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
     for col, label in zip((h1, h2, h3_, h4), ("Ticker", "Livello 1", "Livello 2", "Livello 3")):
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
     for col in (h5, h6, h7, h8):
         col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
+
+    if df_visualizzata.empty:
+        st.caption("Nessun ticker corrisponde alla ricerca.")
 
     def badge(valore, classe):
         if pd.isna(valore) or valore == 0:
@@ -336,7 +344,7 @@ else:
     if "editing_ticker" not in st.session_state:
         st.session_state["editing_ticker"] = None
 
-    for _, r in df.iterrows():
+    for _, r in df_visualizzata.iterrows():
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
@@ -390,28 +398,35 @@ else:
 
     import json as _json
 
+    # (period_yfinance, interval_yfinance, resample_pandas)
+    # Il resample serve solo per 4H, che yfinance non offre nativamente.
     TIMEFRAMES = {
-        "1M": ("1mo", "1d"),
-        "3M": ("3mo", "1d"),
-        "6M": ("6mo", "1d"),
-        "1A": ("1y", "1d"),
-        "5A": ("5y", "1wk"),
+        "4H": ("730d", "60m", "4h"),   # limite Yahoo per dati orari: ~2 anni, non aggirabile
+        "1D": ("10y", "1d", None),
+        "1W": ("10y", "1wk", None),
+        "1M": ("max", "1mo", None),
     }
     st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
     timeframe = st.radio(
-        "Timeframe", list(TIMEFRAMES.keys()), index=2, horizontal=True, label_visibility="collapsed"
+        "Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed"
     )
-    periodo, intervallo = TIMEFRAMES[timeframe]
+    periodo, intervallo, resample_a = TIMEFRAMES[timeframe]
 
     ticker_yf = mappa_ticker_yfinance(ticker_selezionato)
     storico = yf.Ticker(ticker_yf).history(period=periodo, interval=intervallo)
 
+    if resample_a and not storico.empty:
+        storico = storico.resample(resample_a).agg({
+            "Open": "first", "High": "max", "Low": "min", "Close": "last",
+        }).dropna()
+
     if storico.empty:
         st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_yf}).")
     else:
+        usa_timestamp = timeframe == "4H"
         candele = [
             {
-                "time": idx.strftime("%Y-%m-%d"),
+                "time": int(idx.timestamp()) if usa_timestamp else idx.strftime("%Y-%m-%d"),
                 "open": round(r["Open"], 4),
                 "high": round(r["High"], 4),
                 "low": round(r["Low"], 4),
@@ -442,7 +457,7 @@ else:
               vertLines: {{ color: '#1e222d' }},
               horzLines: {{ color: '#1e222d' }},
             }},
-            timeScale: {{ borderColor: '#485c7b' }},
+            timeScale: {{ borderColor: '#485c7b', timeVisible: {str(usa_timestamp).lower()} }},
           }});
 
           const candleSeries = chart.addCandlestickSeries({{
