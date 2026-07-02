@@ -1,3 +1,4 @@
-ticker,livello
-AAPL,293.36
-TSLA,250.00
+Ticker,Livello 1,Livello 2,Livello 3
+AAPL,293.36,0.0,0.0
+TSLA,250.0,0.0,0.0
+VEEV,171.36,168.5,178.0
