@@ -19,6 +19,36 @@ import requests
 CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
 
+COLONNE_ATTESE = ["Ticker", "Livello 1", "Livello 2", "Livello 3"]
+
+# Stessa mappa usata in app.py, per coerenza tra i due script
+ALIAS_COLONNE = {
+    "ticker": "Ticker",
+    "livello": "Livello 1",
+    "livello_1": "Livello 1",
+    "livello_2": "Livello 2",
+    "livello_3": "Livello 3",
+}
+
+
+def carica_watchlist() -> pd.DataFrame:
+    if not os.path.exists(CSV_PATH):
+        return pd.DataFrame(columns=COLONNE_ATTESE)
+
+    df = pd.read_csv(CSV_PATH)
+    df = df.rename(columns=ALIAS_COLONNE)
+
+    for col in COLONNE_ATTESE:
+        if col not in df.columns:
+            df[col] = 0
+
+    df = df[COLONNE_ATTESE]
+
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
+
+    return df
+
 # Distanza (in %) sotto la quale consideriamo "raggiunto" il livello.
 # Serve perché il controllo è periodico (ogni 15 min), non continuo:
 # raramente il prezzo passerà esattamente sul livello esatto.
@@ -88,11 +118,11 @@ def salva_stato(stato: dict):
 
 
 def main():
-    if not os.path.exists(CSV_PATH):
-        print("watchlist.csv non trovato, nessun controllo da fare.")
+    df = carica_watchlist()
+    if df.empty:
+        print("watchlist.csv vuoto, nessun controllo da fare.")
         return
 
-    df = pd.read_csv(CSV_PATH)
     stato = carica_stato()
 
     for _, row in df.iterrows():
