@@ -231,10 +231,26 @@ def mappa_ticker_yfinance(ticker: str) -> str:
     return t
 
 
+def elimina_riga(ticker: str):
+    df = carica_watchlist()
+    df = df[df["Ticker"] != ticker]
+    df.to_csv(CSV_PATH, index=False)
+    commit_csv_su_github(df)
+
+
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
 else:
-    st.dataframe(df, use_container_width=True)
+    st.write("**Watchlist:**")
+    for _, r in df.iterrows():
+        c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.5, 1.5, 0.8])
+        c1.write(r["Ticker"])
+        c2.write(r["Livello 1"])
+        c3.write(r["Livello 2"])
+        c4.write(r["Livello 3"])
+        if c5.button("🗑️", key=f"del_{r['Ticker']}"):
+            elimina_riga(r["Ticker"])
+            st.rerun()
 
     ticker_selezionato = st.selectbox("Seleziona ticker per il grafico", df["Ticker"].unique())
     riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
