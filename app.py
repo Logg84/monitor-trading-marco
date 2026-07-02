@@ -82,7 +82,38 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 # ---------------------------------------------------------------
 # CSV: lettura / scrittura
 # ---------------------------------------------------------------
-COLONNE_ATTESE = ["Ticker", "Livello 1", "Livello 2", "Livello 3"]
+import base64
+import requests
+
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO")  # es. "Logg84/monitor-trading-marco"
+
+
+def commit_csv_su_github(df: pd.DataFrame):
+    """Scrive watchlist.csv direttamente nel repo GitHub via Contents API,
+    così i dati sopravvivono al riavvio/sleep del container Streamlit Cloud."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return  # secrets non configurati: salva solo in locale (non persistente)
+
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    # Serve lo sha del file esistente per fare un update (non una creazione)
+    r = requests.get(url, headers=headers)
+    sha = r.json().get("sha") if r.status_code == 200 else None
+
+    contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
+    payload = {
+        "message": "Aggiorna watchlist.csv da app Streamlit",
+        "content": contenuto_b64,
+        "branch": "main",
+    }
+    if sha:
+        payload["sha"] = sha
+
+    resp = requests.put(url, headers=headers, json=payload)
+    if resp.status_code not in (200, 201):
+        st.warning(f"Salvataggio su GitHub fallito: {resp.status_code} {resp.text[:200]}")
 
 # Mappa colonne vecchie/alternative -> nuovo schema, per evitare KeyError
 # se il CSV nel repo è stato creato da una versione precedente dell'app.
@@ -132,6 +163,7 @@ def salva_riga(ticker: str, l1: float, l2: float, l3: float):
         df = pd.concat([df, nuova_riga], ignore_index=True)
 
     df.to_csv(CSV_PATH, index=False)
+    commit_csv_su_github(df)
     return df
 
 
