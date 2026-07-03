@@ -7,11 +7,12 @@ la guarda, quindi gli alert reali devono partire da qui.
 Richiede due secrets (impostati come GitHub Actions Secrets, NON Streamlit
 Secrets, perché questo script gira via GitHub Actions):
   TELEGRAM_BOT_TOKEN
-  TELEGRAM_CHAT_ID
+  TELEGRAM_CHAT_ID   -> uno o più chat_id separati da virgola, es: "111,222"
 """
 
 import os
 import json
+import time
 import pandas as pd
 import yfinance as yf
 import requests
@@ -59,6 +60,10 @@ SOGLIA_TRIGGER_PCT = 2.0
 # l'alert per permettere una nuova notifica se il prezzo ci ritorna.
 SOGLIA_RESET_PCT = 5.0
 
+# Se il prezzo resta nella zona più a lungo di questo, rimandiamo un
+# promemoria invece di restare in silenzio finché non esce dalla zona.
+RIALERT_ORE = 4
+
 # Crypto conosciute: ticker Yahoo Finance ha il formato BTC-USD, non BTCUSD
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
@@ -97,11 +102,18 @@ def prezzo_corrente(ticker_yf: str) -> float | None:
 
 
 def invia_telegram(messaggio: str):
+    """Manda il messaggio a tutti i chat_id in TELEGRAM_CHAT_ID (separati da virgola).
+    Se un destinatario fallisce, prova comunque gli altri invece di bloccarsi."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
-    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    chat_ids = [c.strip() for c in os.environ["TELEGRAM_CHAT_ID"].split(",") if c.strip()]
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    resp = requests.post(url, data={"chat_id": chat_id, "text": messaggio})
-    resp.raise_for_status()
+
+    for chat_id in chat_ids:
+        try:
+            resp = requests.post(url, data={"chat_id": chat_id, "text": messaggio})
+            resp.raise_for_status()
+        except Exception as e:
+            print(f"Invio fallito per chat_id {chat_id}: {e}")
 
 
 def carica_stato() -> dict:
@@ -123,6 +135,7 @@ def main():
         return
 
     stato = carica_stato()
+    ora_attuale = time.time()
 
     for _, row in df.iterrows():
         ticker = str(row["Ticker"]).strip().upper()
@@ -140,21 +153,31 @@ def main():
 
             chiave = f"{ticker}_L{i}"
             distanza_pct = abs(prezzo - livello) / livello * 100
-            gia_allertato = stato.get(chiave, False)
+            ultimo_invio = stato.get(chiave)  # timestamp float, o None se mai inviato
 
-            if distanza_pct <= SOGLIA_TRIGGER_PCT and not gia_allertato:
+            # Compatibilità con il vecchio stato booleano (True/False) usato prima
+            if isinstance(ultimo_invio, bool):
+                ultimo_invio = ora_attuale if ultimo_invio else None
+
+            dentro_zona = distanza_pct <= SOGLIA_TRIGGER_PCT
+            fuori_reset = distanza_pct > SOGLIA_RESET_PCT
+
+            if dentro_zona and (
+                ultimo_invio is None or (ora_attuale - ultimo_invio) >= RIALERT_ORE * 3600
+            ):
                 msg = (
                     f"🔔 {ticker}\n"
                     f"Prezzo attuale: {prezzo:.4f}\n"
                     f"Zona livello {i} raggiunta (livello: {livello:.4f}, ±{SOGLIA_TRIGGER_PCT}%)"
                 )
                 invia_telegram(msg)
-                stato[chiave] = True
+                stato[chiave] = ora_attuale
                 print(f"Alert inviato: {chiave}")
 
-            elif distanza_pct > SOGLIA_RESET_PCT and gia_allertato:
-                # Il prezzo si è allontanato abbastanza: permette un futuro re-alert
-                stato[chiave] = False
+            elif fuori_reset and ultimo_invio is not None:
+                # Il prezzo si è allontanato abbastanza: reset completo, prossimo
+                # ingresso in zona invierà subito un alert "nuovo"
+                del stato[chiave]
 
     salva_stato(stato)
 
