@@ -151,7 +151,7 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 import base64
 import requests
 
-COLONNE_ATTESE = ["Ticker", "Livello 1", "Livello 2", "Livello 3"]
+COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")  # es. "Logg84/monitor-trading-marco"
@@ -206,7 +206,7 @@ def carica_watchlist() -> pd.DataFrame:
     # Aggiunge colonne mancanti (es. Livello 2/3 se il vecchio CSV ne aveva solo una)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = 0
+            df[col] = "" if col.startswith("Nota") else 0
 
     df = df[COLONNE_ATTESE]  # ordina/filtra colonne, scarta extra
 
@@ -216,18 +216,20 @@ def carica_watchlist() -> pd.DataFrame:
     return df
 
 
-def salva_riga(ticker: str, l1: float, l2: float, l3: float):
+def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: str = "", n3: str = ""):
     df = carica_watchlist()
     ticker = ticker.strip().upper()
 
     if ticker in df["Ticker"].str.upper().values:
-        # Ticker già presente: sovrascrive i livelli sulla riga esistente
         idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        df.loc[idx, ["Livello 1", "Livello 2", "Livello 3"]] = [l1, l2, l3]
+        df.loc[idx, ["Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]] = [
+            l1, n1, l2, n2, l3, n3
+        ]
     else:
-        nuova_riga = pd.DataFrame(
-            [{"Ticker": ticker, "Livello 1": l1, "Livello 2": l2, "Livello 3": l3}]
-        )
+        nuova_riga = pd.DataFrame([{
+            "Ticker": ticker, "Livello 1": l1, "Nota 1": n1,
+            "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
+        }])
         df = pd.concat([df, nuova_riga], ignore_index=True)
 
     df.to_csv(CSV_PATH, index=False)
@@ -268,11 +270,14 @@ with col_result:
 
         ticker_edit = st.text_input("Ticker", value=dati.get("ticker", ""))
         l1_edit = st.number_input("Livello 1", value=float(dati.get("livello_1", 0) or 0))
+        n1_edit = st.text_input("Nota Livello 1 (opzionale)", value="", placeholder="es. supporto storico")
         l2_edit = st.number_input("Livello 2", value=float(dati.get("livello_2", 0) or 0))
+        n2_edit = st.text_input("Nota Livello 2 (opzionale)", value="", placeholder="es. media mobile 200")
         l3_edit = st.number_input("Livello 3", value=float(dati.get("livello_3", 0) or 0))
+        n3_edit = st.text_input("Nota Livello 3 (opzionale)", value="", placeholder="es. resistenza ATH")
 
         if st.button("💾 Salva in watchlist"):
-            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit)
+            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, n1_edit, n2_edit, n3_edit)
             del st.session_state["ultima_analisi"]
             st.rerun()
 
@@ -336,10 +341,12 @@ else:
     if df_visualizzata.empty:
         st.caption("Nessun ticker corrisponde alla ricerca.")
 
-    def badge(valore, classe):
+    def badge(valore, classe, nota=""):
         if pd.isna(valore) or valore == 0:
             return f'<span class="wl-badge empty">—</span>'
-        return f'<span class="wl-badge {classe}">{valore:g}</span>'
+        title = f' title="{nota}"' if nota else ""
+        icona = " 📝" if nota else ""
+        return f'<span class="wl-badge {classe}"{title}>{valore:g}{icona}</span>'
 
     if "editing_ticker" not in st.session_state:
         st.session_state["editing_ticker"] = None
@@ -354,20 +361,30 @@ else:
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
             nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
             if c5.button("💾", key=f"save_{ticker_riga}"):
-                salva_riga(ticker_riga, nl1, nl2, nl3)
+                salva_riga(
+                    ticker_riga, nl1, nl2, nl3,
+                    st.session_state.get(f"edit_n1_{ticker_riga}", r["Nota 1"]),
+                    st.session_state.get(f"edit_n2_{ticker_riga}", r["Nota 2"]),
+                    st.session_state.get(f"edit_n3_{ticker_riga}", r["Nota 3"]),
+                )
                 st.session_state["editing_ticker"] = None
                 st.rerun()
             if c6.button("✖️", key=f"cancel_{ticker_riga}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
+
+            _, nc1, nc2, nc3, _ = st.columns([2, 1.5, 1.5, 1.5, 0.8])
+            nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 1")
+            nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 2")
+            nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
             c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
             if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
-            c2.markdown(badge(r["Livello 1"], "l1"), unsafe_allow_html=True)
-            c3.markdown(badge(r["Livello 2"], "l2"), unsafe_allow_html=True)
-            c4.markdown(badge(r["Livello 3"], "l3"), unsafe_allow_html=True)
+            c2.markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
+            c3.markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
+            c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
             ticker_yf_riga = mappa_ticker_yfinance(ticker_riga)
             tv_symbol = ticker_yf_riga.replace('=X', '').replace('-', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
@@ -478,3 +495,48 @@ else:
         </script>
         """
         st.components.v1.html(chart_html, height=620)
+
+
+# ---------------------------------------------------------------
+# STORICO ALERT — letto direttamente da GitHub (non dal disco locale
+# dell'app, che si aggiorna solo al riavvio) così è sempre aggiornato
+# anche se l'ultimo alert è arrivato pochi minuti fa via GitHub Actions.
+# ---------------------------------------------------------------
+st.divider()
+st.subheader("🕘 Storico Alert")
+
+HISTORY_PATH = "alert_history.csv"
+
+
+@st.cache_data(ttl=60)
+def carica_storico_alert() -> pd.DataFrame:
+    colonne = ["Data", "Ticker", "Livello", "Valore Livello", "Nota", "Prezzo al momento"]
+
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_PATH}"
+            headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+            r = requests.get(url, headers=headers)
+            if r.status_code == 200:
+                import io
+                contenuto = base64.b64decode(r.json()["content"]).decode()
+                return pd.read_csv(io.StringIO(contenuto))
+        except Exception:
+            pass  # fallback sotto
+
+    if os.path.exists(HISTORY_PATH):
+        return pd.read_csv(HISTORY_PATH)
+
+    return pd.DataFrame(columns=colonne)
+
+
+storico_alert = carica_storico_alert()
+
+if storico_alert.empty:
+    st.caption("Nessun alert ancora scattato.")
+else:
+    st.dataframe(
+        storico_alert.sort_values("Data", ascending=False),
+        use_container_width=True,
+        hide_index=True,
+    )
