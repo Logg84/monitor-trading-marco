@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import datetime
 import yfinance as yf
 from PIL import Image
 from google import genai
@@ -317,6 +318,53 @@ def mappa_ticker_yfinance(ticker: str) -> str:
     return t
 
 
+@st.cache_data(ttl=120)
+def dati_prezzo_trend(ticker_yf: str) -> dict:
+    """Prezzo attuale + variazione % ultimi 7gg e ultimi 30gg (un'unica chiamata)."""
+    try:
+        h = yf.Ticker(ticker_yf).history(period="3mo", interval="1d")
+        if h.empty:
+            return {}
+        prezzo = float(h["Close"].iloc[-1])
+        chiusure = h["Close"]
+        var_1s = ((prezzo / chiusure.iloc[-6]) - 1) * 100 if len(chiusure) > 6 else None
+        var_1m = ((prezzo / chiusure.iloc[-22]) - 1) * 100 if len(chiusure) > 22 else None
+        return {"prezzo": prezzo, "var_1s": var_1s, "var_1m": var_1m}
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=86400)
+def stagionalita_mensile(ticker_yf: str) -> dict:
+    """Rendimento medio storico (fino a 15 anni) per il mese precedente/attuale/successivo."""
+    try:
+        h = yf.Ticker(ticker_yf).history(period="15y", interval="1mo")
+        if h.empty or len(h) < 12:
+            return {}
+        rendimenti = h["Close"].pct_change().dropna() * 100
+        rendimenti_per_mese = rendimenti.groupby(rendimenti.index.month).mean()
+
+        oggi = datetime.date.today()
+        mese_prec = 12 if oggi.month == 1 else oggi.month - 1
+        mese_succ = 1 if oggi.month == 12 else oggi.month + 1
+
+        return {
+            "prec": rendimenti_per_mese.get(mese_prec),
+            "att": rendimenti_per_mese.get(oggi.month),
+            "succ": rendimenti_per_mese.get(mese_succ),
+        }
+    except Exception:
+        return {}
+
+
+def span_variazione(valore, con_freccia=True) -> str:
+    if valore is None or pd.isna(valore):
+        return '<span style="color:#4a5568;">—</span>'
+    colore = "#00c176" if valore >= 0 else "#ff4d4d"
+    freccia = ("▲" if valore >= 0 else "▼") if con_freccia else ""
+    return f'<span style="color:{colore}; font-family:\'IBM Plex Mono\',monospace; font-size:0.8rem;">{freccia} {valore:+.1f}%</span>'
+
+
 def elimina_riga(ticker: str):
     df = carica_watchlist()
     df = df[df["Ticker"] != ticker]
@@ -332,10 +380,15 @@ else:
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
 
-    h1, h2, h3_, h4, h5, h6, h7, h8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
-    for col, label in zip((h1, h2, h3_, h4), ("Ticker", "Livello 1", "Livello 2", "Livello 3")):
+    COLS = [2, 1.3, 1.3, 1.3, 1, 1.3, 2.2, 0.4, 0.4, 0.4, 0.4]
+    h1, h2, h3_, h4, h5, h6, h7, h8, h9, h10, h11 = st.columns(COLS)
+    etichette = zip(
+        (h1, h2, h3_, h4, h5, h6, h7),
+        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo", "Trend 1S/1M", "Stagion. (prec/att/succ)"),
+    )
+    for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
-    for col in (h5, h6, h7, h8):
+    for col in (h8, h9, h10, h11):
         col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
 
     if df_visualizzata.empty:
@@ -355,12 +408,14 @@ else:
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(COLS)
             c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
             nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
             nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
-            if c5.button("💾", key=f"save_{ticker_riga}"):
+            for col in (c5, c6, c7):
+                col.write("")
+            if c10.button("💾", key=f"save_{ticker_riga}"):
                 salva_riga(
                     ticker_riga, nl1, nl2, nl3,
                     st.session_state.get(f"edit_n1_{ticker_riga}", r["Nota 1"]),
@@ -369,33 +424,57 @@ else:
                 )
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-            if c6.button("✖️", key=f"cancel_{ticker_riga}"):
+            if c11.button("✖️", key=f"cancel_{ticker_riga}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
 
-            _, nc1, nc2, nc3, _ = st.columns([2, 1.5, 1.5, 1.5, 0.8])
+            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 4.9])
             nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 1")
             nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 2")
             nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
-            c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1.5, 1.5, 1.5, 0.4, 0.4, 0.4, 0.4])
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(COLS)
             if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
             c2.markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
             c3.markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
             c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
+
             ticker_yf_riga = mappa_ticker_yfinance(ticker_riga)
+            pt = dati_prezzo_trend(ticker_yf_riga)
+            stag = stagionalita_mensile(ticker_yf_riga)
+
+            if pt.get("prezzo") is not None:
+                c5.markdown(
+                    f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{pt["prezzo"]:.2f}</span>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                c5.markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
+
+            c6.markdown(
+                f'{span_variazione(pt.get("var_1s"))}&nbsp;/&nbsp;{span_variazione(pt.get("var_1m"))}',
+                unsafe_allow_html=True,
+            )
+
+            c7.markdown(
+                f'{span_variazione(stag.get("prec"), con_freccia=False)}&nbsp;'
+                f'{span_variazione(stag.get("att"), con_freccia=False)}&nbsp;'
+                f'{span_variazione(stag.get("succ"), con_freccia=False)}',
+                unsafe_allow_html=True,
+            )
+
             tv_symbol = ticker_yf_riga.replace('=X', '').replace('-', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
             exch = determina_exchange(ticker_yf_riga)
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
-            c5.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
-            c6.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
-            if c7.button("✏️", key=f"edit_{ticker_riga}"):
+            c8.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
+            c9.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
+            if c10.button("✏️", key=f"edit_{ticker_riga}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
-            if c8.button("🗑️", key=f"del_{ticker_riga}"):
+            if c11.button("🗑️", key=f"del_{ticker_riga}"):
                 elimina_riga(ticker_riga)
                 st.rerun()
 
