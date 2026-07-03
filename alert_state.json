@@ -10,5 +10,7 @@
   "TAK_L1": true,
   "TAK_L2": true,
   "CRSP_L1": true,
-  "MDT_L3": true
+  "MDT_L3": true,
+  "DLO_L1": 1783071214.384799,
+  "MANH_L3": 1783071214.384799
 }
