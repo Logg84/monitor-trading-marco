@@ -13,14 +13,16 @@ Secrets, perché questo script gira via GitHub Actions):
 import os
 import json
 import time
+import datetime
 import pandas as pd
 import yfinance as yf
 import requests
 
 CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
+HISTORY_PATH = "alert_history.csv"
 
-COLONNE_ATTESE = ["Ticker", "Livello 1", "Livello 2", "Livello 3"]
+COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]
 
 # Stessa mappa usata in app.py, per coerenza tra i due script
 ALIAS_COLONNE = {
@@ -41,7 +43,7 @@ def carica_watchlist() -> pd.DataFrame:
 
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = 0
+            df[col] = "" if col.startswith("Nota") else 0
 
     df = df[COLONNE_ATTESE]
 
@@ -50,38 +52,26 @@ def carica_watchlist() -> pd.DataFrame:
 
     return df
 
+
 # Distanza (in %) sotto la quale consideriamo "nella zona" del livello.
-# Per operazioni di lungo termine non serve precisione al tick: una zona
-# più ampia intercetta l'avvicinamento al livello, non solo il tocco esatto.
-# Esempio: livello 171.36 con soglia 1% -> zona ~169.6 - 173.1
 SOGLIA_TRIGGER_PCT = 2.0
 
-# Distanza (in %) oltre la quale, se il prezzo esce dalla zona, resettiamo
-# l'alert per permettere una nuova notifica se il prezzo ci ritorna.
+# Distanza (in %) oltre la quale, se il prezzo esce dalla zona, resettiamo l'alert.
 SOGLIA_RESET_PCT = 5.0
 
-# Se il prezzo resta nella zona più a lungo di questo, rimandiamo un
-# promemoria invece di restare in silenzio finché non esce dalla zona.
+# Se il prezzo resta nella zona più a lungo di questo, rimandiamo un promemoria.
 RIALERT_ORE = 4
 
-# Crypto conosciute: ticker Yahoo Finance ha il formato BTC-USD, non BTCUSD
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
 
 def mappa_ticker_yfinance(ticker: str) -> str:
-    """Converte il ticker salvato in watchlist nel formato richiesto da Yahoo Finance."""
     t = ticker.strip().upper()
-
-    # Crypto: BTCUSD -> BTC-USD
     for base in CRYPTO_NOTE:
         if t == f"{base}USD":
             return f"{base}-USD"
-
-    # Forex: coppia di 6 lettere non-crypto -> EURUSD=X
     if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
         return f"{t}=X"
-
-    # Azioni/indici: lascia invariato (AAPL, TSLA, ecc.)
     return t
 
 
@@ -90,7 +80,6 @@ def prezzo_corrente(ticker_yf: str) -> float | None:
         info = yf.Ticker(ticker_yf)
         prezzo = info.fast_info.get("lastPrice")
         if prezzo is None:
-            # fallback se fast_info non ha il dato
             hist = info.history(period="1d", interval="1m")
             if hist.empty:
                 return None
@@ -102,12 +91,9 @@ def prezzo_corrente(ticker_yf: str) -> float | None:
 
 
 def invia_telegram(messaggio: str):
-    """Manda il messaggio a tutti i chat_id in TELEGRAM_CHAT_ID (separati da virgola).
-    Se un destinatario fallisce, prova comunque gli altri invece di bloccarsi."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     chat_ids = [c.strip() for c in os.environ["TELEGRAM_CHAT_ID"].split(",") if c.strip()]
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-
     for chat_id in chat_ids:
         try:
             resp = requests.post(url, data={"chat_id": chat_id, "text": messaggio})
@@ -126,6 +112,26 @@ def carica_stato() -> dict:
 def salva_stato(stato: dict):
     with open(STATE_PATH, "w") as f:
         json.dump(stato, f, indent=2)
+
+
+def registra_storico(ticker: str, livello_n: int, livello_val: float, nota: str, prezzo: float):
+    """Aggiunge una riga allo storico alert (alert_history.csv), creandolo se manca."""
+    riga = pd.DataFrame([{
+        "Data": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "Ticker": ticker,
+        "Livello": livello_n,
+        "Valore Livello": livello_val,
+        "Nota": nota,
+        "Prezzo al momento": round(prezzo, 4),
+    }])
+
+    if os.path.exists(HISTORY_PATH):
+        storico = pd.read_csv(HISTORY_PATH)
+        storico = pd.concat([storico, riga], ignore_index=True)
+    else:
+        storico = riga
+
+    storico.to_csv(HISTORY_PATH, index=False)
 
 
 def main():
@@ -148,14 +154,14 @@ def main():
 
         for i in (1, 2, 3):
             livello = row.get(f"Livello {i}")
+            nota = str(row.get(f"Nota {i}", "") or "").strip()
             if pd.isna(livello) or livello == 0:
                 continue
 
             chiave = f"{ticker}_L{i}"
             distanza_pct = abs(prezzo - livello) / livello * 100
-            ultimo_invio = stato.get(chiave)  # timestamp float, o None se mai inviato
+            ultimo_invio = stato.get(chiave)
 
-            # Compatibilità con il vecchio stato booleano (True/False) usato prima
             if isinstance(ultimo_invio, bool):
                 ultimo_invio = ora_attuale if ultimo_invio else None
 
@@ -165,18 +171,19 @@ def main():
             if dentro_zona and (
                 ultimo_invio is None or (ora_attuale - ultimo_invio) >= RIALERT_ORE * 3600
             ):
+                nota_riga = f"\n📝 {nota}" if nota else ""
                 msg = (
                     f"🔔 {ticker}\n"
                     f"Prezzo attuale: {prezzo:.4f}\n"
                     f"Zona livello {i} raggiunta (livello: {livello:.4f}, ±{SOGLIA_TRIGGER_PCT}%)"
+                    f"{nota_riga}"
                 )
                 invia_telegram(msg)
+                registra_storico(ticker, i, livello, nota, prezzo)
                 stato[chiave] = ora_attuale
                 print(f"Alert inviato: {chiave}")
 
             elif fuori_reset and ultimo_invio is not None:
-                # Il prezzo si è allontanato abbastanza: reset completo, prossimo
-                # ingresso in zona invierà subito un alert "nuovo"
                 del stato[chiave]
 
     salva_stato(stato)
