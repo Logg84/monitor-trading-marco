@@ -2,7 +2,7 @@ name: Controllo alert prezzi
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # ogni 15 minuti, 24/7 (UTC)
+    - cron: "*/5 * * * *"  # ogni 5 minuti, 24/7 (UTC)
   workflow_dispatch: {}       # permette anche l'avvio manuale da GitHub
 
 permissions:
