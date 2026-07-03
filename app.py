@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import datetime
+import time
 import yfinance as yf
 from PIL import Image
 from google import genai
@@ -152,7 +153,7 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 import base64
 import requests
 
-COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]
+COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3", "Screenshot"]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")  # es. "Logg84/monitor-trading-marco"
@@ -184,6 +185,44 @@ def commit_csv_su_github(df: pd.DataFrame):
     if resp.status_code not in (200, 201):
         st.warning(f"Salvataggio su GitHub fallito: {resp.status_code} {resp.text[:200]}")
 
+
+def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione: str) -> str | None:
+    """Salva lo screenshot originale nel repo, cartella screenshots/. Ritorna il path salvato."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+
+    nome_file = f"screenshots/{ticker}_{int(time.time())}.{estensione}"
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{nome_file}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+    payload = {
+        "message": f"Aggiungi screenshot {ticker}",
+        "content": base64.b64encode(contenuto_bytes).decode(),
+        "branch": "main",
+    }
+    resp = requests.put(url, headers=headers, json=payload)
+    if resp.status_code in (200, 201):
+        return nome_file
+    st.warning(f"Salvataggio screenshot fallito: {resp.status_code} {resp.text[:200]}")
+    return None
+
+
+@st.cache_data(ttl=600)
+def dimensione_repo_kb() -> int | None:
+    """Dimensione totale del repo in KB, per avvisare prima di avvicinarsi ai limiti pratici di GitHub."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    try:
+        r = requests.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}",
+            headers={"Authorization": f"token {GITHUB_TOKEN}"},
+        )
+        if r.status_code == 200:
+            return r.json().get("size")  # GitHub restituisce già in KB
+    except Exception:
+        pass
+    return None
+
 # Mappa colonne vecchie/alternative -> nuovo schema, per evitare KeyError
 # se il CSV nel repo è stato creato da una versione precedente dell'app.
 ALIAS_COLONNE = {
@@ -207,7 +246,7 @@ def carica_watchlist() -> pd.DataFrame:
     # Aggiunge colonne mancanti (es. Livello 2/3 se il vecchio CSV ne aveva solo una)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = "" if col.startswith("Nota") else 0
+            df[col] = "" if (col.startswith("Nota") or col == "Screenshot") else 0
 
     df = df[COLONNE_ATTESE]  # ordina/filtra colonne, scarta extra
 
@@ -217,7 +256,7 @@ def carica_watchlist() -> pd.DataFrame:
     return df
 
 
-def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: str = "", n3: str = ""):
+def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: str = "", n3: str = "", screenshot_path: str = None):
     df = carica_watchlist()
     ticker = ticker.strip().upper()
 
@@ -226,10 +265,13 @@ def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: s
         df.loc[idx, ["Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]] = [
             l1, n1, l2, n2, l3, n3
         ]
+        if screenshot_path:  # aggiorna lo screenshot solo se ne è stato caricato uno nuovo
+            df.loc[idx, "Screenshot"] = screenshot_path
     else:
         nuova_riga = pd.DataFrame([{
             "Ticker": ticker, "Livello 1": l1, "Nota 1": n1,
             "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
+            "Screenshot": screenshot_path or "",
         }])
         df = pd.concat([df, nuova_riga], ignore_index=True)
 
@@ -278,7 +320,13 @@ with col_result:
         n3_edit = st.text_input("Nota Livello 3 (opzionale)", value="", placeholder="es. resistenza ATH")
 
         if st.button("💾 Salva in watchlist"):
-            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, n1_edit, n2_edit, n3_edit)
+            screenshot_path = None
+            if uploaded_file is not None:
+                estensione = uploaded_file.type.split("/")[-1] if uploaded_file.type else "png"
+                screenshot_path = carica_screenshot_su_github(
+                    ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
+                )
+            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, n1_edit, n2_edit, n3_edit, screenshot_path)
             del st.session_state["ultima_analisi"]
             st.rerun()
 
@@ -380,15 +428,15 @@ else:
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
 
-    COLS = [2, 1.3, 1.3, 1.3, 1, 1.3, 2.2, 0.4, 0.4, 0.4, 0.4]
-    h1, h2, h3_, h4, h5, h6, h7, h8, h9, h10, h11 = st.columns(COLS)
+    COLS = [2, 1.3, 1.3, 1.3, 1, 1.3, 2.2, 0.4, 0.4, 0.4, 0.4, 0.4]
+    h1, h2, h3_, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(COLS)
     etichette = zip(
         (h1, h2, h3_, h4, h5, h6, h7),
         ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo", "Trend 1S/1M", "Stagion. (prec/att/succ)"),
     )
     for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
-    for col in (h8, h9, h10, h11):
+    for col in (h8, h9, h10, h11, h12):
         col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
 
     if df_visualizzata.empty:
@@ -408,14 +456,14 @@ else:
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(COLS)
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
             c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
             nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
             nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
-            for col in (c5, c6, c7):
+            for col in (c5, c6, c7, c8):
                 col.write("")
-            if c10.button("💾", key=f"save_{ticker_riga}"):
+            if c11.button("💾", key=f"save_{ticker_riga}"):
                 salva_riga(
                     ticker_riga, nl1, nl2, nl3,
                     st.session_state.get(f"edit_n1_{ticker_riga}", r["Nota 1"]),
@@ -424,16 +472,16 @@ else:
                 )
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-            if c11.button("✖️", key=f"cancel_{ticker_riga}"):
+            if c12.button("✖️", key=f"cancel_{ticker_riga}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
 
-            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 4.9])
+            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 5.3])
             nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 1")
             nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 2")
             nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
-            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(COLS)
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
             if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
@@ -471,14 +519,50 @@ else:
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
             c8.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
             c9.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
-            if c10.button("✏️", key=f"edit_{ticker_riga}"):
+            if r.get("Screenshot"):
+                if c10.button("🖼️", key=f"screenshot_{ticker_riga}"):
+                    st.session_state["screenshot_da_mostrare"] = r["Screenshot"]
+                    st.rerun()
+            else:
+                c10.write("")
+            if c11.button("✏️", key=f"edit_{ticker_riga}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
-            if c11.button("🗑️", key=f"del_{ticker_riga}"):
+            if c12.button("🗑️", key=f"del_{ticker_riga}"):
                 elimina_riga(ticker_riga)
                 st.rerun()
 
     st.write("")
+
+    if st.session_state.get("screenshot_da_mostrare"):
+        path = st.session_state["screenshot_da_mostrare"]
+        try:
+            r_img = requests.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}",
+                headers={"Authorization": f"token {GITHUB_TOKEN}"},
+            )
+            if r_img.status_code == 200:
+                img_bytes = base64.b64decode(r_img.json()["content"])
+                with st.expander("🖼️ Screenshot originale", expanded=True):
+                    st.image(img_bytes, use_container_width=True)
+                    if st.button("Chiudi anteprima"):
+                        st.session_state["screenshot_da_mostrare"] = None
+                        st.rerun()
+            else:
+                st.warning("Screenshot non trovato nel repo.")
+        except Exception as e:
+            st.warning(f"Impossibile caricare lo screenshot: {e}")
+
+    # Contatore dimensione repo — GitHub non ha un hard-limit rigido, ma oltre
+    # 1GB le performance calano; avviso per tempo prima di arrivarci.
+    dim_kb = dimensione_repo_kb()
+    if dim_kb is not None:
+        dim_mb = dim_kb / 1024
+        soglia_mb = 800
+        if dim_mb >= soglia_mb:
+            st.warning(f"⚠️ Il repo occupa {dim_mb:.0f} MB, si sta avvicinando al limite consigliato (~1 GB). Valuta di ripulire vecchi screenshot.")
+        else:
+            st.caption(f"Spazio repo usato: {dim_mb:.0f} MB / ~1000 MB consigliati")
 
     # Ticker selezionato cliccando sul nome nella lista sopra (default: primo della lista)
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
