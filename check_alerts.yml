@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write  # necessario per fare commit di alert_state.json
 
+concurrency:
+  group: controllo-alert-prezzi
+  cancel-in-progress: false  # in coda, non annulla un run già in corso
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -21,7 +25,7 @@ jobs:
           python-version: "3.11"
 
       - name: Installa dipendenze
-        run: pip install pandas yfinance requests
+        run: pip install pandas yfinance requests mplfinance
 
       - name: Esegui controllo alert
         env:
