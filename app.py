@@ -366,9 +366,24 @@ def mappa_ticker_yfinance(ticker: str) -> str:
     return t
 
 
+def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
+    if len(chiusure) < periodo + 1:
+        return None
+    delta = chiusure.diff()
+    guadagni = delta.clip(lower=0)
+    perdite = -delta.clip(upper=0)
+    media_guadagni = guadagni.rolling(periodo).mean()
+    media_perdite = perdite.rolling(periodo).mean()
+    ultimo_g, ultimo_p = media_guadagni.iloc[-1], media_perdite.iloc[-1]
+    if ultimo_p == 0:
+        return 100.0
+    rs = ultimo_g / ultimo_p
+    return 100 - (100 / (1 + rs))
+
+
 @st.cache_data(ttl=120)
 def dati_prezzo_trend(ticker_yf: str) -> dict:
-    """Prezzo attuale + variazione % ultimi 7gg e ultimi 30gg (un'unica chiamata)."""
+    """Prezzo attuale + variazione % ultimi 7gg/30gg + RSI e volume relativo per il momentum."""
     try:
         h = yf.Ticker(ticker_yf).history(period="3mo", interval="1d")
         if h.empty:
@@ -377,7 +392,18 @@ def dati_prezzo_trend(ticker_yf: str) -> dict:
         chiusure = h["Close"]
         var_1s = ((prezzo / chiusure.iloc[-6]) - 1) * 100 if len(chiusure) > 6 else None
         var_1m = ((prezzo / chiusure.iloc[-22]) - 1) * 100 if len(chiusure) > 22 else None
-        return {"prezzo": prezzo, "var_1s": var_1s, "var_1m": var_1m}
+
+        rsi = calcola_rsi(chiusure)
+        vol_rel = None
+        if "Volume" in h.columns and len(h) > 20:
+            vol_medio = h["Volume"].iloc[-21:-1].mean()
+            if vol_medio > 0:
+                vol_rel = (h["Volume"].iloc[-1] / vol_medio) * 100
+
+        return {
+            "prezzo": prezzo, "var_1s": var_1s, "var_1m": var_1m,
+            "rsi": rsi, "vol_rel": vol_rel,
+        }
     except Exception:
         return {}
 
@@ -413,6 +439,21 @@ def span_variazione(valore, con_freccia=True) -> str:
     return f'<span style="color:{colore}; font-family:\'IBM Plex Mono\',monospace; font-size:0.8rem;">{freccia} {valore:+.1f}%</span>'
 
 
+def badge_momentum(rsi, vol_rel) -> str:
+    if rsi is None:
+        return '<span style="color:#4a5568;">—</span>'
+    if rsi >= 60 and (vol_rel or 0) >= 120:
+        colore, testo = "#00c176", "💪 Forte"
+    elif rsi <= 40 and (vol_rel or 0) >= 120:
+        colore, testo = "#ff4d4d", "💪 Debole"
+    elif (vol_rel or 0) < 80:
+        colore, testo = "#f0b90b", "⚠️ Volume basso"
+    else:
+        colore, testo = "#9aa4b2", "Neutro"
+    vol_txt = f" · Vol {vol_rel:.0f}%" if vol_rel else ""
+    return f'<span style="color:{colore}; font-size:0.78rem;">RSI {rsi:.0f} · {testo}{vol_txt}</span>'
+
+
 def elimina_riga(ticker: str):
     df = carica_watchlist()
     df = df[df["Ticker"] != ticker]
@@ -428,11 +469,11 @@ else:
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
 
-    COLS = [2, 1.3, 1.3, 1.3, 1, 1.3, 2.2, 0.4, 0.4, 0.4, 0.4, 0.4]
-    h1, h2, h3_, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(COLS)
+    COLS = [2, 1.3, 1.3, 1.3, 1, 1.3, 1.6, 2.2, 0.4, 0.4, 0.4, 0.4, 0.4]
+    h1, h2, h3_, h4, h5, h6, h6b, h7, h8, h9, h10, h11, h12 = st.columns(COLS)
     etichette = zip(
-        (h1, h2, h3_, h4, h5, h6, h7),
-        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo", "Trend 1S/1M", "Stagion. (prec/att/succ)"),
+        (h1, h2, h3_, h4, h5, h6, h6b, h7),
+        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo", "Trend 1S/1M", "Momentum", "Stagion. (prec/att/succ)"),
     )
     for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
@@ -456,12 +497,12 @@ else:
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
+            c1, c2, c3, c4, c5, c6, c6b, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
             c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
             nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
             nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
-            for col in (c5, c6, c7, c8):
+            for col in (c5, c6, c6b, c7, c8):
                 col.write("")
             if c11.button("💾", key=f"save_{ticker_riga}"):
                 salva_riga(
@@ -476,12 +517,12 @@ else:
                 st.session_state["editing_ticker"] = None
                 st.rerun()
 
-            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 5.3])
+            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 6.9])
             nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 1")
             nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 2")
             nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
-            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
+            c1, c2, c3, c4, c5, c6, c6b, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
             if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
@@ -505,6 +546,8 @@ else:
                 f'{span_variazione(pt.get("var_1s"))}&nbsp;/&nbsp;{span_variazione(pt.get("var_1m"))}',
                 unsafe_allow_html=True,
             )
+
+            c6b.markdown(badge_momentum(pt.get("rsi"), pt.get("vol_rel")), unsafe_allow_html=True)
 
             c7.markdown(
                 f'{span_variazione(stag.get("prec"), con_freccia=False)}&nbsp;'
