@@ -2,11 +2,15 @@ name: Controllo alert prezzi
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # ogni 15 minuti, 24/7 (UTC)
+    - cron: "*/5 * * * *"  # ogni 5 minuti, 24/7 (UTC)
   workflow_dispatch: {}       # permette anche l'avvio manuale da GitHub
 
 permissions:
   contents: write  # necessario per fare commit di alert_state.json
+
+concurrency:
+  group: controllo-alert-prezzi
+  cancel-in-progress: false  # in coda, non annulla un run già in corso
 
 jobs:
   check:
@@ -21,7 +25,7 @@ jobs:
           python-version: "3.11"
 
       - name: Installa dipendenze
-        run: pip install pandas yfinance requests
+        run: pip install pandas yfinance requests mplfinance
 
       - name: Esegui controllo alert
         env:
@@ -33,6 +37,6 @@ jobs:
         run: |
           git config user.name "alert-bot"
           git config user.email "alert-bot@users.noreply.github.com"
-          git add alert_state.json
-          git diff --staged --quiet || git commit -m "Aggiorna stato alert"
+          git add alert_state.json alert_history.csv
+          git diff --staged --quiet || git commit -m "Aggiorna stato e storico alert"
           git push
