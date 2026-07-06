@@ -13,10 +13,12 @@ Secrets, perché questo script gira via GitHub Actions):
 import os
 import json
 import time
+import io
 import datetime
 import pandas as pd
 import yfinance as yf
 import requests
+import mplfinance as mpf
 
 CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
@@ -75,6 +77,55 @@ def mappa_ticker_yfinance(ticker: str) -> str:
     return t
 
 
+def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
+    if len(chiusure) < periodo + 1:
+        return None
+    delta = chiusure.diff()
+    guadagni = delta.clip(lower=0)
+    perdite = -delta.clip(upper=0)
+    media_guadagni = guadagni.rolling(periodo).mean()
+    media_perdite = perdite.rolling(periodo).mean()
+    ultimo_g, ultimo_p = media_guadagni.iloc[-1], media_perdite.iloc[-1]
+    if ultimo_p == 0:
+        return 100.0
+    rs = ultimo_g / ultimo_p
+    return 100 - (100 / (1 + rs))
+
+
+def valuta_forza(storico: pd.DataFrame, prezzo: float, livello: float) -> str:
+    """Confronta il breakout (sopra o sotto il livello) con RSI e volume,
+    per capire se è sostenuto da forza reale o è probabile un fake out."""
+    chiusure = storico["Close"]
+    rsi = calcola_rsi(chiusure)
+
+    vol_rel = None
+    if "Volume" in storico.columns and len(storico) > 20:
+        vol_medio = storico["Volume"].iloc[-21:-1].mean()
+        if vol_medio > 0:
+            vol_rel = (storico["Volume"].iloc[-1] / vol_medio) * 100
+
+    if rsi is None:
+        return "Momentum non disponibile"
+
+    sopra_livello = prezzo >= livello
+    vol_ok = (vol_rel or 0) >= 120
+
+    if sopra_livello:
+        if rsi >= 55 and vol_ok:
+            return "💪 Forza reale (RSI e volume confermano)"
+        elif rsi < 50 or (vol_rel or 0) < 80:
+            return "⚠️ Possibile fake out (momentum/volume debole)"
+        else:
+            return "🔸 Segnale incerto"
+    else:
+        if rsi <= 45 and vol_ok:
+            return "💪 Forza reale al ribasso (RSI e volume confermano)"
+        elif rsi > 50 or (vol_rel or 0) < 80:
+            return "⚠️ Possibile fake out al ribasso (momentum/volume debole)"
+        else:
+            return "🔸 Segnale incerto"
+
+
 def prezzo_corrente(ticker_yf: str) -> float | None:
     try:
         info = yf.Ticker(ticker_yf)
@@ -90,16 +141,65 @@ def prezzo_corrente(ticker_yf: str) -> float | None:
         return None
 
 
-def invia_telegram(messaggio: str):
+def genera_grafico(storico: pd.DataFrame, livelli: list) -> bytes | None:
+    """Candele + linee dei livelli (stesso stile del portale). Ritorna PNG in bytes, o None se fallisce."""
+    try:
+        if storico.empty:
+            return None
+
+        hlines_valori, hlines_colori = [], []
+        palette = ["#f0b90b", "#00c176", "#ff4d4d"]
+        for idx, liv in enumerate(livelli):
+            if liv and liv != 0:
+                hlines_valori.append(liv)
+                hlines_colori.append(palette[idx % 3])
+
+        stile = mpf.make_mpf_style(
+            base_mpf_style="nightclouds",
+            marketcolors=mpf.make_marketcolors(up="#26a69a", down="#ef5350", inherit=True),
+            facecolor="#0e1117", edgecolor="#1e222d", figcolor="#0e1117",
+            gridcolor="#1e222d",
+        )
+
+        buf = io.BytesIO()
+        mpf.plot(
+            storico, type="candle", style=stile, volume=False,
+            hlines=dict(hlines=hlines_valori, colors=hlines_colori, linestyle="--", linewidths=1.2),
+            savefig=dict(fname=buf, dpi=110, bbox_inches="tight"),
+            figsize=(9, 5),
+        )
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        print(f"Errore generazione grafico: {e}")
+        return None
+
+
+def invia_telegram(messaggio: str, immagine_bytes: bytes = None):
+    """Manda testo (o foto+caption se c'è un'immagine) a tutti i chat_id configurati."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     chat_ids = [c.strip() for c in os.environ["TELEGRAM_CHAT_ID"].split(",") if c.strip()]
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    for chat_id in chat_ids:
-        try:
-            resp = requests.post(url, data={"chat_id": chat_id, "text": messaggio})
-            resp.raise_for_status()
-        except Exception as e:
-            print(f"Invio fallito per chat_id {chat_id}: {e}")
+
+    if immagine_bytes:
+        url = f"https://api.telegram.org/bot{token}/sendPhoto"
+        for chat_id in chat_ids:
+            try:
+                resp = requests.post(
+                    url,
+                    data={"chat_id": chat_id, "caption": messaggio},
+                    files={"photo": ("grafico.png", immagine_bytes, "image/png")},
+                )
+                resp.raise_for_status()
+            except Exception as e:
+                print(f"Invio foto fallito per chat_id {chat_id}: {e}")
+    else:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        for chat_id in chat_ids:
+            try:
+                resp = requests.post(url, data={"chat_id": chat_id, "text": messaggio})
+                resp.raise_for_status()
+            except Exception as e:
+                print(f"Invio fallito per chat_id {chat_id}: {e}")
 
 
 def carica_stato() -> dict:
@@ -172,13 +272,20 @@ def main():
                 ultimo_invio is None or (ora_attuale - ultimo_invio) >= RIALERT_ORE * 3600
             ):
                 nota_riga = f"\n📝 {nota}" if nota else ""
+
+                storico = yf.Ticker(ticker_yf).history(period="6mo", interval="1d")
+                valutazione = valuta_forza(storico, prezzo, livello) if not storico.empty else "Momentum non disponibile"
+
                 msg = (
                     f"🔔 {ticker}\n"
                     f"Prezzo attuale: {prezzo:.4f}\n"
-                    f"Zona livello {i} raggiunta (livello: {livello:.4f}, ±{SOGLIA_TRIGGER_PCT}%)"
+                    f"Zona livello {i} raggiunta (livello: {livello:.4f}, ±{SOGLIA_TRIGGER_PCT}%)\n"
+                    f"{valutazione}"
                     f"{nota_riga}"
                 )
-                invia_telegram(msg)
+                livelli_ticker = [row.get("Livello 1"), row.get("Livello 2"), row.get("Livello 3")]
+                grafico = genera_grafico(storico, livelli_ticker)
+                invia_telegram(msg, grafico)
                 registra_storico(ticker, i, livello, nota, prezzo)
                 stato[chiave] = ora_attuale
                 print(f"Alert inviato: {chiave}")
