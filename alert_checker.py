@@ -59,10 +59,8 @@ def carica_watchlist() -> pd.DataFrame:
 SOGLIA_TRIGGER_PCT = 2.0
 
 # Distanza (in %) oltre la quale, se il prezzo esce dalla zona, resettiamo l'alert.
-SOGLIA_RESET_PCT = 5.0
+SOGLIA_RESET_PCT = 6.0
 
-# Se il prezzo resta nella zona più a lungo di questo, rimandiamo un promemoria.
-RIALERT_ORE = 4
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
@@ -268,9 +266,7 @@ def main():
             dentro_zona = distanza_pct <= SOGLIA_TRIGGER_PCT
             fuori_reset = distanza_pct > SOGLIA_RESET_PCT
 
-            if dentro_zona and (
-                ultimo_invio is None or (ora_attuale - ultimo_invio) >= RIALERT_ORE * 3600
-            ):
+            if dentro_zona and ultimo_invio is None:
                 nota_riga = f"\n📝 {nota}" if nota else ""
 
                 storico = yf.Ticker(ticker_yf).history(period="6mo", interval="1d")
