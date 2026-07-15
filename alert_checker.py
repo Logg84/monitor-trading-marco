@@ -106,22 +106,22 @@ def valuta_forza(storico: pd.DataFrame, prezzo: float, livello: float) -> str:
         return "Momentum non disponibile"
 
     sopra_livello = prezzo >= livello
-    vol_ok = (vol_rel or 0) >= 120
+    vol_txt = f" (vol {vol_rel:.0f}% media)" if vol_rel is not None else ""
 
     if sopra_livello:
-        if rsi >= 55 and vol_ok:
-            return "💪 Forza reale (RSI e volume confermano)"
-        elif rsi < 50 or (vol_rel or 0) < 80:
-            return "⚠️ Possibile fake out (momentum/volume debole)"
+        if rsi >= 55:
+            return f"💪 Forza reale (RSI {rsi:.0f}){vol_txt}"
+        elif rsi < 45:
+            return f"⚠️ Possibile fake out (RSI {rsi:.0f} debole){vol_txt}"
         else:
-            return "🔸 Segnale incerto"
+            return f"🔸 Segnale incerto (RSI {rsi:.0f}){vol_txt}"
     else:
-        if rsi <= 45 and vol_ok:
-            return "💪 Forza reale al ribasso (RSI e volume confermano)"
-        elif rsi > 50 or (vol_rel or 0) < 80:
-            return "⚠️ Possibile fake out al ribasso (momentum/volume debole)"
+        if rsi <= 45:
+            return f"💪 Forza reale al ribasso (RSI {rsi:.0f}){vol_txt}"
+        elif rsi > 55:
+            return f"⚠️ Possibile fake out al ribasso (RSI {rsi:.0f} in ripresa){vol_txt}"
         else:
-            return "🔸 Segnale incerto"
+            return f"🔸 Segnale incerto (RSI {rsi:.0f}){vol_txt}"
 
 
 def prezzo_corrente(ticker_yf: str) -> float | None:
