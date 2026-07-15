@@ -442,12 +442,10 @@ def span_variazione(valore, con_freccia=True) -> str:
 def badge_momentum(rsi, vol_rel) -> str:
     if rsi is None:
         return '<span style="color:#4a5568;">—</span>'
-    if rsi >= 60 and (vol_rel or 0) >= 120:
+    if rsi >= 60:
         colore, testo = "#00c176", "💪 Forte"
-    elif rsi <= 40 and (vol_rel or 0) >= 120:
+    elif rsi <= 40:
         colore, testo = "#ff4d4d", "💪 Debole"
-    elif (vol_rel or 0) < 80:
-        colore, testo = "#f0b90b", "⚠️ Volume basso"
     else:
         colore, testo = "#9aa4b2", "Neutro"
     vol_txt = f" · Vol {vol_rel:.0f}%" if vol_rel else ""
