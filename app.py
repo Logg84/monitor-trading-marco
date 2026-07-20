@@ -250,6 +250,10 @@ def carica_watchlist() -> pd.DataFrame:
 
     df = df[COLONNE_ATTESE]  # ordina/filtra colonne, scarta extra
 
+    for col in COLONNE_ATTESE:
+        if col.startswith("Nota") or col == "Screenshot":
+            df[col] = df[col].fillna("").astype(str).replace("nan", "")
+
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
 
@@ -262,11 +266,21 @@ def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: s
 
     if ticker in df["Ticker"].str.upper().values:
         idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        df.loc[idx, ["Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]] = [
-            l1, n1, l2, n2, l3, n3
-        ]
+        # Assegnazione colonna per colonna: un'unica assegnazione multi-colonna
+        # con tipi misti (numeri + testo) può fallire con TypeError su pandas
+        # recenti se la colonna era ancora tutta NaN (dtype numerico per default).
+        df["Nota 1"] = df["Nota 1"].astype(object)
+        df["Nota 2"] = df["Nota 2"].astype(object)
+        df["Nota 3"] = df["Nota 3"].astype(object)
+        df.at[idx, "Livello 1"] = l1
+        df.at[idx, "Nota 1"] = n1
+        df.at[idx, "Livello 2"] = l2
+        df.at[idx, "Nota 2"] = n2
+        df.at[idx, "Livello 3"] = l3
+        df.at[idx, "Nota 3"] = n3
         if screenshot_path:  # aggiorna lo screenshot solo se ne è stato caricato uno nuovo
-            df.loc[idx, "Screenshot"] = screenshot_path
+            df["Screenshot"] = df["Screenshot"].astype(object)
+            df.at[idx, "Screenshot"] = screenshot_path
     else:
         nuova_riga = pd.DataFrame([{
             "Ticker": ticker, "Livello 1": l1, "Nota 1": n1,
