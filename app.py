@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import datetime
 import time
-import yfinance as yf
+import requests
 from PIL import Image
 from google import genai
 from google.genai import types
@@ -352,32 +352,71 @@ st.divider()
 st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
 
-@st.cache_data(ttl=86400)
-def determina_exchange(ticker_yf: str) -> str:
-    """Recupera l'exchange reale via yfinance, cache 24h per non rallentare l'app."""
-    mappa_exchange = {
-        "NMS": "nasdaq", "NGM": "nasdaq", "NCM": "nasdaq",
-        "NYQ": "nyse", "ASE": "amex", "PCX": "amex",
-    }
-    try:
-        info = yf.Ticker(ticker_yf).info
-        codice = info.get("exchange", "")
-        return mappa_exchange.get(codice, "nasdaq")
-    except Exception:
-        return "nasdaq"
-
+TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
 
-def mappa_ticker_yfinance(ticker: str) -> str:
+def mappa_ticker_twelvedata(ticker: str) -> str:
+    """Converte il ticker salvato in watchlist nel formato simbolo di Twelve Data."""
     t = ticker.strip().upper()
     for base in CRYPTO_NOTE:
         if t == f"{base}USD":
-            return f"{base}-USD"
+            return f"{base}/USD"
     if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
-        return f"{t}=X"
+        return f"{t[:3]}/{t[3:]}"
     return t
+
+
+@st.cache_data(ttl=1800)
+def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.DataFrame:
+    """Scarica candele OHLCV da Twelve Data. Ritorna DataFrame vuoto se fallisce,
+    indicizzato per data (ordine cronologico crescente), colonne Open/High/Low/Close/Volume."""
+    if not TD_API_KEY:
+        return pd.DataFrame()
+    try:
+        r = requests.get(
+            "https://api.twelvedata.com/time_series",
+            params={
+                "symbol": simbolo, "interval": interval, "outputsize": outputsize,
+                "apikey": TD_API_KEY, "order": "ASC",
+            },
+        )
+        dati = r.json()
+        if dati.get("status") == "error" or "values" not in dati:
+            print(f"Twelve Data errore per {simbolo}: {dati.get('message', dati)}")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(dati["values"])
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.set_index("datetime").sort_index()
+        for col in ("open", "high", "low", "close", "volume"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.rename(columns={
+            "open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume",
+        })
+        return df.dropna(subset=["Close"])
+    except Exception as e:
+        print(f"Errore Twelve Data per {simbolo}: {e}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=86400)
+def determina_exchange(simbolo: str) -> str:
+    """Recupera l'exchange reale via Twelve Data (endpoint quote), cache 24h."""
+    mappa_exchange = {"NASDAQ": "nasdaq", "NYSE": "nyse", "AMEX": "amex"}
+    if not TD_API_KEY:
+        return "nasdaq"
+    try:
+        r = requests.get(
+            "https://api.twelvedata.com/quote",
+            params={"symbol": simbolo, "apikey": TD_API_KEY},
+        )
+        exch = r.json().get("exchange", "")
+        return mappa_exchange.get(exch.upper(), "nasdaq")
+    except Exception:
+        return "nasdaq"
 
 
 def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
@@ -396,11 +435,10 @@ def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
 
 
 @st.cache_data(ttl=1800)  # 30 minuti — trading di medio periodo, non serve tempo reale
-def dati_prezzo_trend(ticker_yf: str) -> dict:
+def dati_prezzo_trend(simbolo: str) -> dict:
     """Prezzo attuale + variazione % ultimi 7gg/30gg + RSI e volume relativo per il momentum."""
     try:
-        h = yf.Ticker(ticker_yf).history(period="3mo", interval="1d")
-        h = h.dropna(subset=["Close"])  # scarta l'ultima riga se la candela di oggi non è ancora formata
+        h = ottieni_time_series(simbolo, "1day", 90)
         if h.empty:
             return {}
         prezzo = float(h["Close"].iloc[-1])
@@ -424,10 +462,10 @@ def dati_prezzo_trend(ticker_yf: str) -> dict:
 
 
 @st.cache_data(ttl=86400)
-def stagionalita_mensile(ticker_yf: str) -> dict:
+def stagionalita_mensile(simbolo: str) -> dict:
     """Rendimento medio storico (fino a 15 anni) per il mese precedente/attuale/successivo."""
     try:
-        h = yf.Ticker(ticker_yf).history(period="15y", interval="1mo")
+        h = ottieni_time_series(simbolo, "1month", 180)
         if h.empty or len(h) < 12:
             return {}
         rendimenti = h["Close"].pct_change().dropna() * 100
@@ -543,7 +581,7 @@ else:
             c3.markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
             c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
 
-            ticker_yf_riga = mappa_ticker_yfinance(ticker_riga)
+            ticker_yf_riga = mappa_ticker_twelvedata(ticker_riga)
             pt = dati_prezzo_trend(ticker_yf_riga)
             stag = stagionalita_mensile(ticker_yf_riga)
 
@@ -569,7 +607,7 @@ else:
                 unsafe_allow_html=True,
             )
 
-            tv_symbol = ticker_yf_riga.replace('=X', '').replace('-', '')
+            tv_symbol = ticker_yf_riga.replace('/', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
             exch = determina_exchange(ticker_yf_riga)
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
@@ -634,30 +672,23 @@ else:
 
     import json as _json
 
-    # (period_yfinance, interval_yfinance, resample_pandas)
-    # Il resample serve solo per 4H, che yfinance non offre nativamente.
     TIMEFRAMES = {
-        "4H": ("730d", "60m", "4h"),   # limite Yahoo per dati orari: ~2 anni, non aggirabile
-        "1D": ("10y", "1d", None),
-        "1W": ("10y", "1wk", None),
-        "1M": ("max", "1mo", None),
+        "4H": ("4h", 500),
+        "1D": ("1day", 2600),   # ~10 anni di candele giornaliere
+        "1W": ("1week", 520),   # ~10 anni di candele settimanali
+        "1M": ("1month", 180),  # ~15 anni di candele mensili
     }
     st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
     timeframe = st.radio(
         "Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed"
     )
-    periodo, intervallo, resample_a = TIMEFRAMES[timeframe]
+    intervallo, outputsize = TIMEFRAMES[timeframe]
 
-    ticker_yf = mappa_ticker_yfinance(ticker_selezionato)
-    storico = yf.Ticker(ticker_yf).history(period=periodo, interval=intervallo)
-
-    if resample_a and not storico.empty:
-        storico = storico.resample(resample_a).agg({
-            "Open": "first", "High": "max", "Low": "min", "Close": "last",
-        }).dropna()
+    ticker_td = mappa_ticker_twelvedata(ticker_selezionato)
+    storico = ottieni_time_series(ticker_td, intervallo, outputsize)
 
     if storico.empty:
-        st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_yf}).")
+        st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_td}).")
     else:
         usa_timestamp = timeframe == "4H"
         candele = [
