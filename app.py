@@ -395,7 +395,7 @@ def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
     return 100 - (100 / (1 + rs))
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=1800)  # 30 minuti — trading di medio periodo, non serve tempo reale
 def dati_prezzo_trend(ticker_yf: str) -> dict:
     """Prezzo attuale + variazione % ultimi 7gg/30gg + RSI e volume relativo per il momentum."""
     try:
