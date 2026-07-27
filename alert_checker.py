@@ -4,10 +4,11 @@ Pensato per essere eseguito da un cron esterno (GitHub Actions), NON dentro
 la webapp Streamlit — Streamlit Cloud non gira in background quando nessuno
 la guarda, quindi gli alert reali devono partire da qui.
 
-Richiede due secrets (impostati come GitHub Actions Secrets, NON Streamlit
+Richiede questi secrets (impostati come GitHub Actions Secrets, NON Streamlit
 Secrets, perché questo script gira via GitHub Actions):
   TELEGRAM_BOT_TOKEN
-  TELEGRAM_CHAT_ID   -> uno o più chat_id separati da virgola, es: "111,222"
+  TELEGRAM_CHAT_ID     -> uno o più chat_id separati da virgola, es: "111,222"
+  TWELVEDATA_API_KEY
 """
 
 import os
@@ -16,9 +17,10 @@ import time
 import io
 import datetime
 import pandas as pd
-import yfinance as yf
 import requests
 import mplfinance as mpf
+
+TD_API_KEY = os.environ.get("TWELVEDATA_API_KEY")
 
 CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
@@ -65,14 +67,46 @@ SOGLIA_RESET_PCT = 6.0
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
 
-def mappa_ticker_yfinance(ticker: str) -> str:
+def mappa_ticker_twelvedata(ticker: str) -> str:
     t = ticker.strip().upper()
     for base in CRYPTO_NOTE:
         if t == f"{base}USD":
-            return f"{base}-USD"
+            return f"{base}/USD"
     if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
-        return f"{t}=X"
+        return f"{t[:3]}/{t[3:]}"
     return t
+
+
+def ottieni_time_series(simbolo: str, interval: str = "1day", outputsize: int = 200) -> pd.DataFrame:
+    """Scarica candele OHLCV da Twelve Data, ordine cronologico crescente."""
+    if not TD_API_KEY:
+        return pd.DataFrame()
+    try:
+        r = requests.get(
+            "https://api.twelvedata.com/time_series",
+            params={
+                "symbol": simbolo, "interval": interval, "outputsize": outputsize,
+                "apikey": TD_API_KEY, "order": "ASC",
+            },
+        )
+        dati = r.json()
+        if dati.get("status") == "error" or "values" not in dati:
+            print(f"Twelve Data errore per {simbolo}: {dati.get('message', dati)}")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(dati["values"])
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.set_index("datetime").sort_index()
+        for col in ("open", "high", "low", "close", "volume"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.rename(columns={
+            "open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume",
+        })
+        return df.dropna(subset=["Close"])
+    except Exception as e:
+        print(f"Errore Twelve Data per {simbolo}: {e}")
+        return pd.DataFrame()
 
 
 def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
@@ -124,18 +158,19 @@ def valuta_forza(storico: pd.DataFrame, prezzo: float, livello: float) -> str:
             return f"🔸 Segnale incerto (RSI {rsi:.0f}){vol_txt}"
 
 
-def prezzo_corrente(ticker_yf: str) -> float | None:
+def prezzo_corrente(simbolo: str) -> float | None:
+    if not TD_API_KEY:
+        return None
     try:
-        info = yf.Ticker(ticker_yf)
-        prezzo = info.fast_info.get("lastPrice")
-        if prezzo is None:
-            hist = info.history(period="1d", interval="1m")
-            if hist.empty:
-                return None
-            prezzo = hist["Close"].iloc[-1]
-        return float(prezzo)
+        r = requests.get(
+            "https://api.twelvedata.com/quote",
+            params={"symbol": simbolo, "apikey": TD_API_KEY},
+        )
+        dati = r.json()
+        prezzo = dati.get("close") or dati.get("price")
+        return float(prezzo) if prezzo is not None else None
     except Exception as e:
-        print(f"Errore prezzo per {ticker_yf}: {e}")
+        print(f"Errore prezzo per {simbolo}: {e}")
         return None
 
 
@@ -243,11 +278,11 @@ def main():
 
     for _, row in df.iterrows():
         ticker = str(row["Ticker"]).strip().upper()
-        ticker_yf = mappa_ticker_yfinance(ticker)
-        prezzo = prezzo_corrente(ticker_yf)
+        ticker_td = mappa_ticker_twelvedata(ticker)
+        prezzo = prezzo_corrente(ticker_td)
 
         if prezzo is None:
-            print(f"Prezzo non disponibile per {ticker} ({ticker_yf})")
+            print(f"Prezzo non disponibile per {ticker} ({ticker_td})")
             continue
 
         for i in (1, 2, 3):
@@ -269,7 +304,7 @@ def main():
             if dentro_zona and ultimo_invio is None:
                 nota_riga = f"\n📝 {nota}" if nota else ""
 
-                storico = yf.Ticker(ticker_yf).history(period="6mo", interval="1d")
+                storico = ottieni_time_series(ticker_td, "1day", 200)
                 valutazione = valuta_forza(storico, prezzo, livello) if not storico.empty else "Momentum non disponibile"
 
                 msg = (
