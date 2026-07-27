@@ -386,10 +386,14 @@ def mappa_ticker_twelvedata(ticker: str) -> str:
     return t
 
 
+_ULTIMO_ERRORE_TD = None
+
+
 @st.cache_data(ttl=1800)
 def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.DataFrame:
     """Scarica candele OHLCV da Twelve Data. Ritorna DataFrame vuoto se fallisce,
     indicizzato per data (ordine cronologico crescente), colonne Open/High/Low/Close/Volume."""
+    global _ULTIMO_ERRORE_TD
     if not TD_API_KEY:
         return pd.DataFrame()
     try:
@@ -403,8 +407,10 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
         )
         dati = r.json()
         if dati.get("status") == "error" or "values" not in dati:
-            print(f"Twelve Data errore per {simbolo}: {dati.get('message', dati)}")
+            _ULTIMO_ERRORE_TD = dati.get("message", str(dati))
+            print(f"Twelve Data errore per {simbolo}: {_ULTIMO_ERRORE_TD}")
             return pd.DataFrame()
+        _ULTIMO_ERRORE_TD = None
 
         df = pd.DataFrame(dati["values"])
         df["datetime"] = pd.to_datetime(df["datetime"])
@@ -417,6 +423,7 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
         })
         return df.dropna(subset=["Close"])
     except Exception as e:
+        _ULTIMO_ERRORE_TD = str(e)
         print(f"Errore Twelve Data per {simbolo}: {e}")
         return pd.DataFrame()
 
@@ -599,10 +606,10 @@ else:
     import json as _json
 
     TIMEFRAMES = {
-        "4H": ("4h", 500),
-        "1D": ("1day", 2600),   # ~10 anni di candele giornaliere
-        "1W": ("1week", 520),   # ~10 anni di candele settimanali
-        "1M": ("1month", 180),  # ~15 anni di candele mensili
+        "4H": ("4h", 300),
+        "1D": ("1day", 500),
+        "1W": ("1week", 260),
+        "1M": ("1month", 120),
     }
     st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
     timeframe = st.radio(
@@ -614,7 +621,8 @@ else:
     storico = ottieni_time_series(ticker_td, intervallo, outputsize)
 
     if storico.empty:
-        st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_td}).")
+        dettaglio = f" — {_ULTIMO_ERRORE_TD}" if _ULTIMO_ERRORE_TD else ""
+        st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_td}){dettaglio}.")
     else:
         usa_timestamp = timeframe == "4H"
         candele = [
