@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import datetime
 import time
+import json
 import requests
 from PIL import Image
 from google import genai
@@ -434,23 +435,31 @@ def determina_exchange(simbolo: str) -> str:
     return "nasdaq"
 
 
-@st.cache_data(ttl=14400)  # 4 ore — coerente con 2-3 aggiornamenti al giorno, non serve di più
-def prezzo_attuale(simbolo: str) -> float | None:
-    """Solo il prezzo, endpoint più leggero possibile di Twelve Data (1 sola chiamata per ticker)."""
-    if not TD_API_KEY:
-        return None
-    try:
-        rispetta_rate_limit()
-        r = requests.get(
-            "https://api.twelvedata.com/price",
-            params={"symbol": simbolo, "apikey": TD_API_KEY},
-        )
-        dati = r.json()
-        prezzo = dati.get("price")
-        return float(prezzo) if prezzo is not None else None
-    except Exception as e:
-        print(f"Errore prezzo per {simbolo}: {e}")
-        return None
+@st.cache_data(ttl=300)  # 5 minuti: abbastanza per non spammare GitHub, abbastanza fresco
+def carica_prezzi_condivisi() -> dict:
+    """Legge i prezzi già scaricati da alert_checker.py (gira ogni ora su GitHub Actions),
+    così il portale non deve rifare le stesse chiamate a Twelve Data — sempre aggiornato
+    a quando gira l'ultimo controllo alert, anche se nessuno ha mai aperto questa pagina."""
+    path = "prezzi_attuali.json"
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            r = requests.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}",
+                headers={"Authorization": f"token {GITHUB_TOKEN}"},
+            )
+            if r.status_code == 200:
+                contenuto = base64.b64decode(r.json()["content"]).decode()
+                dati = json.loads(contenuto)
+                return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+        except Exception:
+            pass
+
+    if os.path.exists(path):
+        with open(path) as f:
+            dati = json.load(f)
+            return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+
+    return {}, ""
 
 
 def elimina_riga(ticker: str):
@@ -492,6 +501,10 @@ else:
     if "editing_ticker" not in st.session_state:
         st.session_state["editing_ticker"] = None
 
+    prezzi_condivisi, prezzi_aggiornati_il = carica_prezzi_condivisi()
+    if prezzi_aggiornati_il:
+        st.caption(f"💹 Prezzi aggiornati da ultimo controllo alert: {prezzi_aggiornati_il}")
+
     for _, r in df_visualizzata.iterrows():
         ticker_riga = r["Ticker"]
 
@@ -530,7 +543,7 @@ else:
             c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
 
             ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
-            prezzo_riga = prezzo_attuale(ticker_td_riga)
+            prezzo_riga = prezzi_condivisi.get(ticker_riga)
 
             if prezzo_riga is not None:
                 c5.markdown(
