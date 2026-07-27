@@ -66,6 +66,24 @@ SOGLIA_RESET_PCT = 6.0
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
+# Rate limiter per il piano gratuito Twelve Data (max 8 richieste/minuto).
+# Con molti ticker in un solo run, rallentiamo invece di fallire.
+_ULTIME_CHIAMATE_API = []
+
+
+def rispetta_rate_limit():
+    ora = time.time()
+    while _ULTIME_CHIAMATE_API and ora - _ULTIME_CHIAMATE_API[0] > 60:
+        _ULTIME_CHIAMATE_API.pop(0)
+    if len(_ULTIME_CHIAMATE_API) >= 7:  # margine di sicurezza sotto il limite di 8
+        attesa = 60 - (ora - _ULTIME_CHIAMATE_API[0]) + 1
+        if attesa > 0:
+            print(f"Rate limit Twelve Data: aspetto {attesa:.0f}s prima di continuare...")
+            time.sleep(attesa)
+        while _ULTIME_CHIAMATE_API and time.time() - _ULTIME_CHIAMATE_API[0] > 60:
+            _ULTIME_CHIAMATE_API.pop(0)
+    _ULTIME_CHIAMATE_API.append(time.time())
+
 
 def mappa_ticker_twelvedata(ticker: str) -> str:
     t = ticker.strip().upper()
@@ -82,6 +100,7 @@ def ottieni_time_series(simbolo: str, interval: str = "1day", outputsize: int = 
     if not TD_API_KEY:
         return pd.DataFrame()
     try:
+        rispetta_rate_limit()
         r = requests.get(
             "https://api.twelvedata.com/time_series",
             params={
@@ -162,6 +181,7 @@ def prezzo_corrente(simbolo: str) -> float | None:
     if not TD_API_KEY:
         return None
     try:
+        rispetta_rate_limit()
         r = requests.get(
             "https://api.twelvedata.com/quote",
             params={"symbol": simbolo, "apikey": TD_API_KEY},
