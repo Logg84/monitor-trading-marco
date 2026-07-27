@@ -287,6 +287,21 @@ def registra_storico(ticker: str, livello_n: int, livello_val: float, nota: str,
     storico.to_csv(HISTORY_PATH, index=False)
 
 
+PREZZI_PATH = "prezzi_attuali.json"
+
+
+def salva_prezzi(prezzi: dict):
+    """Salva i prezzi appena scaricati per ogni ticker, così il portale li legge
+    senza doverli richiedere di nuovo lui stesso — sempre aggiornati a quando
+    gira l'ultimo controllo alert (ogni ora), indipendentemente da quando si apre la pagina."""
+    payload = {
+        "aggiornato_il": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "prezzi": prezzi,
+    }
+    with open(PREZZI_PATH, "w") as f:
+        json.dump(payload, f, indent=2)
+
+
 def main():
     df = carica_watchlist()
     if df.empty:
@@ -295,6 +310,7 @@ def main():
 
     stato = carica_stato()
     ora_attuale = time.time()
+    prezzi_raccolti = {}
 
     for _, row in df.iterrows():
         ticker = str(row["Ticker"]).strip().upper()
@@ -304,6 +320,8 @@ def main():
         if prezzo is None:
             print(f"Prezzo non disponibile per {ticker} ({ticker_td})")
             continue
+
+        prezzi_raccolti[ticker] = prezzo
 
         for i in (1, 2, 3):
             livello = row.get(f"Livello {i}")
@@ -345,6 +363,7 @@ def main():
                 del stato[chiave]
 
     salva_stato(stato)
+    salva_prezzi(prezzi_raccolti)
 
 
 if __name__ == "__main__":
