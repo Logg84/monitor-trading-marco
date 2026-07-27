@@ -400,6 +400,7 @@ def dati_prezzo_trend(ticker_yf: str) -> dict:
     """Prezzo attuale + variazione % ultimi 7gg/30gg + RSI e volume relativo per il momentum."""
     try:
         h = yf.Ticker(ticker_yf).history(period="3mo", interval="1d")
+        h = h.dropna(subset=["Close"])  # scarta l'ultima riga se la candela di oggi non è ancora formata
         if h.empty:
             return {}
         prezzo = float(h["Close"].iloc[-1])
