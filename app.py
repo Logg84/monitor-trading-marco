@@ -356,6 +356,24 @@ TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
+# Rate limiter per il piano gratuito Twelve Data (max 8 richieste/minuto).
+# Invece di fallire quando si supera il limite, rallentiamo e aspettiamo
+# il minuto successivo: più lento ma nessuna richiesta persa.
+_ULTIME_CHIAMATE_API = []
+
+
+def rispetta_rate_limit():
+    ora = time.time()
+    while _ULTIME_CHIAMATE_API and ora - _ULTIME_CHIAMATE_API[0] > 60:
+        _ULTIME_CHIAMATE_API.pop(0)
+    if len(_ULTIME_CHIAMATE_API) >= 7:  # margine di sicurezza sotto il limite di 8
+        attesa = 60 - (ora - _ULTIME_CHIAMATE_API[0]) + 1
+        if attesa > 0:
+            time.sleep(attesa)
+        while _ULTIME_CHIAMATE_API and time.time() - _ULTIME_CHIAMATE_API[0] > 60:
+            _ULTIME_CHIAMATE_API.pop(0)
+    _ULTIME_CHIAMATE_API.append(time.time())
+
 
 def mappa_ticker_twelvedata(ticker: str) -> str:
     """Converte il ticker salvato in watchlist nel formato simbolo di Twelve Data."""
@@ -375,6 +393,7 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
     if not TD_API_KEY:
         return pd.DataFrame()
     try:
+        rispetta_rate_limit()
         r = requests.get(
             "https://api.twelvedata.com/time_series",
             params={
@@ -402,107 +421,29 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=86400)
 def determina_exchange(simbolo: str) -> str:
-    """Recupera l'exchange reale via Twelve Data (endpoint quote), cache 24h."""
-    mappa_exchange = {"NASDAQ": "nasdaq", "NYSE": "nyse", "AMEX": "amex"}
+    """Nessuna chiamata API per restare snelli: nasdaq copre la maggioranza dei
+    tuoi ticker attuali. Se serve un altro exchange, modificalo qui a mano."""
+    return "nasdaq"
+
+
+@st.cache_data(ttl=14400)  # 4 ore — coerente con 2-3 aggiornamenti al giorno, non serve di più
+def prezzo_attuale(simbolo: str) -> float | None:
+    """Solo il prezzo, endpoint più leggero possibile di Twelve Data (1 sola chiamata per ticker)."""
     if not TD_API_KEY:
-        return "nasdaq"
+        return None
     try:
+        rispetta_rate_limit()
         r = requests.get(
-            "https://api.twelvedata.com/quote",
+            "https://api.twelvedata.com/price",
             params={"symbol": simbolo, "apikey": TD_API_KEY},
         )
-        exch = r.json().get("exchange", "")
-        return mappa_exchange.get(exch.upper(), "nasdaq")
-    except Exception:
-        return "nasdaq"
-
-
-def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
-    if len(chiusure) < periodo + 1:
+        dati = r.json()
+        prezzo = dati.get("price")
+        return float(prezzo) if prezzo is not None else None
+    except Exception as e:
+        print(f"Errore prezzo per {simbolo}: {e}")
         return None
-    delta = chiusure.diff()
-    guadagni = delta.clip(lower=0)
-    perdite = -delta.clip(upper=0)
-    media_guadagni = guadagni.rolling(periodo).mean()
-    media_perdite = perdite.rolling(periodo).mean()
-    ultimo_g, ultimo_p = media_guadagni.iloc[-1], media_perdite.iloc[-1]
-    if ultimo_p == 0:
-        return 100.0
-    rs = ultimo_g / ultimo_p
-    return 100 - (100 / (1 + rs))
-
-
-@st.cache_data(ttl=1800)  # 30 minuti — trading di medio periodo, non serve tempo reale
-def dati_prezzo_trend(simbolo: str) -> dict:
-    """Prezzo attuale + variazione % ultimi 7gg/30gg + RSI e volume relativo per il momentum."""
-    try:
-        h = ottieni_time_series(simbolo, "1day", 90)
-        if h.empty:
-            return {}
-        prezzo = float(h["Close"].iloc[-1])
-        chiusure = h["Close"]
-        var_1s = ((prezzo / chiusure.iloc[-6]) - 1) * 100 if len(chiusure) > 6 else None
-        var_1m = ((prezzo / chiusure.iloc[-22]) - 1) * 100 if len(chiusure) > 22 else None
-
-        rsi = calcola_rsi(chiusure)
-        vol_rel = None
-        if "Volume" in h.columns and len(h) > 20:
-            vol_medio = h["Volume"].iloc[-21:-1].mean()
-            if vol_medio > 0:
-                vol_rel = (h["Volume"].iloc[-1] / vol_medio) * 100
-
-        return {
-            "prezzo": prezzo, "var_1s": var_1s, "var_1m": var_1m,
-            "rsi": rsi, "vol_rel": vol_rel,
-        }
-    except Exception:
-        return {}
-
-
-@st.cache_data(ttl=86400)
-def stagionalita_mensile(simbolo: str) -> dict:
-    """Rendimento medio storico (fino a 15 anni) per il mese precedente/attuale/successivo."""
-    try:
-        h = ottieni_time_series(simbolo, "1month", 180)
-        if h.empty or len(h) < 12:
-            return {}
-        rendimenti = h["Close"].pct_change().dropna() * 100
-        rendimenti_per_mese = rendimenti.groupby(rendimenti.index.month).mean()
-
-        oggi = datetime.date.today()
-        mese_prec = 12 if oggi.month == 1 else oggi.month - 1
-        mese_succ = 1 if oggi.month == 12 else oggi.month + 1
-
-        return {
-            "prec": rendimenti_per_mese.get(mese_prec),
-            "att": rendimenti_per_mese.get(oggi.month),
-            "succ": rendimenti_per_mese.get(mese_succ),
-        }
-    except Exception:
-        return {}
-
-
-def span_variazione(valore, con_freccia=True) -> str:
-    if valore is None or pd.isna(valore):
-        return '<span style="color:#4a5568;">—</span>'
-    colore = "#00c176" if valore >= 0 else "#ff4d4d"
-    freccia = ("▲" if valore >= 0 else "▼") if con_freccia else ""
-    return f'<span style="color:{colore}; font-family:\'IBM Plex Mono\',monospace; font-size:0.8rem;">{freccia} {valore:+.1f}%</span>'
-
-
-def badge_momentum(rsi, vol_rel) -> str:
-    if rsi is None:
-        return '<span style="color:#4a5568;">—</span>'
-    if rsi >= 60:
-        colore, testo = "#00c176", "💪 Forte"
-    elif rsi <= 40:
-        colore, testo = "#ff4d4d", "💪 Debole"
-    else:
-        colore, testo = "#9aa4b2", "Neutro"
-    vol_txt = f" · Vol {vol_rel:.0f}%" if vol_rel else ""
-    return f'<span style="color:{colore}; font-size:0.78rem;">RSI {rsi:.0f} · {testo}{vol_txt}</span>'
 
 
 def elimina_riga(ticker: str):
@@ -520,11 +461,11 @@ else:
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
 
-    COLS = [2, 1.3, 1.3, 1.3, 1, 1.3, 1.6, 2.2, 0.4, 0.4, 0.4, 0.4, 0.4]
-    h1, h2, h3_, h4, h5, h6, h6b, h7, h8, h9, h10, h11, h12 = st.columns(COLS)
+    COLS = [2, 1.3, 1.3, 1.3, 1.2, 0.4, 0.4, 0.4, 0.4, 0.4]
+    h1, h2, h3_, h4, h5, h8, h9, h10, h11, h12 = st.columns(COLS)
     etichette = zip(
-        (h1, h2, h3_, h4, h5, h6, h6b, h7),
-        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo", "Trend 1S/1M", "Momentum", "Stagion. (prec/att/succ)"),
+        (h1, h2, h3_, h4, h5),
+        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo"),
     )
     for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
@@ -548,12 +489,12 @@ else:
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c6, c6b, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
+            c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
             c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
             nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
             nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
-            for col in (c5, c6, c6b, c7, c8):
+            for col in (c5, c8, c9):
                 col.write("")
             if c11.button("💾", key=f"save_{ticker_riga}"):
                 salva_riga(
@@ -568,12 +509,12 @@ else:
                 st.session_state["editing_ticker"] = None
                 st.rerun()
 
-            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 6.9])
+            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 2.9])
             nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 1")
             nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 2")
             nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
-            c1, c2, c3, c4, c5, c6, c6b, c7, c8, c9, c10, c11, c12 = st.columns(COLS)
+            c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
             if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
@@ -581,35 +522,20 @@ else:
             c3.markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
             c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
 
-            ticker_yf_riga = mappa_ticker_twelvedata(ticker_riga)
-            pt = dati_prezzo_trend(ticker_yf_riga)
-            stag = stagionalita_mensile(ticker_yf_riga)
+            ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
+            prezzo_riga = prezzo_attuale(ticker_td_riga)
 
-            if pt.get("prezzo") is not None:
+            if prezzo_riga is not None:
                 c5.markdown(
-                    f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{pt["prezzo"]:.2f}</span>',
+                    f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{prezzo_riga:.2f}</span>',
                     unsafe_allow_html=True,
                 )
             else:
                 c5.markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
 
-            c6.markdown(
-                f'{span_variazione(pt.get("var_1s"))}&nbsp;/&nbsp;{span_variazione(pt.get("var_1m"))}',
-                unsafe_allow_html=True,
-            )
-
-            c6b.markdown(badge_momentum(pt.get("rsi"), pt.get("vol_rel")), unsafe_allow_html=True)
-
-            c7.markdown(
-                f'{span_variazione(stag.get("prec"), con_freccia=False)}&nbsp;'
-                f'{span_variazione(stag.get("att"), con_freccia=False)}&nbsp;'
-                f'{span_variazione(stag.get("succ"), con_freccia=False)}',
-                unsafe_allow_html=True,
-            )
-
-            tv_symbol = ticker_yf_riga.replace('/', '')
+            tv_symbol = ticker_td_riga.replace('/', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
-            exch = determina_exchange(ticker_yf_riga)
+            exch = determina_exchange(ticker_td_riga)
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
             c8.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
             c9.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
