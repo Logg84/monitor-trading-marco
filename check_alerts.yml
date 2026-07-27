@@ -25,12 +25,13 @@ jobs:
           python-version: "3.11"
 
       - name: Installa dipendenze
-        run: pip install pandas yfinance requests mplfinance
+        run: pip install pandas requests mplfinance
 
       - name: Esegui controllo alert
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
         run: python alert_checker.py
 
       - name: Commit stato alert (se cambiato)
