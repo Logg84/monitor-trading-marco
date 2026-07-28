@@ -303,6 +303,11 @@ def salva_prezzi(prezzi: dict):
 
 
 def main():
+    if TD_API_KEY:
+        print(f"TWELVEDATA_API_KEY presente, lunghezza {len(TD_API_KEY)} caratteri, inizia con '{TD_API_KEY[:4]}...'")
+    else:
+        print("TWELVEDATA_API_KEY assente o vuota — controllare il secret su GitHub.")
+
     df = carica_watchlist()
     if df.empty:
         print("watchlist.csv vuoto, nessun controllo da fare.")
