@@ -9,6 +9,7 @@ import yfinance as yf
 from PIL import Image
 from google import genai
 from google.genai import types
+import base64
 
 MAPPA_BORSA_EUROPEA = {
     "CPR": "CPR.MI",    # Campari, Borsa Italiana
@@ -19,23 +20,22 @@ MAPPA_BORSA_EUROPEA = {
 
 
 def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
-    """Fallback su yfinance per lo storico quando Twelve Data non copre il titolo (piano gratuito)."""
+    """Fallback su yfinance. auto_adjust=True rettifica dividendi e split."""
     simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
     try:
-        h = yf.Ticker(simbolo).history(period=period, interval=interval)
+        h = yf.Ticker(simbolo).history(period=period, interval=interval, auto_adjust=True)
         return h.dropna(subset=["Close"]) if not h.empty else pd.DataFrame()
     except Exception as e:
         print(f"Errore storico yfinance per {simbolo}: {e}")
         return pd.DataFrame()
 
 CSV_PATH = "watchlist.csv"
-MODEL_NAME = "gemini-2.5-flash"  # se non disponibile, provare "gemini-2.0-flash"
+MODEL_NAME = "gemini-2.5-flash"
 
-st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="")
+st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
 # ---------------------------------------------------------------
-# STILE — palette coerente con le linee del grafico (giallo/verde/rosso),
-# font monospace per i numeri (leggibilità dati), spaziature ridotte.
+# STILE
 # ---------------------------------------------------------------
 st.markdown("""
 <style>
@@ -51,14 +51,8 @@ h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 
 
 hr { margin: 1.4rem 0 !important; border-color: #232733 !important; }
 
-/* Riga watchlist come card */
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
     display: flex; align-items: center;
-}
-
-.wl-ticker {
-    font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 0.95rem;
-    color: #e8eaed; letter-spacing: 0.02em;
 }
 
 .wl-badge {
@@ -99,7 +93,7 @@ div[data-testid="stFileUploaderDropzone"] {
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------
-# CLIENT GEMINI (nuovo SDK ufficiale, NON google-generativeai)
+# CLIENT GEMINI
 # ---------------------------------------------------------------
 @st.cache_resource
 def get_client():
@@ -108,7 +102,6 @@ def get_client():
 
 client = get_client()
 
-# Schema JSON che Gemini DEVE rispettare -> niente parsing fragile
 RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -130,7 +123,6 @@ Rispondi SOLO con i dati richiesti, nessun testo aggiuntivo."""
 
 
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
-    """Chiama Gemini con SDK ufficiale e ritorna un dict già parsato."""
     response = client.models.generate_content(
         model=MODEL_NAME,
         contents=[
@@ -141,54 +133,38 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
             response_mime_type="application/json",
             response_schema=RESPONSE_SCHEMA,
             safety_settings=[
-                types.SafetySetting(
-                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                    threshold="BLOCK_NONE",
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HARASSMENT",
-                    threshold="BLOCK_NONE",
-                ),
+                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
             ],
         ),
     )
 
-    # DIAGNOSTICA: se Gemini blocca la risposta, lo vediamo qui invece di un KeyError cieco
     if not response.candidates:
-        raise ValueError(
-            f"Nessuna risposta da Gemini. Prompt feedback: {response.prompt_feedback}"
-        )
+        raise ValueError(f"Nessuna risposta da Gemini. Prompt feedback: {response.prompt_feedback}")
 
     candidate = response.candidates[0]
-    if candidate.finish_reason not in ("STOP", 1):  # 1 = STOP nell'enum
+    if candidate.finish_reason not in ("STOP", 1):
         raise ValueError(f"Risposta bloccata. finish_reason={candidate.finish_reason}")
 
-    import json
     return json.loads(response.text)
 
 
 # ---------------------------------------------------------------
 # CSV: lettura / scrittura
 # ---------------------------------------------------------------
-import base64
-import requests
-
 COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3", "Screenshot"]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
-GITHUB_REPO = st.secrets.get("GITHUB_REPO")  # es. "Logg84/monitor-trading-marco"
+GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 
 
 def commit_csv_su_github(df: pd.DataFrame):
-    """Scrive watchlist.csv direttamente nel repo GitHub via Contents API,
-    così i dati sopravvivono al riavvio/sleep del container Streamlit Cloud."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
-        return  # secrets non configurati: salva solo in locale (non persistente)
+        return
 
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
-    # Serve lo sha del file esistente per fare un update (non una creazione)
     r = requests.get(url, headers=headers)
     sha = r.json().get("sha") if r.status_code == 200 else None
 
@@ -207,7 +183,6 @@ def commit_csv_su_github(df: pd.DataFrame):
 
 
 def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione: str) -> str | None:
-    """Salva lo screenshot originale nel repo, cartella screenshots/. Ritorna il path salvato."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
 
@@ -229,7 +204,6 @@ def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione:
 
 @st.cache_data(ttl=600)
 def dimensione_repo_kb() -> int | None:
-    """Dimensione totale del repo in KB, per avvisare prima di avvicinarsi ai limiti pratici di GitHub."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
     try:
@@ -238,13 +212,11 @@ def dimensione_repo_kb() -> int | None:
             headers={"Authorization": f"token {GITHUB_TOKEN}"},
         )
         if r.status_code == 200:
-            return r.json().get("size")  # GitHub restituisce già in KB
+            return r.json().get("size")
     except Exception:
         pass
     return None
 
-# Mappa colonne vecchie/alternative -> nuovo schema, per evitare KeyError
-# se il CSV nel repo è stato creato da una versione precedente dell'app.
 ALIAS_COLONNE = {
     "ticker": "Ticker",
     "livello": "Livello 1",
@@ -259,16 +231,13 @@ def carica_watchlist() -> pd.DataFrame:
         return pd.DataFrame(columns=COLONNE_ATTESE)
 
     df = pd.read_csv(CSV_PATH)
-
-    # Migrazione automatica: rinomina eventuali colonne con schema vecchio
     df = df.rename(columns=ALIAS_COLONNE)
 
-    # Aggiunge colonne mancanti (es. Livello 2/3 se il vecchio CSV ne aveva solo una)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
             df[col] = "" if (col.startswith("Nota") or col == "Screenshot") else 0
 
-    df = df[COLONNE_ATTESE]  # ordina/filtra colonne, scarta extra
+    df = df[COLONNE_ATTESE]
 
     for col in COLONNE_ATTESE:
         if col.startswith("Nota") or col == "Screenshot":
@@ -281,7 +250,6 @@ def carica_watchlist() -> pd.DataFrame:
 
 
 def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
-    """Cambia il nome di un ticker già in watchlist, mantenendo livelli/note/screenshot."""
     df = carica_watchlist()
     vecchio_ticker = vecchio_ticker.strip().upper()
     nuovo_ticker = nuovo_ticker.strip().upper()
@@ -302,9 +270,6 @@ def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: s
 
     if ticker in df["Ticker"].str.upper().values:
         idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        # Assegnazione colonna per colonna: un'unica assegnazione multi-colonna
-        # con tipi misti (numeri + testo) può fallire con TypeError su pandas
-        # recenti se la colonna era ancora tutta NaN (dtype numerico per default).
         df["Nota 1"] = df["Nota 1"].astype(object)
         df["Nota 2"] = df["Nota 2"].astype(object)
         df["Nota 3"] = df["Nota 3"].astype(object)
@@ -314,7 +279,7 @@ def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: s
         df.at[idx, "Nota 2"] = n2
         df.at[idx, "Livello 3"] = l3
         df.at[idx, "Nota 3"] = n3
-        if screenshot_path:  # aggiorna lo screenshot solo se ne è stato caricato uno nuovo
+        if screenshot_path:
             df["Screenshot"] = df["Screenshot"].astype(object)
             df.at[idx, "Screenshot"] = screenshot_path
     else:
@@ -345,11 +310,11 @@ with col_upload:
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Screenshot caricato", use_container_width=True)
 
-        if st.button("🔍 Analizza con Gemini", type="primary"):
+        if st.button(" Analizza con Gemini", type="primary"):
             with st.spinner("Analisi in corso..."):
                 try:
                     image_bytes = uploaded_file.getvalue()
-                    mime_type = uploaded_file.type  # es. image/png
+                    mime_type = uploaded_file.type
                     dati = analizza_immagine(image_bytes, mime_type)
                     st.session_state["ultima_analisi"] = dati
                     st.success("Analisi completata.")
@@ -380,29 +345,55 @@ with col_result:
             del st.session_state["ultima_analisi"]
             st.rerun()
 
+# ---------------------------------------------------------------
+# INSERIMENTO MANUALE
+# ---------------------------------------------------------------
+with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
+    with st.form("form_inserimento_manuale"):
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            m_ticker = st.text_input("Ticker (es. AAPL, CPR.MI)").strip().upper()
+            m_l1 = st.number_input("Livello 1", value=0.0)
+            m_l2 = st.number_input("Livello 2", value=0.0)
+            m_l3 = st.number_input("Livello 3", value=0.0)
+        with col_m2:
+            m_n1 = st.text_input("Nota 1")
+            m_n2 = st.text_input("Nota 2")
+            m_n3 = st.text_input("Nota 3")
+        
+        m_submit = st.form_submit_button("💾 Salva Ticker Manuale")
+
+    if m_submit:
+        if not m_ticker:
+            st.error("Il Ticker è obbligatorio.")
+        else:
+            df_check = carica_watchlist()
+            if m_ticker in df_check["Ticker"].values:
+                st.warning(f"Il ticker {m_ticker} esiste già. Modificalo direttamente dalla tabella.")
+            else:
+                salva_riga(m_ticker, m_l1, m_l2, m_l3, m_n1, m_n2, m_n3)
+                st.success(f"Ticker {m_ticker} aggiunto correttamente.")
+                st.rerun()
+
 st.divider()
 
 # ---------------------------------------------------------------
-# TABELLA + GRAFICO CON LIVELLI DISEGNATI (Lightweight Charts)
+# TABELLA + GRAFICO
 # ---------------------------------------------------------------
-st.subheader(" Watchlist salvata")
+st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
 
 TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
-# Rate limiter per il piano gratuito Twelve Data (max 8 richieste/minuto).
-# Invece di fallire quando si supera il limite, rallentiamo e aspettiamo
-# il minuto successivo: più lento ma nessuna richiesta persa.
 _ULTIME_CHIAMATE_API = []
-
 
 def rispetta_rate_limit():
     ora = time.time()
     while _ULTIME_CHIAMATE_API and ora - _ULTIME_CHIAMATE_API[0] > 60:
         _ULTIME_CHIAMATE_API.pop(0)
-    if len(_ULTIME_CHIAMATE_API) >= 7:  # margine di sicurezza sotto il limite di 8
+    if len(_ULTIME_CHIAMATE_API) >= 7:
         attesa = 60 - (ora - _ULTIME_CHIAMATE_API[0]) + 1
         if attesa > 0:
             time.sleep(attesa)
@@ -412,7 +403,6 @@ def rispetta_rate_limit():
 
 
 def mappa_ticker_twelvedata(ticker: str) -> str:
-    """Converte il ticker salvato in watchlist nel formato simbolo di Twelve Data."""
     t = ticker.strip().upper()
     for base in CRYPTO_NOTE:
         if t == f"{base}USD":
@@ -424,11 +414,8 @@ def mappa_ticker_twelvedata(ticker: str) -> str:
 
 _ULTIMO_ERRORE_TD = None
 
-
 @st.cache_data(ttl=1800)
 def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.DataFrame:
-    """Scarica candele OHLCV da Twelve Data. Ritorna DataFrame vuoto se fallisce,
-    indicizzato per data (ordine cronologico crescente), colonne Open/High/Low/Close/Volume."""
     global _ULTIMO_ERRORE_TD
     if not TD_API_KEY:
         return pd.DataFrame()
@@ -465,16 +452,11 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
 
 
 def determina_exchange(simbolo: str) -> str:
-    """Nessuna chiamata API per restare snelli: nasdaq copre la maggioranza dei
-    tuoi ticker attuali. Se serve un altro exchange, modificalo qui a mano."""
     return "nasdaq"
 
 
-@st.cache_data(ttl=300)  # 5 minuti: abbastanza per non spammare GitHub, abbastanza fresco
+@st.cache_data(ttl=300)
 def carica_prezzi_condivisi() -> dict:
-    """Legge i prezzi già scaricati da alert_checker.py (gira ogni ora su GitHub Actions),
-    così il portale non deve rifare le stesse chiamate a Twelve Data — sempre aggiornato
-    a quando gira l'ultimo controllo alert, anche se nessuno ha mai aperto questa pagina."""
     path = "prezzi_attuali.json"
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
@@ -512,7 +494,7 @@ else:
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
     
-    # CORREZIONE: Elimina duplicati basati sul Ticker per evitare key duplicate
+    # FIX: Elimina duplicati
     if not df_visualizzata.empty:
         df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
@@ -578,6 +560,7 @@ else:
             nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
             c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
+            # FIX: Chiavi univoche con indice
             if c1.button(ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
@@ -608,7 +591,7 @@ else:
                     st.rerun()
             else:
                 c10.write("")
-            if c11.button("✏️", key=f"edit_{ticker_riga}_{_}"):
+            if c11.button("️", key=f"edit_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
             if c12.button("🗑️", key=f"del_{ticker_riga}_{_}"):
@@ -626,7 +609,7 @@ else:
             )
             if r_img.status_code == 200:
                 img_bytes = base64.b64decode(r_img.json()["content"])
-                with st.expander("️ Screenshot originale", expanded=True):
+                with st.expander("🖼️ Screenshot originale", expanded=True):
                     st.image(img_bytes, use_container_width=True)
                     if st.button("Chiudi anteprima"):
                         st.session_state["screenshot_da_mostrare"] = None
@@ -636,8 +619,6 @@ else:
         except Exception as e:
             st.warning(f"Impossibile caricare lo screenshot: {e}")
 
-    # Contatore dimensione repo — GitHub non ha un hard-limit rigido, ma oltre
-    # 1GB le performance calano; avviso per tempo prima di arrivarci.
     dim_kb = dimensione_repo_kb()
     if dim_kb is not None:
         dim_mb = dim_kb / 1024
@@ -647,7 +628,6 @@ else:
         else:
             st.caption(f"Spazio repo usato: {dim_mb:.0f} MB / ~1000 MB consigliati")
 
-    # Ticker selezionato cliccando sul nome nella lista sopra (default: primo della lista)
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
         st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
     ticker_selezionato = st.session_state["ticker_grafico"]
@@ -667,7 +647,7 @@ else:
         "1W": ("1week", 260),
         "1M": ("1month", 120),
     }
-    st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
+    st.markdown(f'<h3 style="margin-bottom:0.4rem;"> {ticker_selezionato}</h3>', unsafe_allow_html=True)
     timeframe = st.radio(
         "Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed"
     )
@@ -677,6 +657,7 @@ else:
     storico = ottieni_time_series(ticker_td, intervallo, outputsize)
     if storico.empty:
         mappa_yf_periodo = {"4h": "2y", "1day": "10y", "1week": "10y", "1month": "max"}
+        # FIX: Fallback Yahoo Finance con auto_adjust=True
         storico = storico_yfinance(ticker_selezionato, mappa_yf_periodo.get(intervallo, "1y"), intervallo.replace("1day", "1d").replace("1week", "1wk").replace("1month", "1mo").replace("4h", "60m"))
 
     if storico.empty:
@@ -741,12 +722,10 @@ else:
 
 
 # ---------------------------------------------------------------
-# STORICO ALERT — letto direttamente da GitHub (non dal disco locale
-# dell'app, che si aggiorna solo al riavvio) così è sempre aggiornato
-# anche se l'ultimo alert è arrivato pochi minuti fa via GitHub Actions.
+# STORICO ALERT
 # ---------------------------------------------------------------
 st.divider()
-st.subheader("🕘 Storico Alert")
+st.subheader(" Storico Alert")
 
 HISTORY_PATH = "alert_history.csv"
 
@@ -765,7 +744,7 @@ def carica_storico_alert() -> pd.DataFrame:
                 contenuto = base64.b64decode(r.json()["content"]).decode()
                 return pd.read_csv(io.StringIO(contenuto))
         except Exception:
-            pass  # fallback sotto
+            pass
 
     if os.path.exists(HISTORY_PATH):
         return pd.read_csv(HISTORY_PATH)
