@@ -18,7 +18,6 @@ MAPPA_BORSA_EUROPEA = {
     "AF": "AF.PA",      # Air France-KLM, Euronext Paris
 }
 
-
 def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
     """Fallback su yfinance. auto_adjust=True rettifica dividendi e split."""
     simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
@@ -126,7 +125,6 @@ Estrai:
 3. Fino a 3 valori VWAP (Volume Weighted Average Price) se visibili sul grafico.
 Se non trovi un dato, lascialo a 0. Rispondi SOLO con i dati richiesti in JSON."""
 
-
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     response = client.models.generate_content(
         model=MODEL_NAME,
@@ -153,7 +151,6 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 
     return json.loads(response.text)
 
-
 # ---------------------------------------------------------------
 # CSV: lettura / scrittura
 # ---------------------------------------------------------------
@@ -166,7 +163,6 @@ COLONNE_ATTESE = [
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
-
 
 def commit_csv_su_github(df: pd.DataFrame):
     if not GITHUB_TOKEN or not GITHUB_REPO:
@@ -191,7 +187,6 @@ def commit_csv_su_github(df: pd.DataFrame):
     if resp.status_code not in (200, 201):
         st.warning(f"Salvataggio su GitHub fallito: {resp.status_code} {resp.text[:200]}")
 
-
 def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione: str) -> str | None:
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
@@ -210,7 +205,6 @@ def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione:
         return nome_file
     st.warning(f"Salvataggio screenshot fallito: {resp.status_code} {resp.text[:200]}")
     return None
-
 
 @st.cache_data(ttl=600)
 def dimensione_repo_kb() -> int | None:
@@ -234,7 +228,6 @@ ALIAS_COLONNE = {
     "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
 }
 
-
 def carica_watchlist() -> pd.DataFrame:
     if not os.path.exists(CSV_PATH):
         return pd.DataFrame(columns=COLONNE_ATTESE)
@@ -257,7 +250,6 @@ def carica_watchlist() -> pd.DataFrame:
 
     return df
 
-
 def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
     df = carica_watchlist()
     vecchio_ticker = vecchio_ticker.strip().upper()
@@ -271,7 +263,6 @@ def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
     df.to_csv(CSV_PATH, index=False)
     commit_csv_su_github(df)
     return df
-
 
 def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
     df = carica_watchlist()
@@ -304,11 +295,74 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
     commit_csv_su_github(df)
     return df
 
-
 # ---------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------
 st.title("📊 Watchlist da Screenshot")
+
+# ---------------------------------------------------------------
+# IMPORTAZIONE DA SCREENER (CSV)
+# ---------------------------------------------------------------
+with st.expander("📥 Importa dati da Screener ARGO", expanded=False):
+    st.caption("Carica il CSV generato dal portale di screening. I livelli manuali non verranno toccati, i VWAP verranno aggiornati solo se vuoti.")
+    uploaded_screener = st.file_uploader("Seleziona file CSV Screener", type=["csv"], key="screener_csv")
+    
+    if uploaded_screener is not None:
+        df_screener = pd.read_csv(uploaded_screener)
+        st.write(f"File caricato: **{len(df_screener)}** titoli trovati.")
+        
+        if st.button("🔄 Applica e Unisci alla Watchlist", type="primary"):
+            df_watchlist = carica_watchlist()
+            titoli_aggiunti = 0
+            titoli_aggiornati = 0
+            
+            for _, row_s in df_screener.iterrows():
+                ticker = str(row_s.get("Ticker", "")).strip().upper()
+                if not ticker: continue
+                
+                # Normalizzazione VWAP dallo screener
+                v1 = float(row_s.get("VWAP 1", 0) or 0)
+                v2 = float(row_s.get("VWAP 2", 0) or 0)
+                v3 = float(row_s.get("VWAP 3", 0) or 0)
+                
+                # Se il ticker esiste già nella watchlist manuale
+                if ticker in df_watchlist["Ticker"].values:
+                    idx = df_watchlist[df_watchlist["Ticker"] == ticker].index[0]
+                    updated = False
+                    
+                    # Aggiorna VWAP solo se sono a 0 o vuoti (rispetta la precedenza manuale)
+                    if pd.isna(df_watchlist.at[idx, "VWAP 1"]) or df_watchlist.at[idx, "VWAP 1"] == 0:
+                        df_watchlist.at[idx, "VWAP 1"] = v1; updated = True
+                    if pd.isna(df_watchlist.at[idx, "VWAP 2"]) or df_watchlist.at[idx, "VWAP 2"] == 0:
+                        df_watchlist.at[idx, "VWAP 2"] = v2; updated = True
+                    if pd.isna(df_watchlist.at[idx, "VWAP 3"]) or df_watchlist.at[idx, "VWAP 3"] == 0:
+                        df_watchlist.at[idx, "VWAP 3"] = v3; updated = True
+                        
+                    if updated: titoli_aggiornati += 1
+                else:
+                    # Se non esiste, lo aggiunge come nuovo titolo
+                    l1 = float(row_s.get("Livello 1 (POC)", 0) or 0)
+                    n1 = str(row_s.get("Nota 1", "POC da Screener"))
+                    nv1 = str(row_s.get("Nota VWAP 1", ""))
+                    nv2 = str(row_s.get("Nota VWAP 2", ""))
+                    nv3 = str(row_s.get("Nota VWAP 3", ""))
+                    
+                    nuova_riga = pd.DataFrame([{
+                        "Ticker": ticker, 
+                        "Livello 1": l1, "Nota 1": n1,
+                        "VWAP 1": v1, "Nota VWAP 1": nv1,
+                        "VWAP 2": v2, "Nota VWAP 2": nv2,
+                        "VWAP 3": v3, "Nota VWAP 3": nv3,
+                        "Screenshot": ""
+                    }])
+                    df_watchlist = pd.concat([df_watchlist, nuova_riga], ignore_index=True)
+                    titoli_aggiunti += 1
+            
+            # Salva tutto
+            df_watchlist.to_csv(CSV_PATH, index=False)
+            commit_csv_su_github(df_watchlist)
+            st.success(f"✅ Import completato: {titoli_aggiunti} nuovi titoli, {titoli_aggiornati} VWAP aggiornati.")
+            st.rerun()
 
 col_upload, col_result = st.columns([1, 1])
 
@@ -433,7 +487,6 @@ def rispetta_rate_limit():
             _ULTIME_CHIAMATE_API.pop(0)
     _ULTIME_CHIAMATE_API.append(time.time())
 
-
 def mappa_ticker_twelvedata(ticker: str) -> str:
     t = ticker.strip().upper()
     for base in CRYPTO_NOTE:
@@ -442,7 +495,6 @@ def mappa_ticker_twelvedata(ticker: str) -> str:
     if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
         return f"{t[:3]}/{t[3:]}"
     return t
-
 
 _ULTIMO_ERRORE_TD = None
 
@@ -482,10 +534,8 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
         print(f"Errore Twelve Data per {simbolo}: {e}")
         return pd.DataFrame()
 
-
 def determina_exchange(simbolo: str) -> str:
     return "nasdaq"
-
 
 @st.cache_data(ttl=300)
 def carica_prezzi_condivisi() -> dict:
@@ -510,13 +560,11 @@ def carica_prezzi_condivisi() -> dict:
 
     return {}, ""
 
-
 def elimina_riga(ticker: str):
     df = carica_watchlist()
     df = df[df["Ticker"] != ticker]
     df.to_csv(CSV_PATH, index=False)
     commit_csv_su_github(df)
-
 
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
@@ -588,11 +636,10 @@ else:
                 salva_riga(ticker_finale, nl1, nl2, nl3, nv1, nv2, nv3, nota_1, nota_2, nota_3, nota_v1, nota_v2, nota_v3)
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-            if c12.button("✖️", key=f"cancel_{ticker_riga}_{_}"):
+            if c12.button("️", key=f"cancel_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
 
-            # Righe per le note
             _, nc1, nc2, nc3, nc4, nc5, nc6, _ = st.columns([2, 1, 1, 1, 1, 1, 1, 2.7])
             nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}_{_}", label_visibility="collapsed")
             nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}_{_}", label_visibility="collapsed")
@@ -628,8 +675,8 @@ else:
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
             exch = determina_exchange(ticker_td_riga)
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
-            c9.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;"></a>', unsafe_allow_html=True)
-            c10.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;"></a>', unsafe_allow_html=True)
+            c9.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
+            c10.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
             if r.get("Screenshot"):
                 if c11.button("🖼️", key=f"screenshot_{ticker_riga}_{_}"):
                     st.session_state["screenshot_da_mostrare"] = r["Screenshot"]
@@ -755,7 +802,6 @@ else:
         </script>
         """
         st.components.v1.html(chart_html, height=620)
-
 
 # ---------------------------------------------------------------
 # STORICO ALERT
