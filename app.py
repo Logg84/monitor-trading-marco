@@ -31,7 +31,7 @@ def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
 CSV_PATH = "watchlist.csv"
 MODEL_NAME = "gemini-2.5-flash"  # se non disponibile, provare "gemini-2.0-flash"
 
-st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="")
 
 # ---------------------------------------------------------------
 # STILE — palette coerente con le linee del grafico (giallo/verde/rosso),
@@ -385,7 +385,7 @@ st.divider()
 # ---------------------------------------------------------------
 # TABELLA + GRAFICO CON LIVELLI DISEGNATI (Lightweight Charts)
 # ---------------------------------------------------------------
-st.subheader("📋 Watchlist salvata")
+st.subheader(" Watchlist salvata")
 df = carica_watchlist()
 
 TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
@@ -511,6 +511,10 @@ else:
         "Cerca ticker", placeholder="🔍 Cerca ticker...", label_visibility="collapsed"
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
+    
+    # CORREZIONE: Elimina duplicati basati sul Ticker per evitare key duplicate
+    if not df_visualizzata.empty:
+        df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
     COLS = [2, 1.3, 1.3, 1.3, 1.2, 0.4, 0.4, 0.4, 0.4, 0.4]
     h1, h2, h3_, h4, h5, h8, h9, h10, h11, h12 = st.columns(COLS)
@@ -530,7 +534,7 @@ else:
         if pd.isna(valore) or valore == 0:
             return f'<span class="wl-badge empty">—</span>'
         title = f' title="{nota}"' if nota else ""
-        icona = " 📝" if nota else ""
+        icona = " " if nota else ""
         return f'<span class="wl-badge {classe}"{title}>{valore:g}{icona}</span>'
 
     if "editing_ticker" not in st.session_state:
@@ -574,7 +578,7 @@ else:
             nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
         else:
             c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
-            if c1.button(ticker_riga, key=f"select_{ticker_riga}", use_container_width=True):
+            if c1.button(ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
             c2.markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
@@ -599,15 +603,15 @@ else:
             c8.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
             c9.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
             if r.get("Screenshot"):
-                if c10.button("🖼️", key=f"screenshot_{ticker_riga}"):
+                if c10.button("️", key=f"screenshot_{ticker_riga}_{_}"):
                     st.session_state["screenshot_da_mostrare"] = r["Screenshot"]
                     st.rerun()
             else:
                 c10.write("")
-            if c11.button("✏️", key=f"edit_{ticker_riga}"):
+            if c11.button("✏️", key=f"edit_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
-            if c12.button("🗑️", key=f"del_{ticker_riga}"):
+            if c12.button("🗑️", key=f"del_{ticker_riga}_{_}"):
                 elimina_riga(ticker_riga)
                 st.rerun()
 
@@ -622,7 +626,7 @@ else:
             )
             if r_img.status_code == 200:
                 img_bytes = base64.b64decode(r_img.json()["content"])
-                with st.expander("🖼️ Screenshot originale", expanded=True):
+                with st.expander("️ Screenshot originale", expanded=True):
                     st.image(img_bytes, use_container_width=True)
                     if st.button("Chiudi anteprima"):
                         st.session_state["screenshot_da_mostrare"] = None
