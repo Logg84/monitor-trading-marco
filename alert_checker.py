@@ -303,6 +303,8 @@ def salva_prezzi(prezzi: dict):
 
 
 def main():
+    chiavi_simili = [k for k in os.environ if "TWELVE" in k.upper()]
+    print(f"Variabili d'ambiente con 'TWELVE' nel nome: {chiavi_simili}")
     if TD_API_KEY:
         print(f"TWELVEDATA_API_KEY presente, lunghezza {len(TD_API_KEY)} caratteri, inizia con '{TD_API_KEY[:4]}...'")
     else:
