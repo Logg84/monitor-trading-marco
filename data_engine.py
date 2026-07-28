@@ -172,29 +172,67 @@ class DataEngine:
     def estrai_ticker_wikipedia(self, url, headers=None):
         headers = headers or {'User-Agent': 'Mozilla/5.0'}
         self.add_debug(f"Estrazione ticker da: {url}", "info")
+
+        def _is_ticker_like(s):
+            # Ticker valido: corto, solo MAIUSCOLE/cifre/punti/trattini, con almeno una lettera.
+            # Esclude anni ("2024"), parole ("Company"), celle vuote/"nan".
+            if not s or len(s) > 8 or not s.isascii():
+                return False
+            if not any(c.isalpha() for c in s):
+                return False
+            return all(c.isupper() or c.isdigit() or c in ".-" for c in s)
+
         try:
             res = requests.get(url, headers=headers, timeout=30)
             if res.status_code != 200:
                 raise ConnectionError(f"Wikipedia ha risposto con codice {res.status_code}")
             tabelle = pd.read_html(io.StringIO(res.text))
             self.add_debug(f"Trovate {len(tabelle)} tabelle su Wikipedia", "info")
+
+            # 1) Tentativo preciso: una colonna il cui NOME è ticker/symbol/...
             for idx, tab in enumerate(tabelle):
                 colonne_minuscole = [str(c).lower().strip() for c in tab.columns]
                 for target in ['ticker', 'symbol', 'ticker symbol', 'tickersymbol', 'codice', 'symbole', 'componenti']:
                     if target in colonne_minuscole:
                         idx_col = colonne_minuscole.index(target)
-                        tickers = tab[tab.columns[idx_col]].dropna().astype(str).tolist()
-                        self.add_debug(f"Trovati {len(tickers)} ticker nella colonna '{target}' (tabella {idx})", "success")
-                        return tickers
-            if not tabelle[0].empty:
-                tickers = tabelle[0].iloc[:, 0].dropna().astype(str).tolist()
-                self.add_debug(f"Usata prima colonna della prima tabella: {len(tickers)} ticker", "success")
-                return tickers
+                        tickers = tab[tab.columns[idx_col]].dropna().astype(str).str.strip().tolist()
+                        tickers = [t for t in tickers if t and t.lower() != 'nan']
+                        if len(tickers) >= 10:
+                            self.add_debug(f"Trovati {len(tickers)} ticker nella colonna '{target}' (tabella {idx})", "success")
+                            return tickers
+
+            # 2) Fallback robusto (caso NASDAQ-100): nessuna colonna col nome giusto.
+            #    Prendo, tra TUTTE le tabelle, la colonna con più valori ticker-like.
+            best_tab, best_col, best_n = None, None, 0
+            for idx, tab in enumerate(tabelle):
+                if tab.empty:
+                    continue
+                for col in tab.columns:
+                    vals = tab[col].dropna().astype(str).str.strip()
+                    n = sum(1 for v in vals if _is_ticker_like(v))
+                    if n > best_n:
+                        best_n, best_tab, best_col = n, idx, col
+            if best_n >= 20 and best_tab is not None:
+                tickers = [v for v in tabelle[best_tab][best_col].dropna().astype(str).str.strip() if _is_ticker_like(v)]
+                seen, uniq = set(), []
+                for t in tickers:
+                    if t not in seen:
+                        seen.add(t); uniq.append(t)
+                self.add_debug(f"[euristica] {len(uniq)} ticker nella tabella {best_tab}, colonna '{best_col}' (match {best_n})", "success")
+                return uniq
+
+            # 3) Ultima ratio: prima colonna della prima tabella non vuota
+            for tab in tabelle:
+                if not tab.empty:
+                    tickers = tab.iloc[:, 0].dropna().astype(str).str.strip().tolist()
+                    tickers = [t for t in tickers if t and t.lower() != 'nan']
+                    self.add_debug(f"Usata prima colonna della prima tabella: {len(tickers)} ticker", "warning")
+                    return tickers
             raise ValueError("Nessuna colonna identificata.")
         except Exception as e:
             self.add_debug(f"Errore in estrai_ticker_wikipedia: {str(e)}", "error")
             raise
-
+            
     def normalizza_ticker_europeo(self, ticker_raw, default_suffix):
         t = str(ticker_raw).strip().split()[0]
         if "." in t:
