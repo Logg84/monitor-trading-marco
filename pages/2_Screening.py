@@ -207,6 +207,9 @@ with st.sidebar:
 
     st.markdown("---")
     if st.button("🚀 AVVIA SCREENING QUALITY (v2)", type="primary"):
+        # FIX LOG: azzero il log VERO del motore, così il riquadro sotto mostra
+        # solo gli eventi di QUESTO screening (prima restava cieco).
+        engine.debug_log = []
         st.session_state["debug_log"] = []
         st.session_state["ultimi_spostamenti"] = []
         total_spostamenti = []
@@ -235,8 +238,10 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("🔍 Debug Log (ultimi 50 eventi)")
-    if st.session_state.get("debug_log"):
-        for entry in st.session_state["debug_log"][-50:]:
+    # FIX LOG: leggo il log VIVO del motore, non la lista di sessione che nessuno aggiornava.
+    _live_log = engine.debug_log
+    if _live_log:
+        for entry in _live_log[-50:]:
             level = entry["level"]
             color = {"info": "#60a5fa", "success": "#22c55e", "error": "#ef4444", "warning": "#eab308"}.get(level, "#94a3b8")
             st.markdown(f"<div style='font-size:11px; color:{color};'>[{entry['time']}] {entry['msg']}</div>", unsafe_allow_html=True)
@@ -271,9 +276,9 @@ def analizza_attori(latest, df_plot):
     else:
         actors["Market Maker"] = {"emoji": "📊", "status": "Neutrali", "color": "🟡", "score": 0, "desc": "Posizionamento bilanciato. Nessun estremo."}
     if vix > 25:
-        actors["Retail"] = {"emoji": "🧑‍💻", "status": "Paura (Vendita)", "color": "🔴", "score": -1, "desc": "Panico retail. Minimi di mercato (contrarian buy)."}
+        actors["Retail"] = {"emoji": "🧑‍", "status": "Paura (Vendita)", "color": "🔴", "score": -1, "desc": "Panico retail. Minimi di mercato (contrarian buy)."}
     elif vix < 15:
-        actors["Retail"] = {"emoji": "🧑‍💻", "status": "Euforia (Acquisto)", "color": "🟢", "score": 1, "desc": "Euforia retail. Massimi di mercato (contrarian sell)."}
+        actors["Retail"] = {"emoji": "🧑‍", "status": "Euforia (Acquisto)", "color": "🟢", "score": 1, "desc": "Euforia retail. Massimi di mercato (contrarian sell)."}
     else:
         actors["Retail"] = {"emoji": "🧑‍💻", "status": "Neutrale", "color": "🟡", "score": 0, "desc": "Sentiment in attesa."}
     if vix < 18 and rapporto < 5:
