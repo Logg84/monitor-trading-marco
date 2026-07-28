@@ -63,6 +63,9 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
 .wl-badge.l1 { color: #f0b90b; background: rgba(240,185,11,0.10); border-color: rgba(240,185,11,0.25); }
 .wl-badge.l2 { color: #00c176; background: rgba(0,193,118,0.10); border-color: rgba(0,193,118,0.25); }
 .wl-badge.l3 { color: #ff4d4d; background: rgba(255,77,77,0.10); border-color: rgba(255,77,77,0.25); }
+.wl-badge.v1 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
+.wl-badge.v2 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
+.wl-badge.v3 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
 .wl-badge.empty { color: #4a5568; background: transparent; border: 1px dashed #2d3340; }
 
 .wl-header {
@@ -109,17 +112,19 @@ RESPONSE_SCHEMA = {
         "livello_1": {"type": "NUMBER"},
         "livello_2": {"type": "NUMBER"},
         "livello_3": {"type": "NUMBER"},
+        "vwap_1": {"type": "NUMBER"},
+        "vwap_2": {"type": "NUMBER"},
+        "vwap_3": {"type": "NUMBER"},
     },
     "required": ["ticker"],
 }
 
 PROMPT = """Analizza questo screenshot di un grafico finanziario (piattaforma di trading).
 Estrai:
-1. Il ticker/simbolo dello strumento (es. AAPL, EURUSD, BTCUSD). Se non è scritto esplicitamente,
-   deducilo dal contesto del grafico (candele, valuta, watermark).
-2. Fino a 3 livelli di prezzo numerici rilevanti visibili sul grafico (supporti, resistenze,
-   linee orizzontali disegnate, prezzo corrente). Se ne trovi meno di 3, lascia gli altri a 0.
-Rispondi SOLO con i dati richiesti, nessun testo aggiuntivo."""
+1. Il ticker/simbolo dello strumento.
+2. Fino a 3 livelli di prezzo numerici rilevanti (supporti, resistenze, linee orizzontali).
+3. Fino a 3 valori VWAP (Volume Weighted Average Price) se visibili sul grafico.
+Se non trovi un dato, lascialo a 0. Rispondi SOLO con i dati richiesti in JSON."""
 
 
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
@@ -152,7 +157,12 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 # ---------------------------------------------------------------
 # CSV: lettura / scrittura
 # ---------------------------------------------------------------
-COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3", "Screenshot"]
+COLONNE_ATTESE = [
+    "Ticker", 
+    "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3", 
+    "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3", 
+    "Screenshot"
+]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
@@ -220,9 +230,8 @@ def dimensione_repo_kb() -> int | None:
 ALIAS_COLONNE = {
     "ticker": "Ticker",
     "livello": "Livello 1",
-    "livello_1": "Livello 1",
-    "livello_2": "Livello 2",
-    "livello_3": "Livello 3",
+    "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
+    "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
 }
 
 
@@ -264,28 +273,29 @@ def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
     return df
 
 
-def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: str = "", n3: str = "", screenshot_path: str = None):
+def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
     df = carica_watchlist()
     ticker = ticker.strip().upper()
 
     if ticker in df["Ticker"].str.upper().values:
         idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        df["Nota 1"] = df["Nota 1"].astype(object)
-        df["Nota 2"] = df["Nota 2"].astype(object)
-        df["Nota 3"] = df["Nota 3"].astype(object)
-        df.at[idx, "Livello 1"] = l1
-        df.at[idx, "Nota 1"] = n1
-        df.at[idx, "Livello 2"] = l2
-        df.at[idx, "Nota 2"] = n2
-        df.at[idx, "Livello 3"] = l3
-        df.at[idx, "Nota 3"] = n3
+        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot"]:
+            df[col] = df[col].astype(object)
+            
+        df.at[idx, "Livello 1"] = l1; df.at[idx, "Nota 1"] = n1
+        df.at[idx, "Livello 2"] = l2; df.at[idx, "Nota 2"] = n2
+        df.at[idx, "Livello 3"] = l3; df.at[idx, "Nota 3"] = n3
+        df.at[idx, "VWAP 1"] = v1; df.at[idx, "Nota VWAP 1"] = nv1
+        df.at[idx, "VWAP 2"] = v2; df.at[idx, "Nota VWAP 2"] = nv2
+        df.at[idx, "VWAP 3"] = v3; df.at[idx, "Nota VWAP 3"] = nv3
+        
         if screenshot_path:
-            df["Screenshot"] = df["Screenshot"].astype(object)
             df.at[idx, "Screenshot"] = screenshot_path
     else:
         nuova_riga = pd.DataFrame([{
-            "Ticker": ticker, "Livello 1": l1, "Nota 1": n1,
-            "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
+            "Ticker": ticker, 
+            "Livello 1": l1, "Nota 1": n1, "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
+            "VWAP 1": v1, "Nota VWAP 1": nv1, "VWAP 2": v2, "Nota VWAP 2": nv2, "VWAP 3": v3, "Nota VWAP 3": nv3,
             "Screenshot": screenshot_path or "",
         }])
         df = pd.concat([df, nuova_riga], ignore_index=True)
@@ -310,7 +320,7 @@ with col_upload:
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Screenshot caricato", use_container_width=True)
 
-        if st.button(" Analizza con Gemini", type="primary"):
+        if st.button("🔍 Analizza con Gemini", type="primary"):
             with st.spinner("Analisi in corso..."):
                 try:
                     image_bytes = uploaded_file.getvalue()
@@ -327,12 +337,25 @@ with col_result:
         st.subheader("Risultato estratto")
 
         ticker_edit = st.text_input("Ticker", value=dati.get("ticker", ""))
-        l1_edit = st.number_input("Livello 1", value=float(dati.get("livello_1", 0) or 0))
-        n1_edit = st.text_input("Nota Livello 1 (opzionale)", value="", placeholder="es. supporto storico")
-        l2_edit = st.number_input("Livello 2", value=float(dati.get("livello_2", 0) or 0))
-        n2_edit = st.text_input("Nota Livello 2 (opzionale)", value="", placeholder="es. media mobile 200")
-        l3_edit = st.number_input("Livello 3", value=float(dati.get("livello_3", 0) or 0))
-        n3_edit = st.text_input("Nota Livello 3 (opzionale)", value="", placeholder="es. resistenza ATH")
+        
+        col_l, col_v = st.columns(2)
+        with col_l:
+            st.markdown("**Livelli**")
+            l1_edit = st.number_input("Livello 1", value=float(dati.get("livello_1", 0) or 0))
+            l2_edit = st.number_input("Livello 2", value=float(dati.get("livello_2", 0) or 0))
+            l3_edit = st.number_input("Livello 3", value=float(dati.get("livello_3", 0) or 0))
+        with col_v:
+            st.markdown("**VWAP**")
+            v1_edit = st.number_input("VWAP 1", value=float(dati.get("vwap_1", 0) or 0))
+            v2_edit = st.number_input("VWAP 2", value=float(dati.get("vwap_2", 0) or 0))
+            v3_edit = st.number_input("VWAP 3", value=float(dati.get("vwap_3", 0) or 0))
+
+        n1_edit = st.text_input("Nota Livello 1", value="", placeholder="es. supporto storico")
+        n2_edit = st.text_input("Nota Livello 2", value="", placeholder="es. media mobile 200")
+        n3_edit = st.text_input("Nota Livello 3", value="", placeholder="es. resistenza ATH")
+        nv1_edit = st.text_input("Nota VWAP 1", value="")
+        nv2_edit = st.text_input("Nota VWAP 2", value="")
+        nv3_edit = st.text_input("Nota VWAP 3", value="")
 
         if st.button("💾 Salva in watchlist"):
             screenshot_path = None
@@ -341,7 +364,8 @@ with col_result:
                 screenshot_path = carica_screenshot_su_github(
                     ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
                 )
-            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, n1_edit, n2_edit, n3_edit, screenshot_path)
+            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit, 
+                       n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
             del st.session_state["ultima_analisi"]
             st.rerun()
 
@@ -350,16 +374,24 @@ with col_result:
 # ---------------------------------------------------------------
 with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
     with st.form("form_inserimento_manuale"):
-        col_m1, col_m2 = st.columns(2)
+        col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
             m_ticker = st.text_input("Ticker (es. AAPL, CPR.MI)").strip().upper()
             m_l1 = st.number_input("Livello 1", value=0.0)
             m_l2 = st.number_input("Livello 2", value=0.0)
             m_l3 = st.number_input("Livello 3", value=0.0)
         with col_m2:
-            m_n1 = st.text_input("Nota 1")
-            m_n2 = st.text_input("Nota 2")
-            m_n3 = st.text_input("Nota 3")
+            m_n1 = st.text_input("Nota L1")
+            m_n2 = st.text_input("Nota L2")
+            m_n3 = st.text_input("Nota L3")
+        with col_m3:
+            st.markdown("**VWAP**")
+            m_v1 = st.number_input("VWAP 1", value=0.0)
+            m_v2 = st.number_input("VWAP 2", value=0.0)
+            m_v3 = st.number_input("VWAP 3", value=0.0)
+            m_nv1 = st.text_input("Nota V1")
+            m_nv2 = st.text_input("Nota V2")
+            m_nv3 = st.text_input("Nota V3")
         
         m_submit = st.form_submit_button("💾 Salva Ticker Manuale")
 
@@ -371,7 +403,7 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
             if m_ticker in df_check["Ticker"].values:
                 st.warning(f"Il ticker {m_ticker} esiste già. Modificalo direttamente dalla tabella.")
             else:
-                salva_riga(m_ticker, m_l1, m_l2, m_l3, m_n1, m_n2, m_n3)
+                salva_riga(m_ticker, m_l1, m_l2, m_l3, m_v1, m_v2, m_v3, m_n1, m_n2, m_n3, m_nv1, m_nv2, m_nv3)
                 st.success(f"Ticker {m_ticker} aggiunto correttamente.")
                 st.rerun()
 
@@ -494,19 +526,19 @@ else:
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
     
-    # FIX: Elimina duplicati
     if not df_visualizzata.empty:
         df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
-    COLS = [2, 1.3, 1.3, 1.3, 1.2, 0.4, 0.4, 0.4, 0.4, 0.4]
-    h1, h2, h3_, h4, h5, h8, h9, h10, h11, h12 = st.columns(COLS)
+    # 13 colonne: Ticker, L1, L2, L3, V1, V2, V3, Prezzo, Azioni (5)
+    COLS = [2, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.3, 0.3, 0.3, 0.3]
+    h1, h2, h3_, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13 = st.columns(COLS)
     etichette = zip(
-        (h1, h2, h3_, h4, h5),
-        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "Prezzo"),
+        (h1, h2, h3_, h4, h5, h6, h7, h8),
+        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "Prezzo"),
     )
     for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
-    for col in (h8, h9, h10, h11, h12):
+    for col in (h9, h10, h11, h12, h13):
         col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
 
     if df_visualizzata.empty:
@@ -516,7 +548,7 @@ else:
         if pd.isna(valore) or valore == 0:
             return f'<span class="wl-badge empty">—</span>'
         title = f' title="{nota}"' if nota else ""
-        icona = " " if nota else ""
+        icona = " 📝" if nota else ""
         return f'<span class="wl-badge {classe}"{title}>{valore:g}{icona}</span>'
 
     if "editing_ticker" not in st.session_state:
@@ -530,71 +562,84 @@ else:
         ticker_riga = r["Ticker"]
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
-            nuovo_nome_ticker = c1.text_input(
-                "Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}", label_visibility="collapsed"
-            )
-            nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
-            nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
-            nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
-            for col in (c5, c8, c9):
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13 = st.columns(COLS)
+            nuovo_nome_ticker = c1.text_input("Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv1 = c5.number_input("V1", value=float(r["VWAP 1"]), key=f"edit_v1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv2 = c6.number_input("V2", value=float(r["VWAP 2"]), key=f"edit_v2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv3 = c7.number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
+            for col in (c8, c9, c10):
                 col.write("")
-            if c11.button("💾", key=f"save_{ticker_riga}"):
-                nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}", r["Nota 1"])
-                nota_2 = st.session_state.get(f"edit_n2_{ticker_riga}", r["Nota 2"])
-                nota_3 = st.session_state.get(f"edit_n3_{ticker_riga}", r["Nota 3"])
+                
+            if c11.button("💾", key=f"save_{ticker_riga}_{_}"):
+                nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}_{_}", r["Nota 1"])
+                nota_2 = st.session_state.get(f"edit_n2_{ticker_riga}_{_}", r["Nota 2"])
+                nota_3 = st.session_state.get(f"edit_n3_{ticker_riga}_{_}", r["Nota 3"])
+                nota_v1 = st.session_state.get(f"edit_nv1_{ticker_riga}_{_}", r["Nota VWAP 1"])
+                nota_v2 = st.session_state.get(f"edit_nv2_{ticker_riga}_{_}", r["Nota VWAP 2"])
+                nota_v3 = st.session_state.get(f"edit_nv3_{ticker_riga}_{_}", r["Nota VWAP 3"])
+                
                 ticker_finale = ticker_riga
                 if nuovo_nome_ticker.strip().upper() != ticker_riga.strip().upper():
                     rinomina_ticker(ticker_riga, nuovo_nome_ticker)
                     ticker_finale = nuovo_nome_ticker.strip().upper()
-                salva_riga(ticker_finale, nl1, nl2, nl3, nota_1, nota_2, nota_3)
+                salva_riga(ticker_finale, nl1, nl2, nl3, nv1, nv2, nv3, nota_1, nota_2, nota_3, nota_v1, nota_v2, nota_v3)
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-            if c12.button("✖️", key=f"cancel_{ticker_riga}"):
+            if c12.button("✖️", key=f"cancel_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
 
-            _, nc1, nc2, nc3, _ = st.columns([2, 1.3, 1.3, 1.3, 2.9])
-            nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 1")
-            nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 2")
-            nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}", label_visibility="collapsed", placeholder="nota livello 3")
+            # Righe per le note
+            _, nc1, nc2, nc3, nc4, nc5, nc6, _ = st.columns([2, 1, 1, 1, 1, 1, 1, 2.7])
+            nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc4.text_input("Nota V1", value=str(r["Nota VWAP 1"] or ""), key=f"edit_nv1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc5.text_input("Nota V2", value=str(r["Nota VWAP 2"] or ""), key=f"edit_nv2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc6.text_input("Nota V3", value=str(r["Nota VWAP 3"] or ""), key=f"edit_nv3_{ticker_riga}_{_}", label_visibility="collapsed")
+
         else:
-            c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
-            # FIX: Chiavi univoche con indice
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13 = st.columns(COLS)
             if c1.button(ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
             c2.markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
             c3.markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
             c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
+            c5.markdown(badge(r["VWAP 1"], "v1", r["Nota VWAP 1"]), unsafe_allow_html=True)
+            c6.markdown(badge(r["VWAP 2"], "v2", r["Nota VWAP 2"]), unsafe_allow_html=True)
+            c7.markdown(badge(r["VWAP 3"], "v3", r["Nota VWAP 3"]), unsafe_allow_html=True)
 
             ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
             prezzo_riga = prezzi_condivisi.get(ticker_riga)
 
             if prezzo_riga is not None:
-                c5.markdown(
+                c8.markdown(
                     f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{prezzo_riga:.2f}</span>',
                     unsafe_allow_html=True,
                 )
             else:
-                c5.markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
+                c8.markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
 
             tv_symbol = ticker_td_riga.replace('/', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
             exch = determina_exchange(ticker_td_riga)
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
-            c8.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
-            c9.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
+            c9.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;"></a>', unsafe_allow_html=True)
+            c10.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;"></a>', unsafe_allow_html=True)
             if r.get("Screenshot"):
-                if c10.button("️", key=f"screenshot_{ticker_riga}_{_}"):
+                if c11.button("🖼️", key=f"screenshot_{ticker_riga}_{_}"):
                     st.session_state["screenshot_da_mostrare"] = r["Screenshot"]
                     st.rerun()
             else:
-                c10.write("")
-            if c11.button("️", key=f"edit_{ticker_riga}_{_}"):
+                c11.write("")
+            if c12.button("✏️", key=f"edit_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
-            if c12.button("🗑️", key=f"del_{ticker_riga}_{_}"):
+            if c13.button("🗑️", key=f"del_{ticker_riga}_{_}"):
                 elimina_riga(ticker_riga)
                 st.rerun()
 
@@ -633,11 +678,8 @@ else:
     ticker_selezionato = st.session_state["ticker_grafico"]
 
     riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
-    livelli = [
-        float(riga[f"Livello {i}"])
-        for i in (1, 2, 3)
-        if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0
-    ]
+    livelli = [float(riga[f"Livello {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0]
+    vwap = [float(riga[f"VWAP {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"VWAP {i}"]) and riga[f"VWAP {i}"] != 0]
 
     import json as _json
 
@@ -647,7 +689,7 @@ else:
         "1W": ("1week", 260),
         "1M": ("1month", 120),
     }
-    st.markdown(f'<h3 style="margin-bottom:0.4rem;"> {ticker_selezionato}</h3>', unsafe_allow_html=True)
+    st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
     timeframe = st.radio(
         "Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed"
     )
@@ -657,7 +699,6 @@ else:
     storico = ottieni_time_series(ticker_td, intervallo, outputsize)
     if storico.empty:
         mappa_yf_periodo = {"4h": "2y", "1day": "10y", "1week": "10y", "1month": "max"}
-        # FIX: Fallback Yahoo Finance con auto_adjust=True
         storico = storico_yfinance(ticker_selezionato, mappa_yf_periodo.get(intervallo, "1y"), intervallo.replace("1day", "1d").replace("1week", "1wk").replace("1month", "1mo").replace("4h", "60m"))
 
     if storico.empty:
@@ -676,13 +717,15 @@ else:
             for idx, r in storico.iterrows()
         ]
 
-        colori_livelli = ["#f0b90b", "#00c176", "#ff4d4d"]
-        linee_js = "\n".join(
-            f'candleSeries.createPriceLine({{'
-            f'price: {liv}, color: "{colori_livelli[i % 3]}", '
-            f'lineWidth: 2, lineStyle: 2, '
-            f'title: "Livello {i+1}: {liv}" }});'
+        # Linee Livelli (continue)
+        linee_livelli_js = "\n".join(
+            f'candleSeries.createPriceLine({{price: {liv}, color: "{["#f0b90b", "#00c176", "#ff4d4d"][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
             for i, liv in enumerate(livelli)
+        )
+        # Linee VWAP (tratteggiate)
+        linee_vwap_js = "\n".join(
+            f'candleSeries.createPriceLine({{price: {v}, color: "#00b4d8", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
+            for i, v in enumerate(vwap)
         )
 
         chart_html = f"""
@@ -694,28 +737,21 @@ else:
             width: container.clientWidth,
             height: 600,
             layout: {{ background: {{ color: '#0e1117' }}, textColor: '#d1d4dc' }},
-            grid: {{
-              vertLines: {{ color: '#1e222d' }},
-              horzLines: {{ color: '#1e222d' }},
-            }},
+            grid: {{ vertLines: {{ color: '#1e222d' }}, horzLines: {{ color: '#1e222d' }} }},
             timeScale: {{ borderColor: '#485c7b', timeVisible: {str(usa_timestamp).lower()} }},
           }});
 
           const candleSeries = chart.addCandlestickSeries({{
             upColor: '#26a69a', downColor: '#ef5350',
-            borderVisible: false,
-            wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+            borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
           }});
 
           candleSeries.setData({_json.dumps(candele)});
-
-          {linee_js}
+          {linee_livelli_js}
+          {linee_vwap_js}
 
           chart.timeScale().fitContent();
-
-          new ResizeObserver(entries => {{
-            chart.applyOptions({{ width: entries[0].contentRect.width }});
-          }}).observe(container);
+          new ResizeObserver(entries => {{ chart.applyOptions({{ width: entries[0].contentRect.width }}); }}).observe(container);
         </script>
         """
         st.components.v1.html(chart_html, height=620)
@@ -725,15 +761,13 @@ else:
 # STORICO ALERT
 # ---------------------------------------------------------------
 st.divider()
-st.subheader(" Storico Alert")
+st.subheader("🕘 Storico Alert")
 
 HISTORY_PATH = "alert_history.csv"
-
 
 @st.cache_data(ttl=60)
 def carica_storico_alert() -> pd.DataFrame:
     colonne = ["Data", "Ticker", "Livello", "Valore Livello", "Nota", "Prezzo al momento"]
-
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_PATH}"
@@ -745,15 +779,11 @@ def carica_storico_alert() -> pd.DataFrame:
                 return pd.read_csv(io.StringIO(contenuto))
         except Exception:
             pass
-
     if os.path.exists(HISTORY_PATH):
         return pd.read_csv(HISTORY_PATH)
-
     return pd.DataFrame(columns=colonne)
 
-
 storico_alert = carica_storico_alert()
-
 if storico_alert.empty:
     st.caption("Nessun alert ancora scattato.")
 else:
