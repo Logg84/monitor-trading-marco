@@ -19,6 +19,45 @@ import datetime
 import pandas as pd
 import requests
 import mplfinance as mpf
+import yfinance as yf
+
+# Ticker europei che Twelve Data non copre sul piano gratuito: qui mappiamo
+# il simbolo Yahoo Finance corretto (con suffisso di borsa). yfinance richiede
+# il suffisso per i titoli non-USA — aggiungere qui quando se ne scopre uno nuovo.
+MAPPA_BORSA_EUROPEA = {
+    "CPR": "CPR.MI",    # Campari, Borsa Italiana
+    "RI": "RI.PA",      # Pernod Ricard, Euronext Paris
+    "NESN": "NESN.SW",  # Nestlé, SIX Swiss Exchange
+    "AF": "AF.PA",      # Air France-KLM, Euronext Paris
+}
+
+
+def prezzo_yfinance(ticker: str) -> float | None:
+    """Fallback su yfinance quando Twelve Data non copre il titolo (piano gratuito)."""
+    simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
+    try:
+        info = yf.Ticker(simbolo)
+        prezzo = info.fast_info.get("lastPrice")
+        if prezzo is None:
+            hist = info.history(period="5d", interval="1d")
+            if hist.empty:
+                return None
+            prezzo = hist["Close"].dropna().iloc[-1]
+        return float(prezzo)
+    except Exception as e:
+        print(f"Errore yfinance per {simbolo}: {e}")
+        return None
+
+
+def storico_yfinance(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
+    """Fallback su yfinance per lo storico (momentum/grafico) quando Twelve Data non copre il titolo."""
+    simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
+    try:
+        h = yf.Ticker(simbolo).history(period=period, interval=interval)
+        return h.dropna(subset=["Close"]) if not h.empty else pd.DataFrame()
+    except Exception as e:
+        print(f"Errore storico yfinance per {simbolo}: {e}")
+        return pd.DataFrame()
 
 TD_API_KEY = os.environ.get("TWELVEDATA_API_KEY")
 
@@ -323,6 +362,11 @@ def main():
         ticker = str(row["Ticker"]).strip().upper()
         ticker_td = mappa_ticker_twelvedata(ticker)
         prezzo = prezzo_corrente(ticker_td)
+        fonte = "Twelve Data"
+
+        if prezzo is None:
+            prezzo = prezzo_yfinance(ticker)
+            fonte = "yfinance (fallback)"
 
         if prezzo is None:
             print(f"Prezzo non disponibile per {ticker} ({ticker_td})")
@@ -350,6 +394,8 @@ def main():
                 nota_riga = f"\n📝 {nota}" if nota else ""
 
                 storico = ottieni_time_series(ticker_td, "1day", 200)
+                if storico.empty:
+                    storico = storico_yfinance(ticker, "6mo", "1d")
                 valutazione = valuta_forza(storico, prezzo, livello) if not storico.empty else "Momentum non disponibile"
 
                 msg = (
