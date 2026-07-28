@@ -280,6 +280,22 @@ def carica_watchlist() -> pd.DataFrame:
     return df
 
 
+def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
+    """Cambia il nome di un ticker già in watchlist, mantenendo livelli/note/screenshot."""
+    df = carica_watchlist()
+    vecchio_ticker = vecchio_ticker.strip().upper()
+    nuovo_ticker = nuovo_ticker.strip().upper()
+    if not nuovo_ticker or vecchio_ticker == nuovo_ticker:
+        return df
+    idx = df[df["Ticker"].str.upper() == vecchio_ticker].index
+    if len(idx) == 0:
+        return df
+    df.at[idx[0], "Ticker"] = nuovo_ticker
+    df.to_csv(CSV_PATH, index=False)
+    commit_csv_su_github(df)
+    return df
+
+
 def salva_riga(ticker: str, l1: float, l2: float, l3: float, n1: str = "", n2: str = "", n3: str = "", screenshot_path: str = None):
     df = carica_watchlist()
     ticker = ticker.strip().upper()
@@ -529,19 +545,23 @@ else:
 
         if st.session_state["editing_ticker"] == ticker_riga:
             c1, c2, c3, c4, c5, c8, c9, c10, c11, c12 = st.columns(COLS)
-            c1.markdown(f'<span class="wl-ticker">{ticker_riga}</span>', unsafe_allow_html=True)
+            nuovo_nome_ticker = c1.text_input(
+                "Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}", label_visibility="collapsed"
+            )
             nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}", label_visibility="collapsed")
             nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}", label_visibility="collapsed")
             nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}", label_visibility="collapsed")
             for col in (c5, c8, c9):
                 col.write("")
             if c11.button("💾", key=f"save_{ticker_riga}"):
-                salva_riga(
-                    ticker_riga, nl1, nl2, nl3,
-                    st.session_state.get(f"edit_n1_{ticker_riga}", r["Nota 1"]),
-                    st.session_state.get(f"edit_n2_{ticker_riga}", r["Nota 2"]),
-                    st.session_state.get(f"edit_n3_{ticker_riga}", r["Nota 3"]),
-                )
+                nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}", r["Nota 1"])
+                nota_2 = st.session_state.get(f"edit_n2_{ticker_riga}", r["Nota 2"])
+                nota_3 = st.session_state.get(f"edit_n3_{ticker_riga}", r["Nota 3"])
+                ticker_finale = ticker_riga
+                if nuovo_nome_ticker.strip().upper() != ticker_riga.strip().upper():
+                    rinomina_ticker(ticker_riga, nuovo_nome_ticker)
+                    ticker_finale = nuovo_nome_ticker.strip().upper()
+                salva_riga(ticker_finale, nl1, nl2, nl3, nota_1, nota_2, nota_3)
                 st.session_state["editing_ticker"] = None
                 st.rerun()
             if c12.button("✖️", key=f"cancel_{ticker_riga}"):
