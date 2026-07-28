@@ -5,9 +5,28 @@ import datetime
 import time
 import json
 import requests
+import yfinance as yf
 from PIL import Image
 from google import genai
 from google.genai import types
+
+MAPPA_BORSA_EUROPEA = {
+    "CPR": "CPR.MI",    # Campari, Borsa Italiana
+    "RI": "RI.PA",      # Pernod Ricard, Euronext Paris
+    "NESN": "NESN.SW",  # Nestlé, SIX Swiss Exchange
+    "AF": "AF.PA",      # Air France-KLM, Euronext Paris
+}
+
+
+def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    """Fallback su yfinance per lo storico quando Twelve Data non copre il titolo (piano gratuito)."""
+    simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
+    try:
+        h = yf.Ticker(simbolo).history(period=period, interval=interval)
+        return h.dropna(subset=["Close"]) if not h.empty else pd.DataFrame()
+    except Exception as e:
+        print(f"Errore storico yfinance per {simbolo}: {e}")
+        return pd.DataFrame()
 
 CSV_PATH = "watchlist.csv"
 MODEL_NAME = "gemini-2.5-flash"  # se non disponibile, provare "gemini-2.0-flash"
@@ -632,6 +651,9 @@ else:
 
     ticker_td = mappa_ticker_twelvedata(ticker_selezionato)
     storico = ottieni_time_series(ticker_td, intervallo, outputsize)
+    if storico.empty:
+        mappa_yf_periodo = {"4h": "2y", "1day": "10y", "1week": "10y", "1month": "max"}
+        storico = storico_yfinance(ticker_selezionato, mappa_yf_periodo.get(intervallo, "1y"), intervallo.replace("1day", "1d").replace("1week", "1wk").replace("1month", "1mo").replace("4h", "60m"))
 
     if storico.empty:
         dettaglio = f" — {_ULTIMO_ERRORE_TD}" if _ULTIMO_ERRORE_TD else ""
