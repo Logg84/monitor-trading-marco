@@ -15,9 +15,6 @@ MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un rel
 MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
 
 # === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
-# Il motore lavora su candele GIORNALIERE. Ogni finestra è espressa in giorni
-# di trading, NON in numero di barre, così l'orizzonte reale resta identico a
-# quello che avevi su weekly (es. 1 anno = 252 giorni, non 52 barre).
 BARS_PER_YEAR = 252
 WIN_VWAP_3M = 63            # ~3 mesi
 WIN_VWAP_1Y = 252           # ~1 anno
@@ -42,11 +39,7 @@ class DataEngine:
 
     def add_debug(self, msg, level="info"):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        self.debug_log.append({
-            "time": timestamp,
-            "msg": msg,
-            "level": level
-        })
+        self.debug_log.append({"time": timestamp, "msg": msg, "level": level})
         if len(self.debug_log) > 200:
             self.debug_log = self.debug_log[-200:]
         print(f"[{level.upper()}] {timestamp} - {msg}")
@@ -167,15 +160,16 @@ class DataEngine:
         return None
 
     # ===============================
-    # ESTRAZIONE TICKERS
+    # ESTRAZIONE TICKERS  (con euristica robusta: risolve il NASDAQ-100)
     # ===============================
     def estrai_ticker_wikipedia(self, url, headers=None):
         headers = headers or {'User-Agent': 'Mozilla/5.0'}
         self.add_debug(f"Estrazione ticker da: {url}", "info")
 
         def _is_ticker_like(s):
-            # Ticker valido: corto, solo MAIUSCOLE/cifre/punti/trattini, con almeno una lettera.
-            # Esclude anni ("2024"), parole ("Company"), celle vuote/"nan".
+            # Una sigla di ticker: corta, ASCII, con almeno una lettera,
+            # fatta solo di MAIUSCOLE/cifre/punti/trattini. Esclude anni ("2024"),
+            # nomi azienda ("Microsoft Corp"), settori ("Health Care"), date.
             if not s or len(s) > 8 or not s.isascii():
                 return False
             if not any(c.isalpha() for c in s):
@@ -200,8 +194,10 @@ class DataEngine:
                             self.add_debug(f"Trovati {len(tickers)} ticker nella colonna '{target}' (tabella {idx})", "success")
                             return tickers
 
-            # 2) Fallback robusto (caso NASDAQ-100): nessuna colonna col nome giusto.
-            #    Prendo, tra TUTTE le tabelle, la colonna con più valori ticker-like.
+            # 2) EURISTICA (caso NASDAQ-100 e simili): nessuna intestazione utile.
+            #    Tra TUTTE le colonne di TUTTE le tabelle, prendo quella con più
+            #    valori "ticker-like". La tabella componenti (~100 sigle) vince a
+            #    mani basse su qualsiasi colonna di spazzatura della tabella 0.
             best_tab, best_col, best_n = None, None, 0
             for idx, tab in enumerate(tabelle):
                 if tab.empty:
@@ -225,7 +221,7 @@ class DataEngine:
                 self.add_debug(f"[wiki] EURISTICA VINCE: tab {best_tab} colonna '{best_col}' -> {len(uniq)} ticker", "success")
                 return uniq
 
-            # 3) Ultima ratio: prima colonna della prima tabella non vuota
+            # 3) Ultima ratio (non dovrebbe più scattare sul NASDAQ)
             for tab in tabelle:
                 if not tab.empty:
                     tickers = [t for t in tab.iloc[:, 0].dropna().astype(str).str.strip() if t and t.lower() != 'nan']
@@ -259,14 +255,11 @@ class DataEngine:
         return tickers
 
     # ===============================
-    # DOWNLOAD PREZZI IN BATCH (ora GIORNALIERO)
+    # DOWNLOAD PREZZI IN BATCH (GIORNALIERO)
     # ===============================
     def download_prices_batch(self, tickers, period="10y", interval="1d"):
-        # NOTA: default "1d". 10 anni daily = ~2520 barre/ticker: il download è il
-        # collo di bottiglia su indici grandi, per questo lanci un indice alla volta.
-        # auto_adjust=True rettifica dividendi/split (evita POC fantasma da gap).
         self.add_debug(f"Avvio download batch prezzi per {len(tickers)} ticker (Period: {period}, Interval: {interval})...", "info")
-        chunk_size = 50  # lotti più piccoli: il daily è più pesante del weekly
+        chunk_size = 50
         chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
         dfs = []
         for i, chunk in enumerate(chunks):
@@ -354,12 +347,8 @@ class DataEngine:
             if ticker in self.fundamentals_cache:
                 return self.fundamentals_cache[ticker]
             return {
-                "marketCap": 0,
-                "debtToEquity": None,
-                "freeCashflow": None,
-                "operatingMargins": None,
-                "returnOnEquity": None,
-                "last_updated": now.isoformat()
+                "marketCap": 0, "debtToEquity": None, "freeCashflow": None,
+                "operatingMargins": None, "returnOnEquity": None, "last_updated": now.isoformat()
             }
 
     def fetch_fundamentals_parallel(self, tickers):
@@ -424,12 +413,8 @@ class DataEngine:
                 "rapporto": float(ratio.iloc[-1])
             }
             df_res = pd.DataFrame({
-                "Date": common_index,
-                "SPX": spx.values,
-                "VIX": vix.values,
-                "VVIX": vvix.values,
-                "Flip_Line": flip_line.values,
-                "Ratio": ratio.values
+                "Date": common_index, "SPX": spx.values, "VIX": vix.values,
+                "VVIX": vvix.values, "Flip_Line": flip_line.values, "Ratio": ratio.values
             })
             spot = latest["spot"]
             flip = latest["flip"]
@@ -450,53 +435,25 @@ class DataEngine:
                 else:
                     stato, bias, desc, color = "CORRENTE DISCENDENTE", "SHORT", "STRATEGIA: Operatività ridotta del 50%. Accumulo ultra-paziente.", "orange"
             bussola = {
-                "spot": spot,
-                "vix": latest["vix"],
-                "vvx": latest["vvx"],
-                "flip": flip,
-                "rapporto": rapporto,
-                "stato": stato,
-                "bias": bias,
-                "desc": desc,
-                "color": color
+                "spot": spot, "vix": latest["vix"], "vvx": latest["vvx"], "flip": flip,
+                "rapporto": rapporto, "stato": stato, "bias": bias, "desc": desc, "color": color
             }
-            return {
-                "df": df_res,
-                "latest": latest,
-                "bussola": bussola
-            }
+            return {"df": df_res, "latest": latest, "bussola": bussola}
         except Exception as e:
             self.add_debug(f"Errore dati macro, uso simulazione: {str(e)}", "warning")
             dates = pd.date_range(end=datetime.datetime.today(), periods=30, freq='D')
-            latest = {
-                "spot": 5472.79,
-                "vix": 20.21,
-                "vvx": 91.72,
-                "flip": 5450.0,
-                "rapporto": 4.54
-            }
+            latest = {"spot": 5472.79, "vix": 20.21, "vvx": 91.72, "flip": 5450.0, "rapporto": 4.54}
             bussola = {
-                "spot": latest["spot"],
-                "vix": latest["vix"],
-                "vvx": latest["vvx"],
-                "flip": latest["flip"],
-                "rapporto": latest["rapporto"],
-                "stato": "RIMBALZO ELASTICO",
-                "bias": "LONG",
-                "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).",
-                "color": "indigo"
+                "spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"],
+                "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG",
+                "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"
             }
             return {
                 "df": pd.DataFrame({
-                    "Date": dates,
-                    "SPX": np.linspace(5400, 5472, 30),
-                    "VIX": np.linspace(20, 20.21, 30),
-                    "VVIX": np.linspace(90, 91.72, 30),
-                    "Flip_Line": np.linspace(5380, 5450, 30),
-                    "Ratio": np.linspace(4.5, 4.54, 30)
+                    "Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30),
+                    "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)
                 }),
-                "latest": latest,
-                "bussola": bussola
+                "latest": latest, "bussola": bussola
             }
 
     # ===============================
@@ -558,7 +515,6 @@ class DataEngine:
         return filtered
 
     def compute_vwap_levels(self, hist):
-        # Finestre in giorni di trading (WIN_VWAP_*), coerenti col daily.
         if hist.empty or len(hist) < WIN_VWAP_3M:
             return {
                 "vwap_4y": None, "vwap_1y": None, "vwap_3m": None,
@@ -590,11 +546,7 @@ class DataEngine:
         dist_1y = (current_price - vwap_1y) / vwap_1y * 100
         dist_4y = (current_price - vwap_4y) / vwap_4y * 100
         near_threshold = 3.5
-        near_vwaps = [
-            abs(dist_3m) <= near_threshold,
-            abs(dist_1y) <= near_threshold,
-            abs(dist_4y) <= near_threshold
-        ]
+        near_vwaps = [abs(dist_3m) <= near_threshold, abs(dist_1y) <= near_threshold, abs(dist_4y) <= near_threshold]
         convergence_count = sum(near_vwaps)
         if convergence_count >= 3:
             conv_label = "🔥 ALTA (3 VWAP vicini)"
@@ -605,19 +557,13 @@ class DataEngine:
         else:
             conv_label = "⚪ NESSUNA"
         return {
-            "vwap_4y": round(vwap_4y, 2),
-            "vwap_1y": round(vwap_1y, 2),
-            "vwap_3m": round(vwap_3m, 2),
-            "dist_4y_pct": round(dist_4y, 1),
-            "dist_1y_pct": round(dist_1y, 1),
-            "dist_3m_pct": round(dist_3m, 1),
-            "convergence_count": convergence_count,
-            "convergence_label": conv_label
+            "vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2),
+            "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1),
+            "convergence_count": convergence_count, "convergence_label": conv_label
         }
 
     def compute_poc(self, hist, start_idx, end_idx, n_bins=60):
-        # VETTORIZZATO (numpy): stesso risultato del vecchio doppio ciclo, ma senza
-        # iterrows. Su daily (migliaia di barre) passa da ~secondi a ~millisecondi.
+        # Vettorizzato (numpy): identico al vecchio doppio ciclo, ma in millisecondi.
         segment = hist.iloc[start_idx:end_idx]
         if len(segment) < 2:
             return None
@@ -635,30 +581,19 @@ class DataEngine:
         valid = (bar_range > 0) & np.isfinite(bar_range) & np.isfinite(volume)
         if not valid.any():
             return None
-        low = low[valid]
-        high = high[valid]
-        volume = volume[valid]
-        bar_range = bar_range[valid]
-        # bin che contiene low (right) e high (left): gestione esatta dei bordi
+        low = low[valid]; high = high[valid]; volume = volume[valid]; bar_range = bar_range[valid]
         b_lo = np.clip(np.searchsorted(bins, low, side='right') - 1, 0, n_bins - 1)
         b_hi = np.clip(np.searchsorted(bins, high, side='left') - 1, 0, n_bins - 1)
         acc = np.zeros(n_bins)
         same = (b_lo == b_hi)
-        # barra dentro un solo bin -> tutto il volume lì
         np.add.at(acc, b_lo[same], volume[same])
         multi = ~same
         if multi.any():
-            lo = b_lo[multi]
-            hi = b_hi[multi]
-            vol_m = volume[multi]
-            rng_m = bar_range[multi]
-            # bin basso parziale
+            lo = b_lo[multi]; hi = b_hi[multi]; vol_m = volume[multi]; rng_m = bar_range[multi]
             frac_lo = (bins[lo + 1] - low[multi]) / rng_m
             np.add.at(acc, lo, vol_m * frac_lo)
-            # bin alto parziale
             frac_hi = (high[multi] - bins[hi]) / rng_m
             np.add.at(acc, hi, vol_m * frac_hi)
-            # bin interni pieni (difference-array / prefix-sum)
             unit = vol_m * bw / rng_m
             events = np.zeros(n_bins + 1)
             np.add.at(events, lo + 1, unit)
@@ -682,15 +617,11 @@ class DataEngine:
             age_weight = 1.0 + np.log1p(years_ago)
             drop_weight = 1.0 + (drop / 50.0)
             segment_bars = total_bars - bar_pos
-            # BARS_PER_YEAR: su daily un anno = 252 barre (era 52 su weekly)
             bar_weight = 1.0 + np.log1p(segment_bars / BARS_PER_YEAR)
             raw_weight = age_weight * drop_weight * bar_weight
             pocs.append({
-                "anchor_year": int(anchor_date.year),
-                "anchor_date": anchor_date,
-                "drop_pct": round(float(drop), 1),
-                "poc_price": round(float(poc_price), 4),
-                "weight": float(raw_weight),
+                "anchor_year": int(anchor_date.year), "anchor_date": anchor_date,
+                "drop_pct": round(float(drop), 1), "poc_price": round(float(poc_price), 4), "weight": float(raw_weight),
             })
         if pocs:
             max_w = max(p["weight"] for p in pocs)
@@ -703,7 +634,6 @@ class DataEngine:
         return pocs
 
     def closest_poc(self, pocs, current_price, max_dist_pct=MAX_POC_DIST_PCT):
-        # MANOPOLA: ignora i POC oltre max_dist_pct (relitti storici non operativi)
         if not pocs:
             return None, None
         best_poc = None
@@ -721,21 +651,18 @@ class DataEngine:
         return best_poc, round(float(best_dist), 2)
 
     def calcola_segnali_bottom(self, hist):
-        # Tutte le finestre sono in giorni di trading (costanti WIN_*).
         if len(hist) < WIN_ROC + 5:
             return 0, "Dati insufficienti"
         close = hist['Close'].astype(float)
         volume = hist['Volume'].astype(float)
         score = 0
         dettagli = []
-        # 1. Decelerazione ROC su WIN_ROC giorni, confrontata con WIN_ROC_COMPARE giorni fa
         roc = close.pct_change(periods=WIN_ROC) * 100
         roc_current = roc.iloc[-1]
         roc_before = roc.iloc[-WIN_ROC_COMPARE] if len(roc) >= WIN_ROC_COMPARE else roc_current
         if not pd.isna(roc_current) and not pd.isna(roc_before) and roc_current > roc_before:
             score += 1
             dettagli.append(f"Decelerazione (ROC: {roc_current:.1f}% > {roc_before:.1f}%)")
-        # 2. MACD Histogram in risalita (12/26/9 sono la definizione standard su daily)
         exp1 = close.ewm(span=12, adjust=False).mean()
         exp2 = close.ewm(span=26, adjust=False).mean()
         macd = exp1 - exp2
@@ -744,7 +671,6 @@ class DataEngine:
         if len(histogram) >= 2 and histogram.iloc[-1] > histogram.iloc[-2]:
             score += 1
             dettagli.append("MACD Histogram in risalita")
-        # 3. Vicinanza al POC OPERATIVO (entro MAX_POC_DIST_PCT e peso >= MIN) + Convergenza VWAP
         try:
             pocs = self.get_pocs_from_hist(hist)
             vwap_info = self.compute_vwap_levels(hist)
@@ -760,7 +686,6 @@ class DataEngine:
                 dettagli.append(f"Convergenza VWAP ({vwap_info['convergence_label']})")
         except Exception:
             pass
-        # 4. Volume + Forza (media su WIN_VOL giorni)
         if len(volume) >= WIN_VOL + 1:
             vol_ultimo = volume.iloc[-1]
             vol_media = volume.iloc[-(WIN_VOL + 1):-1].mean()
@@ -773,7 +698,7 @@ class DataEngine:
         return int(score), ", ".join(dettagli) if dettagli else "Nessun segnale"
 
     # ===============================
-    # MOTORE DI SCREENING OTTIMIZZATO
+    # MOTORE DI SCREENING
     # ===============================
     def perform_screening(self, indice_scelto, min_market_cap, soglia_drawdown, soglia_poc_pct):
         self.add_debug(f"🚀 Avvio screening ottimizzato per {indice_scelto}...", "info")
@@ -797,7 +722,7 @@ class DataEngine:
             if not skip:
                 clean_tickers.append(t)
         self.add_debug(f"Ticker puliti per il download: {len(clean_tickers)}", "info")
-        df_batch = self.download_prices_batch(clean_tickers)  # daily (default)
+        df_batch = self.download_prices_batch(clean_tickers)
         if df_batch.empty:
             self.add_debug("Nessun dato scaricato da yfinance. Verrà tentata l'analisi offline con la cache locale...", "warning")
         candidates = []
@@ -816,11 +741,7 @@ class DataEngine:
             current_dd = ((price_now - ath_value) / ath_value) * 100
             if current_dd <= -soglia_drawdown:
                 candidates.append(ticker)
-                candidates_hist[ticker] = {
-                    "hist": hist,
-                    "price_now": price_now,
-                    "current_dd": current_dd
-                }
+                candidates_hist[ticker] = {"hist": hist, "price_now": price_now, "current_dd": current_dd}
         self.add_debug(f"Trovati {len(candidates)} candidati in forte drawdown (>= {soglia_drawdown}%).", "success")
         if not candidates:
             self.add_debug("Nessun candidato ha superato il filtro del drawdown.", "warning")
@@ -840,36 +761,26 @@ class DataEngine:
             poc_label, dist_label, alert_poc = "N/D", "N/D", ""
             try:
                 pocs = self.get_pocs_from_hist(hist)
-                poc_vicino, dist_poc_pct = self.closest_poc(pocs, price_now)  # filtra già i POC oltre MAX_POC_DIST_PCT
+                poc_vicino, dist_poc_pct = self.closest_poc(pocs, price_now)
                 if poc_vicino is not None:
                     poc_label = f"{poc_vicino['poc_price']:.2f} ({poc_vicino['anchor_year']})"
                     dist_label = f"{dist_poc_pct:+.1f}%"
                     wn_vicino = float(poc_vicino.get("weight_norm", 0.0))
-                    # MANOPOLA: SU POC solo se vicino E affidabile (peso >= MIN_POC_WEIGHT_NORM)
                     alert_poc = "🎯 SU POC" if (abs(dist_poc_pct) <= soglia_poc_pct and wn_vicino >= MIN_POC_WEIGHT_NORM) else ""
             except Exception as e:
                 self.add_debug(f"Errore calcolo POC per {ticker}: {e}", "warning")
             bottom_score, bottom_dettagli = self.calcola_segnali_bottom(hist)
             vwap_info = self.compute_vwap_levels(hist)
             pre_filtered.append({
-                "Ticker": ticker,
-                "Indice": indice_scelto,
-                "Prezzo": round(price_now, 2),
+                "Ticker": ticker, "Indice": indice_scelto, "Prezzo": round(price_now, 2),
                 "Drawdown (%)": round(current_dd, 2),
                 "Market Cap (B)": round(mcap / 1e9, 2) if mcap > 0 else 0.0,
-                "POC più vicino": poc_label,
-                "Distanza POC (%)": dist_label,
-                "🎯 ALERT POC": alert_poc,
-                "VWAP 4Y": vwap_info["vwap_4y"],
-                "VWAP 1Y": vwap_info["vwap_1y"],
-                "VWAP 3M": vwap_info["vwap_3m"],
+                "POC più vicino": poc_label, "Distanza POC (%)": dist_label, "🎯 ALERT POC": alert_poc,
+                "VWAP 4Y": vwap_info["vwap_4y"], "VWAP 1Y": vwap_info["vwap_1y"], "VWAP 3M": vwap_info["vwap_3m"],
                 "Convergenza VWAP": vwap_info["convergence_label"],
-                "Bottom Score (0-4)": bottom_score,
-                "Bottom Dettagli": bottom_dettagli,
-                "_debtToEquity": fund.get("debtToEquity", None),
-                "_freeCashflow": fund.get("freeCashflow", None),
-                "_operatingMargins": fund.get("operatingMargins", None),
-                "_returnOnEquity": fund.get("returnOnEquity", None)
+                "Bottom Score (0-4)": bottom_score, "Bottom Dettagli": bottom_dettagli,
+                "_debtToEquity": fund.get("debtToEquity", None), "_freeCashflow": fund.get("freeCashflow", None),
+                "_operatingMargins": fund.get("operatingMargins", None), "_returnOnEquity": fund.get("returnOnEquity", None)
             })
         self.add_debug(f"Pre-filtrati rimasti dopo Market Cap: {len(pre_filtered)}", "info")
         if not pre_filtered:
@@ -879,12 +790,7 @@ class DataEngine:
         med_fcf = df_fund["_freeCashflow"].dropna().median() if not df_fund["_freeCashflow"].dropna().empty else 0.0
         med_margin = df_fund["_operatingMargins"].dropna().median() if not df_fund["_operatingMargins"].dropna().empty else 0.0
         med_roe = df_fund["_returnOnEquity"].dropna().median() if not df_fund["_returnOnEquity"].dropna().empty else 0.0
-        medians = {
-            "debtToEquity": med_debt,
-            "freeCashflow": med_fcf,
-            "operatingMargins": med_margin,
-            "returnOnEquity": med_roe
-        }
+        medians = {"debtToEquity": med_debt, "freeCashflow": med_fcf, "operatingMargins": med_margin, "returnOnEquity": med_roe}
         self.add_debug(f"Mediane calcolate per {indice_scelto}: {medians}", "info")
         macro_info = self.ottieni_bussola_argo()
         argo_bussola = macro_info["bussola"]
@@ -893,10 +799,8 @@ class DataEngine:
         for item in pre_filtered:
             ticker = item["Ticker"]
             score = 0
-            d_eq = item["_debtToEquity"]
-            fcf = item["_freeCashflow"]
-            op_m = item["_operatingMargins"]
-            roe = item["_returnOnEquity"]
+            d_eq = item["_debtToEquity"]; fcf = item["_freeCashflow"]
+            op_m = item["_operatingMargins"]; roe = item["_returnOnEquity"]
             if d_eq is not None and d_eq <= medians["debtToEquity"]:
                 score += 1
             if fcf is not None and fcf >= medians["freeCashflow"]:
