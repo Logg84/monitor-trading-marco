@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import io
 import datetime
 import time
 import json
@@ -154,11 +155,17 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
 # ---------------------------------------------------------------
 # CSV: lettura / scrittura
 # ---------------------------------------------------------------
+# Schema ALLINEATO a watchlist_io.py (single source of truth concettuale):
+# aggiungo Origine (manuale|auto), POC e Nota POC. Così app.py non taglierà mai
+# più queste colonne quando riscrive il CSV, e l'automazione di Screening può usarle.
 COLONNE_ATTESE = [
-    "Ticker", 
-    "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3", 
-    "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3", 
-    "Screenshot"
+    "Ticker",
+    "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
+    "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
+    "Screenshot",
+    "Origine",
+    "POC",
+    "Nota POC",
 ]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
@@ -226,24 +233,55 @@ ALIAS_COLONNE = {
     "livello": "Livello 1",
     "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
     "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
+    "origine": "Origine",
+    "poc": "POC",
 }
 
-def carica_watchlist() -> pd.DataFrame:
-    if not os.path.exists(CSV_PATH):
-        return pd.DataFrame(columns=COLONNE_ATTESE)
+def _read_watchlist_github() -> pd.DataFrame | None:
+    """Legge watchlist.csv dal repo GitHub (fonte di verità persistente)."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            return None
+        contenuto = base64.b64decode(r.json()["content"]).decode()
+        return pd.read_csv(io.StringIO(contenuto))
+    except Exception as e:
+        print(f"Errore lettura watchlist da GitHub: {e}")
+        return None
 
-    df = pd.read_csv(CSV_PATH)
+def carica_watchlist() -> pd.DataFrame:
+    # GitHub-first: il disco di Streamlit Cloud è effimero, quindi la fonte di
+    # verità è il repo. Il disco locale resta solo come fallback di emergenza.
+    df = _read_watchlist_github()
+    if df is None or df.empty:
+        if os.path.exists(CSV_PATH):
+            try:
+                df = pd.read_csv(CSV_PATH)
+            except Exception:
+                df = pd.DataFrame(columns=COLONNE_ATTESE)
+        else:
+            df = pd.DataFrame(columns=COLONNE_ATTESE)
+    if df.empty:
+        df = pd.DataFrame(columns=COLONNE_ATTESE)
+
     df = df.rename(columns=ALIAS_COLONNE)
 
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = "" if (col.startswith("Nota") or col == "Screenshot") else 0
+            df[col] = "" if (col.startswith("Nota") or col in ("Screenshot", "Origine")) else 0
 
     df = df[COLONNE_ATTESE]
 
     for col in COLONNE_ATTESE:
-        if col.startswith("Nota") or col == "Screenshot":
+        if col.startswith("Nota") or col in ("Screenshot", "Origine"):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
+
+    # Default Origine = manuale: protegge tutti i titoli già presenti dall'automazione.
+    df["Origine"] = df["Origine"].replace("", "manuale")
 
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
@@ -265,29 +303,36 @@ def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
     return df
 
 def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
+    # NOTA: salva_riga è chiamata SOLO da percorsi manuali (Gemini, form, editing UI).
+    # Quindi ogni riga che passa di qui è, per definizione, "manuale" (sacra).
     df = carica_watchlist()
     ticker = ticker.strip().upper()
 
     if ticker in df["Ticker"].str.upper().values:
         idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot"]:
+        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot", "Origine", "Nota POC"]:
             df[col] = df[col].astype(object)
-            
+
         df.at[idx, "Livello 1"] = l1; df.at[idx, "Nota 1"] = n1
         df.at[idx, "Livello 2"] = l2; df.at[idx, "Nota 2"] = n2
         df.at[idx, "Livello 3"] = l3; df.at[idx, "Nota 3"] = n3
         df.at[idx, "VWAP 1"] = v1; df.at[idx, "Nota VWAP 1"] = nv1
         df.at[idx, "VWAP 2"] = v2; df.at[idx, "Nota VWAP 2"] = nv2
         df.at[idx, "VWAP 3"] = v3; df.at[idx, "Nota VWAP 3"] = nv3
-        
+        # Se ci metti mano tu, diventa tuo: l'auto-pulizia non lo toccherà più.
+        df.at[idx, "Origine"] = "manuale"
+
         if screenshot_path:
             df.at[idx, "Screenshot"] = screenshot_path
     else:
         nuova_riga = pd.DataFrame([{
-            "Ticker": ticker, 
+            "Ticker": ticker,
             "Livello 1": l1, "Nota 1": n1, "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
             "VWAP 1": v1, "Nota VWAP 1": nv1, "VWAP 2": v2, "Nota VWAP 2": nv2, "VWAP 3": v3, "Nota VWAP 3": nv3,
             "Screenshot": screenshot_path or "",
+            "Origine": "manuale",
+            "POC": 0,
+            "Nota POC": "",
         }])
         df = pd.concat([df, nuova_riga], ignore_index=True)
 
@@ -301,68 +346,15 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
 st.title("📊 Watchlist da Screenshot")
 
 # ---------------------------------------------------------------
-# IMPORTAZIONE DA SCREENER (CSV)
+# AUTOMAZIONE SCREENER (info) — l'import manuale via CSV è stato rimosso:
+# ora i titoli entrano/escono da soli dalla pagina Screening (vedi watchlist_io).
 # ---------------------------------------------------------------
-with st.expander("📥 Importa dati da Screener ARGO", expanded=False):
-    st.caption("Carica il CSV generato dal portale di screening. I livelli manuali non verranno toccati, i VWAP verranno aggiornati solo se vuoti.")
-    uploaded_screener = st.file_uploader("Seleziona file CSV Screener", type=["csv"], key="screener_csv")
-    
-    if uploaded_screener is not None:
-        df_screener = pd.read_csv(uploaded_screener)
-        st.write(f"File caricato: **{len(df_screener)}** titoli trovati.")
-        
-        if st.button("🔄 Applica e Unisci alla Watchlist", type="primary"):
-            df_watchlist = carica_watchlist()
-            titoli_aggiunti = 0
-            titoli_aggiornati = 0
-            
-            for _, row_s in df_screener.iterrows():
-                ticker = str(row_s.get("Ticker", "")).strip().upper()
-                if not ticker: continue
-                
-                # Normalizzazione VWAP dallo screener
-                v1 = float(row_s.get("VWAP 1", 0) or 0)
-                v2 = float(row_s.get("VWAP 2", 0) or 0)
-                v3 = float(row_s.get("VWAP 3", 0) or 0)
-                
-                # Se il ticker esiste già nella watchlist manuale
-                if ticker in df_watchlist["Ticker"].values:
-                    idx = df_watchlist[df_watchlist["Ticker"] == ticker].index[0]
-                    updated = False
-                    
-                    # Aggiorna VWAP solo se sono a 0 o vuoti (rispetta la precedenza manuale)
-                    if pd.isna(df_watchlist.at[idx, "VWAP 1"]) or df_watchlist.at[idx, "VWAP 1"] == 0:
-                        df_watchlist.at[idx, "VWAP 1"] = v1; updated = True
-                    if pd.isna(df_watchlist.at[idx, "VWAP 2"]) or df_watchlist.at[idx, "VWAP 2"] == 0:
-                        df_watchlist.at[idx, "VWAP 2"] = v2; updated = True
-                    if pd.isna(df_watchlist.at[idx, "VWAP 3"]) or df_watchlist.at[idx, "VWAP 3"] == 0:
-                        df_watchlist.at[idx, "VWAP 3"] = v3; updated = True
-                        
-                    if updated: titoli_aggiornati += 1
-                else:
-                    # Se non esiste, lo aggiunge come nuovo titolo
-                    l1 = float(row_s.get("Livello 1 (POC)", 0) or 0)
-                    n1 = str(row_s.get("Nota 1", "POC da Screener"))
-                    nv1 = str(row_s.get("Nota VWAP 1", ""))
-                    nv2 = str(row_s.get("Nota VWAP 2", ""))
-                    nv3 = str(row_s.get("Nota VWAP 3", ""))
-                    
-                    nuova_riga = pd.DataFrame([{
-                        "Ticker": ticker, 
-                        "Livello 1": l1, "Nota 1": n1,
-                        "VWAP 1": v1, "Nota VWAP 1": nv1,
-                        "VWAP 2": v2, "Nota VWAP 2": nv2,
-                        "VWAP 3": v3, "Nota VWAP 3": nv3,
-                        "Screenshot": ""
-                    }])
-                    df_watchlist = pd.concat([df_watchlist, nuova_riga], ignore_index=True)
-                    titoli_aggiunti += 1
-            
-            # Salva tutto
-            df_watchlist.to_csv(CSV_PATH, index=False)
-            commit_csv_su_github(df_watchlist)
-            st.success(f"✅ Import completato: {titoli_aggiunti} nuovi titoli, {titoli_aggiornati} VWAP aggiornati.")
-            st.rerun()
+st.info(
+    "🔗 **Automazione attiva dalla pagina Screening.** I titoli dello screener che toccano "
+    "un POC o un VWAP entrano **da soli** nella watchlist con origine `auto` (🤖) e vengono "
+    "rimossi quando escono dalla zona. I titoli che inserisci o modifichi a mano qui hanno "
+    "origine `manuale` e **non vengono mai toccati** dall'automazione."
+)
 
 col_upload, col_result = st.columns([1, 1])
 
@@ -391,7 +383,7 @@ with col_result:
         st.subheader("Risultato estratto")
 
         ticker_edit = st.text_input("Ticker", value=dati.get("ticker", ""))
-        
+
         col_l, col_v = st.columns(2)
         with col_l:
             st.markdown("**Livelli**")
@@ -418,7 +410,7 @@ with col_result:
                 screenshot_path = carica_screenshot_su_github(
                     ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
                 )
-            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit, 
+            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit,
                        n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
             del st.session_state["ultima_analisi"]
             st.rerun()
@@ -446,7 +438,7 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
             m_nv1 = st.text_input("Nota V1")
             m_nv2 = st.text_input("Nota V2")
             m_nv3 = st.text_input("Nota V3")
-        
+
         m_submit = st.form_submit_button("💾 Salva Ticker Manuale")
 
     if m_submit:
@@ -573,7 +565,7 @@ else:
         "Cerca ticker", placeholder="🔍 Cerca ticker...", label_visibility="collapsed"
     )
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
-    
+
     if not df_visualizzata.empty:
         df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
@@ -608,6 +600,7 @@ else:
 
     for _, r in df_visualizzata.iterrows():
         ticker_riga = r["Ticker"]
+        origine_riga = str(r.get("Origine", "manuale")).strip().lower()
 
         if st.session_state["editing_ticker"] == ticker_riga:
             c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13 = st.columns(COLS)
@@ -620,7 +613,7 @@ else:
             nv3 = c7.number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
             for col in (c8, c9, c10):
                 col.write("")
-                
+
             if c11.button("💾", key=f"save_{ticker_riga}_{_}"):
                 nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}_{_}", r["Nota 1"])
                 nota_2 = st.session_state.get(f"edit_n2_{ticker_riga}_{_}", r["Nota 2"])
@@ -628,7 +621,7 @@ else:
                 nota_v1 = st.session_state.get(f"edit_nv1_{ticker_riga}_{_}", r["Nota VWAP 1"])
                 nota_v2 = st.session_state.get(f"edit_nv2_{ticker_riga}_{_}", r["Nota VWAP 2"])
                 nota_v3 = st.session_state.get(f"edit_nv3_{ticker_riga}_{_}", r["Nota VWAP 3"])
-                
+
                 ticker_finale = ticker_riga
                 if nuovo_nome_ticker.strip().upper() != ticker_riga.strip().upper():
                     rinomina_ticker(ticker_riga, nuovo_nome_ticker)
@@ -650,7 +643,9 @@ else:
 
         else:
             c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13 = st.columns(COLS)
-            if c1.button(ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
+            # Badge origine: 🤖 = auto (pulibile dall'automazione), niente = manuale (sacro)
+            prefisso_origine = "🤖 " if origine_riga == "auto" else ""
+            if c1.button(prefisso_origine + ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
             c2.markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
@@ -813,14 +808,15 @@ HISTORY_PATH = "alert_history.csv"
 
 @st.cache_data(ttl=60)
 def carica_storico_alert() -> pd.DataFrame:
-    colonne = ["Data", "Ticker", "Livello", "Valore Livello", "Nota", "Prezzo al momento"]
+    # Lo schema è cambiato (Livelli Toccati / Convergenza / Regime): read_csv lo
+    # inferisce da solo, quindi questa funzione si adatta automaticamente.
+    colonne = ["Data", "Ticker", "Livelli Toccati", "Convergenza", "Regime", "Prezzo al momento"]
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_PATH}"
             headers = {"Authorization": f"token {GITHUB_TOKEN}"}
             r = requests.get(url, headers=headers)
             if r.status_code == 200:
-                import io
                 contenuto = base64.b64decode(r.json()["content"]).decode()
                 return pd.read_csv(io.StringIO(contenuto))
         except Exception:
