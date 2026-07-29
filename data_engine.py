@@ -195,8 +195,7 @@ class DataEngine:
                 for target in ['ticker', 'symbol', 'ticker symbol', 'tickersymbol', 'codice', 'symbole', 'componenti']:
                     if target in colonne_minuscole:
                         idx_col = colonne_minuscole.index(target)
-                        tickers = tab[tab.columns[idx_col]].dropna().astype(str).str.strip().tolist()
-                        tickers = [t for t in tickers if t and t.lower() != 'nan']
+                        tickers = [t for t in tab[tab.columns[idx_col]].dropna().astype(str).str.strip() if t and t.lower() != 'nan']
                         if len(tickers) >= 10:
                             self.add_debug(f"Trovati {len(tickers)} ticker nella colonna '{target}' (tabella {idx})", "success")
                             return tickers
@@ -207,25 +206,29 @@ class DataEngine:
             for idx, tab in enumerate(tabelle):
                 if tab.empty:
                     continue
+                tab_best_col, tab_best_n = None, 0
                 for col in tab.columns:
                     vals = tab[col].dropna().astype(str).str.strip()
                     n = sum(1 for v in vals if _is_ticker_like(v))
-                    if n > best_n:
-                        best_n, best_tab, best_col = n, idx, col
+                    if n > tab_best_n:
+                        tab_best_n, tab_best_col = n, col
+                self.add_debug(f"[wiki] tab {idx}: miglior colonna='{tab_best_col}' match={tab_best_n}", "info")
+                if tab_best_n > best_n:
+                    best_n, best_tab, best_col = tab_best_n, idx, tab_best_col
             if best_n >= 20 and best_tab is not None:
                 tickers = [v for v in tabelle[best_tab][best_col].dropna().astype(str).str.strip() if _is_ticker_like(v)]
                 seen, uniq = set(), []
                 for t in tickers:
                     if t not in seen:
-                        seen.add(t); uniq.append(t)
-                self.add_debug(f"[euristica] {len(uniq)} ticker nella tabella {best_tab}, colonna '{best_col}' (match {best_n})", "success")
+                        seen.add(t)
+                        uniq.append(t)
+                self.add_debug(f"[wiki] EURISTICA VINCE: tab {best_tab} colonna '{best_col}' -> {len(uniq)} ticker", "success")
                 return uniq
 
             # 3) Ultima ratio: prima colonna della prima tabella non vuota
             for tab in tabelle:
                 if not tab.empty:
-                    tickers = tab.iloc[:, 0].dropna().astype(str).str.strip().tolist()
-                    tickers = [t for t in tickers if t and t.lower() != 'nan']
+                    tickers = [t for t in tab.iloc[:, 0].dropna().astype(str).str.strip() if t and t.lower() != 'nan']
                     self.add_debug(f"Usata prima colonna della prima tabella: {len(tickers)} ticker", "warning")
                     return tickers
             raise ValueError("Nessuna colonna identificata.")
@@ -632,7 +635,10 @@ class DataEngine:
         valid = (bar_range > 0) & np.isfinite(bar_range) & np.isfinite(volume)
         if not valid.any():
             return None
-        low = low[valid]; high = high[valid]; volume = volume[valid]; bar_range = bar_range[valid]
+        low = low[valid]
+        high = high[valid]
+        volume = volume[valid]
+        bar_range = bar_range[valid]
         # bin che contiene low (right) e high (left): gestione esatta dei bordi
         b_lo = np.clip(np.searchsorted(bins, low, side='right') - 1, 0, n_bins - 1)
         b_hi = np.clip(np.searchsorted(bins, high, side='left') - 1, 0, n_bins - 1)
@@ -642,8 +648,10 @@ class DataEngine:
         np.add.at(acc, b_lo[same], volume[same])
         multi = ~same
         if multi.any():
-            lo = b_lo[multi]; hi = b_hi[multi]
-            vol_m = volume[multi]; rng_m = bar_range[multi]
+            lo = b_lo[multi]
+            hi = b_hi[multi]
+            vol_m = volume[multi]
+            rng_m = bar_range[multi]
             # bin basso parziale
             frac_lo = (bins[lo + 1] - low[multi]) / rng_m
             np.add.at(acc, lo, vol_m * frac_lo)
