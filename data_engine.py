@@ -232,7 +232,7 @@ class DataEngine:
         except Exception as e:
             self.add_debug(f"Errore in estrai_ticker_wikipedia: {str(e)}", "error")
             raise
-            
+
     def normalizza_ticker_europeo(self, ticker_raw, default_suffix):
         t = str(ticker_raw).strip().split()[0]
         if "." in t:
