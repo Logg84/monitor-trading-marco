@@ -21,19 +21,16 @@ import requests
 import mplfinance as mpf
 import yfinance as yf
 
-# Ticker europei che Twelve Data non copre sul piano gratuito: qui mappiamo
-# il simbolo Yahoo Finance corretto (con suffisso di borsa). yfinance richiede
-# il suffisso per i titoli non-USA — aggiungere qui quando se ne scopre uno nuovo.
+# Ticker europei che Twelve Data non copre sul piano gratuito.
 MAPPA_BORSA_EUROPEA = {
-    "CPR": "CPR.MI",    # Campari, Borsa Italiana
-    "RI": "RI.PA",      # Pernod Ricard, Euronext Paris
-    "NESN": "NESN.SW",  # Nestlé, SIX Swiss Exchange
-    "AF": "AF.PA",      # Air France-KLM, Euronext Paris
+    "CPR": "CPR.MI",
+    "RI": "RI.PA",
+    "NESN": "NESN.SW",
+    "AF": "AF.PA",
 }
 
 
 def prezzo_yfinance(ticker: str) -> float | None:
-    """Fallback su yfinance quando Twelve Data non copre il titolo (piano gratuito)."""
     simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
     try:
         info = yf.Ticker(simbolo)
@@ -50,7 +47,6 @@ def prezzo_yfinance(ticker: str) -> float | None:
 
 
 def storico_yfinance(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
-    """Fallback su yfinance per lo storico (momentum/grafico) quando Twelve Data non copre il titolo."""
     simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
     try:
         h = yf.Ticker(simbolo).history(period=period, interval=interval)
@@ -65,18 +61,16 @@ CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
 HISTORY_PATH = "alert_history.csv"
 
-# COLONNE_ATTESE allineato a app.py + Origine + POC + Nota POC
 COLONNE_ATTESE = [
     "Ticker",
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
     "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
     "Screenshot",
-    "Origine",       # manuale | auto (default manuale per proteggere i titoli esistenti)
-    "POC",           # POC operativo portato dallo screener (colonna separata dai livelli manuali)
+    "Origine",
+    "POC",
     "Nota POC",
 ]
 
-# Stessa mappa usata in app.py, per coerenza tra i due script + nuove colonne
 ALIAS_COLONNE = {
     "ticker": "Ticker",
     "livello": "Livello 1",
@@ -90,37 +84,31 @@ ALIAS_COLONNE = {
 def carica_watchlist() -> pd.DataFrame:
     if not os.path.exists(CSV_PATH):
         return pd.DataFrame(columns=COLONNE_ATTESE)
-
     df = pd.read_csv(CSV_PATH)
     df = df.rename(columns=ALIAS_COLONNE)
-
     for col in COLONNE_ATTESE:
         if col not in df.columns:
             df[col] = "" if (col.startswith("Nota") or col in ("Screenshot", "Origine")) else 0
-
     df = df[COLONNE_ATTESE]
-
-    # Default Origine = manuale per le righe esistenti (protegge i titoli manuali)
     if "Origine" in df.columns:
         df["Origine"] = df["Origine"].fillna("manuale").replace("", "manuale")
-
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
-
     return df
 
 
 # Distanza (in %) sotto la quale consideriamo "nella zona" del livello.
 SOGLIA_TRIGGER_PCT = 2.0
 
-# Distanza (in %) oltre la quale, se il prezzo esce dalla zona, resettiamo l'alert.
-SOGLIA_RESET_PCT = 6.0
+# === COOLDOWN ANTI-RIPETIZIONE ===
+# Minimo di giorni tra due alert sullo STESSO ticker. Anche se il titolo resta
+# in zona, non viene ri-segnalato prima di questo intervallo. Ritoccalo qui.
+COOLDOWN_GIORNI = 3
+COOLDOWN_SEC = COOLDOWN_GIORNI * 24 * 3600
 
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 
-# Rate limiter per il piano gratuito Twelve Data (max 8 richieste/minuto).
-# Con molti ticker in un solo run, rallentiamo invece di fallire.
 _ULTIME_CHIAMATE_API = []
 
 
@@ -128,7 +116,7 @@ def rispetta_rate_limit():
     ora = time.time()
     while _ULTIME_CHIAMATE_API and ora - _ULTIME_CHIAMATE_API[0] > 60:
         _ULTIME_CHIAMATE_API.pop(0)
-    if len(_ULTIME_CHIAMATE_API) >= 7:  # margine di sicurezza sotto il limite di 8
+    if len(_ULTIME_CHIAMATE_API) >= 7:
         attesa = 60 - (ora - _ULTIME_CHIAMATE_API[0]) + 1
         if attesa > 0:
             print(f"Rate limit Twelve Data: aspetto {attesa:.0f}s prima di continuare...")
@@ -149,7 +137,6 @@ def mappa_ticker_twelvedata(ticker: str) -> str:
 
 
 def ottieni_time_series(simbolo: str, interval: str = "1day", outputsize: int = 200) -> pd.DataFrame:
-    """Scarica candele OHLCV da Twelve Data, ordine cronologico crescente."""
     if not TD_API_KEY:
         return pd.DataFrame()
     try:
@@ -165,7 +152,6 @@ def ottieni_time_series(simbolo: str, interval: str = "1day", outputsize: int = 
         if dati.get("status") == "error" or "values" not in dati:
             print(f"Twelve Data errore per {simbolo}: {dati.get('message', dati)}")
             return pd.DataFrame()
-
         df = pd.DataFrame(dati["values"])
         df["datetime"] = pd.to_datetime(df["datetime"])
         df = df.set_index("datetime").sort_index()
@@ -197,23 +183,17 @@ def calcola_rsi(chiusure: pd.Series, periodo: int = 14) -> float | None:
 
 
 def valuta_forza(storico: pd.DataFrame, prezzo: float, livello: float) -> str:
-    """Confronta il breakout (sopra o sotto il livello) con RSI e volume,
-    per capire se è sostenuto da forza reale o è probabile un fake out."""
     chiusure = storico["Close"]
     rsi = calcola_rsi(chiusure)
-
     vol_rel = None
     if "Volume" in storico.columns and len(storico) > 20:
         vol_medio = storico["Volume"].iloc[-21:-1].mean()
         if vol_medio > 0:
             vol_rel = (storico["Volume"].iloc[-1] / vol_medio) * 100
-
     if rsi is None:
         return "Momentum non disponibile"
-
     sopra_livello = prezzo >= livello
     vol_txt = f" (vol {vol_rel:.0f}% media)" if vol_rel is not None else ""
-
     if sopra_livello:
         if rsi >= 55:
             return f"💪 Forza reale (RSI {rsi:.0f}){vol_txt}"
@@ -248,9 +228,6 @@ def prezzo_corrente(simbolo: str) -> float | None:
 
 
 def ottieni_regime_argo() -> dict:
-    """Scarica ^GSPC/^VIX/^VVIX e calcola il bias della Bussola ARGO (LONG/NEUTRO/SHORT).
-    Replico la logica del motore (ottieni_bussola_argo) senza importare data_engine,
-    per mantenere alert_checker.py autonomo e leggero."""
     try:
         df = yf.download(["^GSPC", "^VIX", "^VVIX"], period="60d", interval="1d", progress=False)
         if df.empty:
@@ -285,7 +262,6 @@ def ottieni_regime_argo() -> dict:
 
 
 def tono_messaggio(bias: str, convergenza: bool) -> str:
-    """Determina il tono (verbo) del messaggio in base al regime e alla convergenza."""
     if convergenza:
         if bias == "LONG":
             return "🔥 Cluster di livelli — zona di accumulo forte"
@@ -303,26 +279,21 @@ def tono_messaggio(bias: str, convergenza: bool) -> str:
 
 
 def genera_grafico(storico: pd.DataFrame, livelli: list) -> bytes | None:
-    """Candele + linee dei livelli (L1-3, POC, VWAP 1-3). Ritorna PNG in bytes, o None se fallisce.
-    livelli: lista di dict {"valore": float, "colore": str, "stile": str, "label": str}"""
     try:
         if storico.empty:
             return None
-
         hlines_valori, hlines_colori, hlines_stili = [], [], []
         for liv in livelli:
             if liv["valore"] and liv["valore"] != 0:
                 hlines_valori.append(liv["valore"])
                 hlines_colori.append(liv["colore"])
                 hlines_stili.append(liv["stile"])
-
         stile = mpf.make_mpf_style(
             base_mpf_style="nightclouds",
             marketcolors=mpf.make_marketcolors(up="#26a69a", down="#ef5350", inherit=True),
             facecolor="#0e1117", edgecolor="#1e222d", figcolor="#0e1117",
             gridcolor="#1e222d",
         )
-
         buf = io.BytesIO()
         mpf.plot(
             storico, type="candle", style=stile, volume=False,
@@ -338,10 +309,8 @@ def genera_grafico(storico: pd.DataFrame, livelli: list) -> bytes | None:
 
 
 def invia_telegram(messaggio: str, immagine_bytes: bytes = None):
-    """Manda testo (o foto+caption se c'è un'immagine) a tutti i chat_id configurati."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     chat_ids = [c.strip() for c in os.environ["TELEGRAM_CHAT_ID"].split(",") if c.strip()]
-
     if immagine_bytes:
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         for chat_id in chat_ids:
@@ -377,8 +346,6 @@ def salva_stato(stato: dict):
 
 
 def registra_storico(ticker: str, livelli_toccati: list, convergenza: bool, regime: str, prezzo: float):
-    """Aggiunge una riga allo storico alert (alert_history.csv), creandolo se manca.
-    Nuovo schema: Data, Ticker, Livelli Toccati, Convergenza, Regime, Prezzo al momento."""
     livelli_str = " + ".join([f"{l['tipo']} ({l['valore']:.2f})" for l in livelli_toccati])
     riga = pd.DataFrame([{
         "Data": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -388,20 +355,16 @@ def registra_storico(ticker: str, livelli_toccati: list, convergenza: bool, regi
         "Regime": regime,
         "Prezzo al momento": round(prezzo, 4),
     }])
-
     if os.path.exists(HISTORY_PATH):
         storico = pd.read_csv(HISTORY_PATH)
-        # Gestisco sia il vecchio schema (Livello, Valore Livello, Nota) che il nuovo
         vecchie_colonne = {"Livello", "Valore Livello", "Nota"}
         nuove_colonne = {"Livelli Toccati", "Convergenza", "Regime"}
         if vecchie_colonne.issubset(storico.columns) and not nuove_colonne.issubset(storico.columns):
-            # Migrazione: aggiungo le nuove colonne vuote
             for col in nuove_colonne:
                 storico[col] = ""
         storico = pd.concat([storico, riga], ignore_index=True)
     else:
         storico = riga
-
     storico.to_csv(HISTORY_PATH, index=False)
 
 
@@ -409,9 +372,6 @@ PREZZI_PATH = "prezzi_attuali.json"
 
 
 def salva_prezzi(prezzi: dict):
-    """Salva i prezzi appena scaricati per ogni ticker, così il portale li legge
-    senza doverli richiedere di nuovo lui stesso — sempre aggiornati a quando
-    gira l'ultimo controllo alert (ogni ora), indipendentemente da quando si apre la pagina."""
     payload = {
         "aggiornato_il": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "prezzi": prezzi,
@@ -434,10 +394,14 @@ def main():
         return
 
     stato = carica_stato()
+
+    # Pulizia chiavi legacy per-livello (schema vecchio TICKER_L1/L2/L3): con il
+    # cooldown per-ticker non servono più e, se restassero, non verrebbero mai usate.
+    stato = {k: v for k, v in stato.items() if k.split("_")[-1] not in ("L1", "L2", "L3")}
+
     ora_attuale = time.time()
     prezzi_raccolti = {}
 
-    # Scarico il regime ARGO una volta per tutto il run (non per ogni ticker)
     regime = ottieni_regime_argo()
     bias = regime.get("bias", "NEUTRO")
     stato_regime = regime.get("stato", "N/D")
@@ -447,11 +411,9 @@ def main():
         ticker = str(row["Ticker"]).strip().upper()
         ticker_td = mappa_ticker_twelvedata(ticker)
         prezzo = prezzo_corrente(ticker_td)
-        fonte = "Twelve Data"
 
         if prezzo is None:
             prezzo = prezzo_yfinance(ticker)
-            fonte = "yfinance (fallback)"
 
         if prezzo is None:
             print(f"Prezzo non disponibile per {ticker} ({ticker_td})")
@@ -479,33 +441,35 @@ def main():
         if not livelli:
             continue
 
-        # Calcolo distanza % per ogni livello e trovo quelli toccati
+        # Livelli toccati (entro SOGLIA_TRIGGER_PCT)
         livelli_toccati = []
         for liv in livelli:
             distanza_pct = abs(prezzo - liv["valore"]) / liv["valore"] * 100
             if distanza_pct <= SOGLIA_TRIGGER_PCT:
                 livelli_toccati.append(liv)
 
-        chiave = f"{ticker}_touch"  # Nuova chiave: un unico stato per ticker (non per livello)
+        chiave = f"{ticker}_touch"
         ultimo_invio = stato.get(chiave)
 
-        if isinstance(ultimo_invio, bool):
-            ultimo_invio = ora_attuale if ultimo_invio else None
+        if livelli_toccati:
+            # COOLDOWN: ri-invio solo se non ho mai inviato, o se sono passati
+            # almeno COOLDOWN_GIORNI dall'ultimo invio. Niente reset sull'uscita:
+            # il pavimento temporale è la regola primaria anti-rumore.
+            in_cooldown = (ultimo_invio is not None) and (ora_attuale - ultimo_invio < COOLDOWN_SEC)
+            if in_cooldown:
+                giorni_mancanti = (COOLDOWN_SEC - (ora_attuale - ultimo_invio)) / 86400
+                print(f"{chiave} in zona ma in cooldown ({giorni_mancanti:.1f}g rimanenti) -> skip")
+                continue
 
-        if livelli_toccati and ultimo_invio is None:
-            # Almeno un livello toccato e alert non ancora inviato
             convergenza = len(livelli_toccati) >= 2
             tono = tono_messaggio(bias, convergenza)
 
-            # Storico per il grafico e la valutazione forza
             storico = ottieni_time_series(ticker_td, "1day", 200)
             if storico.empty:
                 storico = storico_yfinance(ticker, "6mo", "1d")
-            # Valutazione forza sul primo livello toccato (o il più vicino)
             livello_rif = min(livelli_toccati, key=lambda l: abs(prezzo - l["valore"]))
             valutazione = valuta_forza(storico, prezzo, livello_rif["valore"]) if not storico.empty else "Momentum non disponibile"
 
-            # Compongo il messaggio con la tassonomia dei tocchi
             tocchi_str = " + ".join([f"{l['tipo']} ({l['valore']:.2f})" for l in livelli_toccati])
             note_str = " | ".join([f"{l['tipo']}: {l['nota']}" for l in livelli_toccati if l["nota"]])
 
@@ -521,23 +485,15 @@ def main():
             msg += f"{valutazione}\n"
             if note_str:
                 msg += f"📝 Note: {note_str}\n"
+            msg += f"⏳ Silenzio su {ticker} per {COOLDOWN_GIORNI} giorni (cooldown)\n"
 
-            # Grafico con tutti i livelli (L1-3, POC, VWAP 1-3)
             grafico = genera_grafico(storico, livelli)
             invia_telegram(msg, grafico)
             registra_storico(ticker, livelli_toccati, convergenza, f"{stato_regime} ({bias})", prezzo)
             stato[chiave] = ora_attuale
             print(f"Alert inviato: {chiave} ({tocchi_str})")
-
-        elif not livelli_toccati and ultimo_invio is not None:
-            # Verifico se il prezzo è uscito da TUTTI i livelli (distanza > SOGLIA_RESET_PCT)
-            fuori_da_tutti = all(
-                abs(prezzo - liv["valore"]) / liv["valore"] * 100 > SOGLIA_RESET_PCT
-                for liv in livelli
-            )
-            if fuori_da_tutti:
-                del stato[chiave]
-                print(f"Alert resettato: {chiave} (prezzo uscito da tutti i livelli)")
+        # NOTA: nessun ramo "reset quando esce dalla zona". Con il cooldown il
+        # timestamp resta e il titolo tace finché non scade l'intervallo.
 
     salva_stato(stato)
     salva_prezzi(prezzi_raccolti)
