@@ -13,18 +13,14 @@ from plotly.subplots import make_subplots
 import traceback
 from data_engine import DataEngine, MAX_POC_DIST_PCT
 
-# set_page_config DEVE essere la prima chiamata Streamlit del file.
 st.set_page_config(page_title="ARGO Screening", layout="wide", page_icon="🎛️")
 
-# Importo watchlist_io DOPO set_page_config (tocca st.secrets a livello modulo).
-# È il ponte: promozione auto + auto-pulizia + I/O watchlist su GitHub.
 from watchlist_io import (
     carica_watchlist_da_github,
     commit_csv_su_github,
     promuovi_auto_da_screener,
 )
 
-# Auto-refresh opzionale e robusto: se la libreria manca NON fermo la pagina.
 try:
     from streamlit_autorefresh import st_autorefresh
     _HAS_AUTOREFRESH = True
@@ -35,7 +31,7 @@ if _HAS_AUTOREFRESH:
     st_autorefresh(interval=600000, key="argo_screening_refresh")
 
 # ---------------------------------------------------------------
-# STILE (coerente con app.py: Inter + IBM Plex Mono, palette dark)
+# STILE
 # ---------------------------------------------------------------
 st.markdown("""
 <style>
@@ -68,13 +64,41 @@ h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spac
 .actor-box .desc { font-size: 10px; color: #cbd5e1; line-height: 1.2; }
 
 div[data-testid="stButton"] button { transition: all .15s ease; }
+
+/* ---- Pannello automazione (area principale) ---- */
+.argo-report {
+    background: linear-gradient(135deg, #0f172a 0%, #13203a 100%);
+    border: 1px solid #1e3a5f; border-left: 5px solid #38bdf8;
+    border-radius: 10px; padding: 14px 18px; margin: 4px 0 18px 0;
+    box-shadow: 0 8px 30px -18px rgba(56,189,248,.45);
+}
+.argo-report .ar-head {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: #38bdf8; margin-bottom: 10px;
+}
+.argo-report .ar-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.argo-report .ar-chip {
+    background: #0b1220; border: 1px solid #243049; border-radius: 8px;
+    padding: 7px 12px; min-width: 92px; text-align: left;
+    transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.argo-report .ar-chip:hover { transform: translateY(-2px); border-color: #38bdf8; box-shadow: 0 6px 18px -10px rgba(56,189,248,.6); }
+.argo-report .ar-num { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; }
+.argo-report .ar-lab { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7c8aa3; margin-top: 4px; }
+.argo-report .ar-note { font-size: 12.5px; color: #cbd5e1; line-height: 1.5; }
+.argo-report .ar-note b { color: #f8fafc; }
+.argo-report .ar-lock { color: #fbbf24; }
+.argo-report .ar-add { color: #22c55e; }
+.argo-report .ar-upd { color: #60a5fa; }
+.argo-report .ar-rm { color: #f59e0b; }
+.argo-report .ar-zm { color: #ef4444; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🎛️ Terminale ARGO × Metodo Rea")
 
 # ---------------------------------------------------------------
-# MOTORE (condiviso in session_state tra le pagine della sessione)
+# MOTORE
 # ---------------------------------------------------------------
 if "engine" not in st.session_state:
     st.session_state["engine"] = DataEngine()
@@ -97,7 +121,6 @@ if "scan_timestamps" not in st.session_state:
     }
 if "debug_log" not in st.session_state:
     st.session_state["debug_log"] = engine.debug_log
-# Riepilogo automazione (mostrato dopo il lancio)
 if "ultimo_report_auto" not in st.session_state:
     st.session_state["ultimo_report_auto"] = None
 
@@ -120,11 +143,6 @@ def genera_url_tradingview(ticker):
 
 
 def pulisci_auto_zombie(indice: str, ticker_correnti_set: set) -> int:
-    """Rimuove dalla watchlist i titoli auto 'di proprietà' di `indice`
-    (tag in Nota POC) che NON compaiono più nello screening corrente di
-    quell'indice: sono usciti dal metodo (es. drawdown rientrato) e non
-    devono più occupare spazio. Non tocca mai i manuali, né gli auto di
-    altri indici che non sto scansionando ora."""
     df_wl = carica_watchlist_da_github()
     if df_wl.empty:
         return 0
@@ -168,7 +186,6 @@ def check_state_change():
 
 check_state_change()
 
-# Banner cambio regime
 if st.session_state.get("argo_state_changed", False):
     old_stato = st.session_state.get("argo_old_stato", "N/D")
     new_stato = st.session_state.get("argo_new_stato", "N/D")
@@ -243,15 +260,15 @@ with st.sidebar:
 
     st.markdown("---")
     if st.button("🚀 AVVIA SCREENING QUALITY (v2)", type="primary"):
-        # FIX LOG: azzero il log VIVO del motore.
         engine.debug_log = []
         st.session_state["debug_log"] = []
         st.session_state["ultimi_spostamenti"] = []
         st.session_state["ultimo_report_auto"] = None
         total_spostamenti = []
         total_count = 0
-        # Accumulatori automazione
-        tot_agg, tot_agg_upd, tot_rim, tot_zomb = 0, 0, 0, 0
+        tot_agg, tot_upd, tot_rim, tot_zomb = 0, 0, 0, 0
+        tot_in_zona, tot_saltati = 0, 0
+        tot_saltati_tickers = []
 
         if indice_scelto == "🌍 TUTTI GLI INDICI INSIEME":
             indices_to_scan = ["S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
@@ -272,43 +289,29 @@ with st.sidebar:
                 st.session_state["scan_timestamps"][idx_name] = datetime.datetime.now()
                 st.session_state[f"has_scanned_{idx_name}"] = True
 
-                # ---- AUTOMAZIONE: promozione auto + auto-pulizia per questo indice ----
                 df_scr = pd.DataFrame(result_list) if result_list else pd.DataFrame()
                 stats = promuovi_auto_da_screener(df_scr, idx_name, soglia_trigger_pct=soglia_promo_pct)
                 tot_agg += stats.get("aggiunti", 0)
-                tot_agg_upd += stats.get("aggiornati", 0)
+                tot_upd += stats.get("aggiornati", 0)
                 tot_rim += stats.get("rimossi", 0)
-                # Pulizia zombie: auto di questo indice usciti dallo screening
+                tot_in_zona += stats.get("in_zona", 0)
+                tot_saltati += stats.get("saltati", 0)
+                tot_saltati_tickers.extend(stats.get("saltati_tickers", []))
                 ticker_correnti = set(str(t).strip().upper() for t in df_scr["Ticker"]) if (not df_scr.empty and "Ticker" in df_scr.columns) else set()
                 tot_zomb += pulisci_auto_zombie(idx_name, ticker_correnti)
 
         st.session_state["ultimi_spostamenti"] = total_spostamenti
         st.session_state["scan_count_all"] = total_count
         st.session_state["ultimo_report_auto"] = {
-            "aggiunti": tot_agg, "aggiornati": tot_agg_upd,
-            "rimossi": tot_rim, "zombie": tot_zomb,
+            "aggiunti": tot_agg, "aggiornati": tot_upd, "rimossi": tot_rim, "zombie": tot_zomb,
+            "in_zona": tot_in_zona, "saltati": tot_saltati, "saltati_tickers": tot_saltati_tickers,
+            "soglia": soglia_promo_pct,
         }
         st.success(f"✅ Scansione completata! Trovati {total_count} titoli in totale su {len(indices_to_scan)} indici.")
         st.rerun()
 
-    # ---- REPORT AUTOMAZIONE (dopo il lancio) ----
-    rep = st.session_state.get("ultimo_report_auto")
-    if rep and (rep["aggiunti"] or rep["aggiornati"] or rep["rimossi"] or rep["zombie"]):
-        st.markdown(
-            f"<div style='background:#0f172a;border:1px solid #334155;border-left:4px solid #38bdf8;"
-            f"border-radius:6px;padding:8px 12px;margin-top:8px;font-size:11px;color:#cbd5e1;'>"
-            f"🤖 <b style='color:#38bdf8'>Automazione watchlist</b><br>"
-            f"➕ aggiunti <b style='color:#22c55e'>{rep['aggiunti']}</b> &nbsp;·&nbsp; "
-            f"🔄 aggiornati <b style='color:#60a5fa'>{rep['aggiornati']}</b> &nbsp;·&nbsp; "
-            f"🧹 rimossi (fuori zona) <b style='color:#f59e0b'>{rep['rimossi']}</b> &nbsp;·&nbsp; "
-            f"🗑️ usciti dallo screening <b style='color:#ef4444'>{rep['zombie']}</b>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
     st.markdown("---")
     st.subheader("🔍 Debug Log (ultimi 50 eventi)")
-    # FIX LOG: leggo il log VIVO del motore.
     _live_log = engine.debug_log
     if _live_log:
         for entry in _live_log[-50:]:
@@ -317,6 +320,52 @@ with st.sidebar:
             st.markdown(f"<div style='font-size:11px; color:{color};'>[{entry['time']}] {entry['msg']}</div>", unsafe_allow_html=True)
     else:
         st.caption("Nessun evento di debug registrato.")
+
+# ---------------------------------------------------------------
+# PANNELLO AUTOMAZIONE (area principale, sempre visibile dopo un lancio)
+# ---------------------------------------------------------------
+rep = st.session_state.get("ultimo_report_auto")
+if rep is not None:
+    soglia_rep = rep.get("soglia", 2.5)
+    chips = (
+        f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti 🤖</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Aggiornati</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🧹 Fuori zona</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-zm">{rep["zombie"]}</div><div class="ar-lab">🗑️ Usciti screening</div></div>'
+        f'<div class="ar-chip"><div class="ar-num" style="color:#e2e8f0">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-lock">{rep["saltati"]}</div><div class="ar-lab">🔒 Tuoi, intatti</div></div>'
+    )
+    # Riga interpretativa (feedback vivo)
+    if rep["in_zona"] == 0:
+        nota = (f"Nessun titolo dello screening toccava un POC o un VWAP entro ±{soglia_rep:g}%: "
+                f"<b>niente da promuovere</b> in questo giro. I tuoi titoli manuali restano comunque intatti.")
+    elif rep["saltati"] == rep["in_zona"] and rep["aggiunti"] == 0 and rep["aggiornati"] == 0:
+        nomi = ", ".join(rep["saltati_tickers"]) if rep["saltati_tickers"] else "—"
+        nota = (f"Tutti i <b>{rep['in_zona']}</b> titoli in zona sono <b>già tuoi (manuali)</b> → lasciati intatti per regola, "
+                f"nessuna nuova promozione. In zona: <span class='ar-lock'><b>{nomi}</b></span>.")
+    else:
+        parti = []
+        if rep["aggiunti"]:
+            parti.append(f"<span class='ar-add'><b>{rep['aggiunti']}</b> nuovi 🤖</span>")
+        if rep["aggiornati"]:
+            parti.append(f"<span class='ar-upd'><b>{rep['aggiornati']}</b> aggiornati</span>")
+        nota = f"Promossi in watchlist: {' e '.join(parti)}."
+        if rep["saltati"]:
+            nomi = ", ".join(rep["saltati_tickers"]) if rep["saltati_tickers"] else "—"
+            nota += f" Altri <b>{rep['saltati']}</b> in zona sono tuoi e non li ho toccati (<span class='ar-lock'>{nomi}</span>)."
+    extra = ""
+    if rep["rimossi"] or rep["zombie"]:
+        extra = (f" <span class='ar-rm'>🧹 {rep['rimossi']}</span> rimossi perché usciti dalla zona"
+                 + (f", <span class='ar-zm'>🗑️ {rep['zombie']}</span> usciti dallo screening" if rep["zombie"] else "") + ".")
+
+    st.markdown(
+        '<div class="argo-report">'
+        '<div class="ar-head">🤖 Automazione watchlist — esito dell\'ultimo screening</div>'
+        '<div class="ar-chips">' + chips + '</div>'
+        '<div class="ar-note">' + nota + extra + '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 # ---------------------------------------------------------------
 # ANALISI ATTORI
@@ -350,7 +399,7 @@ def analizza_attori(latest, df_plot):
     elif vix < 15:
         actors["Retail"] = {"emoji": "🧑‍", "status": "Euforia (Acquisto)", "color": "🟢", "score": 1, "desc": "Euforia retail. Massimi di mercato (contrarian sell)."}
     else:
-        actors["Retail"] = {"emoji": "🧑‍💻", "status": "Neutrale", "color": "🟡", "score": 0, "desc": "Sentiment in attesa."}
+        actors["Retail"] = {"emoji": "🧑‍", "status": "Neutrale", "color": "🟡", "score": 0, "desc": "Sentiment in attesa."}
     if vix < 18 and rapporto < 5:
         actors["Produttore"] = {"emoji": "🏭", "status": "Buyback Window", "color": "🟢", "score": 1, "desc": "Capitale a basso costo. Emissioni/buyback favorevoli."}
     elif vix > 22 or rapporto > 7:
@@ -400,7 +449,7 @@ def analizza_attori(latest, df_plot):
     return actors, composite_score, sintesi
 
 # ---------------------------------------------------------------
-# GRAFICO DECELERAZIONE (DAILY + solo POC operativi)
+# GRAFICO DECELERAZIONE
 # ---------------------------------------------------------------
 def grafico_decelerazione(hist, ticker):
     if hist is None or len(hist) < 30:
@@ -614,7 +663,7 @@ with tab1:
     st.caption("💡 VVIX > 105 con VIX < 25 = falso segnale di calma: le istituzioni si stanno già coprendo (anticipo di crollo).")
 
 # ---------------------------------------------------------------
-# TAB 2 — SCREENING E TITOLI  (SCELTA A: via la tab "Ripartiti / Coperti")
+# TAB 2 — SCREENING (SCELTA A: via "Ripartiti / Coperti")
 # ---------------------------------------------------------------
 with tab2:
     st.subheader("📋 Lista Titoli Screening")
@@ -647,7 +696,6 @@ with tab2:
 
     configurazione_colonne = {
         "Grafico TW": st.column_config.LinkColumn("Grafico TW", help="Apri su TradingView", display_text="📈 Apri"),
-        # Numeri puliti a 2 decimali (era il difetto cosmetico 200.140000)
         "Prezzo": st.column_config.NumberColumn("Prezzo", format="%.2f"),
         "Drawdown (%)": st.column_config.NumberColumn("Drawdown (%)", format="%.2f"),
         "Size Suggerita (%)": st.column_config.NumberColumn("Size Suggerita (%)", format="%.2f"),
@@ -697,7 +745,6 @@ with tab2:
         if "Grafico TW" not in df_total.columns:
             df_total["Grafico TW"] = df_total["Ticker"].apply(genera_url_tradingview)
 
-        # SCELTA A: SOLO due tab (via "Ripartiti / Coperti")
         t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Quality)", "🎯 ALERT POC"])
         with t_sconto:
             st.subheader("Titoli in forte sconto - ordinati per Bottom Score")
