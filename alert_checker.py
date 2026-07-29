@@ -65,15 +65,25 @@ CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
 HISTORY_PATH = "alert_history.csv"
 
-COLONNE_ATTESE = ["Ticker", "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3"]
+# COLONNE_ATTESE allineato a app.py + Origine + POC + Nota POC
+COLONNE_ATTESE = [
+    "Ticker",
+    "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
+    "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
+    "Screenshot",
+    "Origine",       # manuale | auto (default manuale per proteggere i titoli esistenti)
+    "POC",           # POC operativo portato dallo screener (colonna separata dai livelli manuali)
+    "Nota POC",
+]
 
-# Stessa mappa usata in app.py, per coerenza tra i due script
+# Stessa mappa usata in app.py, per coerenza tra i due script + nuove colonne
 ALIAS_COLONNE = {
     "ticker": "Ticker",
     "livello": "Livello 1",
-    "livello_1": "Livello 1",
-    "livello_2": "Livello 2",
-    "livello_3": "Livello 3",
+    "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
+    "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
+    "origine": "Origine",
+    "poc": "POC",
 }
 
 
@@ -86,9 +96,13 @@ def carica_watchlist() -> pd.DataFrame:
 
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = "" if col.startswith("Nota") else 0
+            df[col] = "" if (col.startswith("Nota") or col in ("Screenshot", "Origine")) else 0
 
     df = df[COLONNE_ATTESE]
+
+    # Default Origine = manuale per le righe esistenti (protegge i titoli manuali)
+    if "Origine" in df.columns:
+        df["Origine"] = df["Origine"].fillna("manuale").replace("", "manuale")
 
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
@@ -233,18 +247,74 @@ def prezzo_corrente(simbolo: str) -> float | None:
         return None
 
 
+def ottieni_regime_argo() -> dict:
+    """Scarica ^GSPC/^VIX/^VVIX e calcola il bias della Bussola ARGO (LONG/NEUTRO/SHORT).
+    Replico la logica del motore (ottieni_bussola_argo) senza importare data_engine,
+    per mantenere alert_checker.py autonomo e leggero."""
+    try:
+        df = yf.download(["^GSPC", "^VIX", "^VVIX"], period="60d", interval="1d", progress=False)
+        if df.empty:
+            return {"stato": "N/D", "bias": "NEUTRO", "desc": "Dati macro non disponibili"}
+        spx = df['Close']['^GSPC'].dropna()
+        vix = df['Close']['^VIX'].dropna()
+        vvix = df['Close']['^VVIX'].dropna()
+        common = spx.index.intersection(vix.index).intersection(vvix.index)
+        spx, vix, vvix = spx.loc[common], vix.loc[common], vvix.loc[common]
+        flip = spx.rolling(20, min_periods=1).mean().iloc[-1]
+        spot = spx.iloc[-1]
+        ratio = (vvix / vix).iloc[-1]
+        gamma_positivo = spot >= flip
+        if gamma_positivo:
+            if 5.0 <= ratio <= 7.0:
+                stato, bias = "CORRENTE ASCENDENTE", "LONG"
+            elif ratio < 5.0:
+                stato, bias = "CALMA PIATTA", "NEUTRO"
+            else:
+                stato, bias = "BIVIO STRUTTURALE", "NEUTRO"
+        else:
+            if ratio > 7.0:
+                stato, bias = "CASCATA DIREZIONALE", "SHORT"
+            elif ratio < 5.0:
+                stato, bias = "RIMBALZO ELASTICO", "LONG"
+            else:
+                stato, bias = "CORRENTE DISCENDENTE", "SHORT"
+        return {"stato": stato, "bias": bias, "spot": float(spot), "flip": float(flip), "ratio": float(ratio)}
+    except Exception as e:
+        print(f"Errore Bussola ARGO: {e}")
+        return {"stato": "N/D", "bias": "NEUTRO", "desc": "Errore dati macro"}
+
+
+def tono_messaggio(bias: str, convergenza: bool) -> str:
+    """Determina il tono (verbo) del messaggio in base al regime e alla convergenza."""
+    if convergenza:
+        if bias == "LONG":
+            return "🔥 Cluster di livelli — zona di accumulo forte"
+        elif bias == "SHORT":
+            return "⚡ Cluster di livelli — supporto in prova, osserva"
+        else:
+            return "⚡ Cluster di livelli — zona di interesse (regime neutro)"
+    else:
+        if bias == "LONG":
+            return "📌 Zona di interesse raggiunta"
+        elif bias == "SHORT":
+            return "⚠️ Zona di interesse in prova (contro-trend)"
+        else:
+            return "📌 Zona di interesse raggiunta (regime neutro)"
+
+
 def genera_grafico(storico: pd.DataFrame, livelli: list) -> bytes | None:
-    """Candele + linee dei livelli (stesso stile del portale). Ritorna PNG in bytes, o None se fallisce."""
+    """Candele + linee dei livelli (L1-3, POC, VWAP 1-3). Ritorna PNG in bytes, o None se fallisce.
+    livelli: lista di dict {"valore": float, "colore": str, "stile": str, "label": str}"""
     try:
         if storico.empty:
             return None
 
-        hlines_valori, hlines_colori = [], []
-        palette = ["#f0b90b", "#00c176", "#ff4d4d"]
-        for idx, liv in enumerate(livelli):
-            if liv and liv != 0:
-                hlines_valori.append(liv)
-                hlines_colori.append(palette[idx % 3])
+        hlines_valori, hlines_colori, hlines_stili = [], [], []
+        for liv in livelli:
+            if liv["valore"] and liv["valore"] != 0:
+                hlines_valori.append(liv["valore"])
+                hlines_colori.append(liv["colore"])
+                hlines_stili.append(liv["stile"])
 
         stile = mpf.make_mpf_style(
             base_mpf_style="nightclouds",
@@ -256,7 +326,7 @@ def genera_grafico(storico: pd.DataFrame, livelli: list) -> bytes | None:
         buf = io.BytesIO()
         mpf.plot(
             storico, type="candle", style=stile, volume=False,
-            hlines=dict(hlines=hlines_valori, colors=hlines_colori, linestyle="--", linewidths=1.2),
+            hlines=dict(hlines=hlines_valori, colors=hlines_colori, linestyle=hlines_stili, linewidths=1.2),
             savefig=dict(fname=buf, dpi=110, bbox_inches="tight"),
             figsize=(9, 5),
         )
@@ -306,19 +376,28 @@ def salva_stato(stato: dict):
         json.dump(stato, f, indent=2)
 
 
-def registra_storico(ticker: str, livello_n: int, livello_val: float, nota: str, prezzo: float):
-    """Aggiunge una riga allo storico alert (alert_history.csv), creandolo se manca."""
+def registra_storico(ticker: str, livelli_toccati: list, convergenza: bool, regime: str, prezzo: float):
+    """Aggiunge una riga allo storico alert (alert_history.csv), creandolo se manca.
+    Nuovo schema: Data, Ticker, Livelli Toccati, Convergenza, Regime, Prezzo al momento."""
+    livelli_str = " + ".join([f"{l['tipo']} ({l['valore']:.2f})" for l in livelli_toccati])
     riga = pd.DataFrame([{
         "Data": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "Ticker": ticker,
-        "Livello": livello_n,
-        "Valore Livello": livello_val,
-        "Nota": nota,
+        "Livelli Toccati": livelli_str,
+        "Convergenza": "Sì" if convergenza else "No",
+        "Regime": regime,
         "Prezzo al momento": round(prezzo, 4),
     }])
 
     if os.path.exists(HISTORY_PATH):
         storico = pd.read_csv(HISTORY_PATH)
+        # Gestisco sia il vecchio schema (Livello, Valore Livello, Nota) che il nuovo
+        vecchie_colonne = {"Livello", "Valore Livello", "Nota"}
+        nuove_colonne = {"Livelli Toccati", "Convergenza", "Regime"}
+        if vecchie_colonne.issubset(storico.columns) and not nuove_colonne.issubset(storico.columns):
+            # Migrazione: aggiungo le nuove colonne vuote
+            for col in nuove_colonne:
+                storico[col] = ""
         storico = pd.concat([storico, riga], ignore_index=True)
     else:
         storico = riga
@@ -358,6 +437,12 @@ def main():
     ora_attuale = time.time()
     prezzi_raccolti = {}
 
+    # Scarico il regime ARGO una volta per tutto il run (non per ogni ticker)
+    regime = ottieni_regime_argo()
+    bias = regime.get("bias", "NEUTRO")
+    stato_regime = regime.get("stato", "N/D")
+    print(f"Bussola ARGO: {stato_regime} ({bias})")
+
     for _, row in df.iterrows():
         ticker = str(row["Ticker"]).strip().upper()
         ticker_td = mappa_ticker_twelvedata(ticker)
@@ -374,46 +459,85 @@ def main():
 
         prezzi_raccolti[ticker] = prezzo
 
+        # Raccolgo tutti i livelli presenti: L1-3, POC, VWAP 1-3
+        livelli = []
         for i in (1, 2, 3):
-            livello = row.get(f"Livello {i}")
+            val = row.get(f"Livello {i}")
             nota = str(row.get(f"Nota {i}", "") or "").strip()
-            if pd.isna(livello) or livello == 0:
-                continue
+            if pd.notna(val) and val != 0:
+                livelli.append({"tipo": f"L{i}", "valore": float(val), "nota": nota, "colore": ["#f0b90b", "#00c176", "#ff4d4d"][i-1], "stile": "-"})
+        poc_val = row.get("POC")
+        poc_nota = str(row.get("Nota POC", "") or "").strip()
+        if pd.notna(poc_val) and poc_val != 0:
+            livelli.append({"tipo": "POC", "valore": float(poc_val), "nota": poc_nota, "colore": "#ff4d4d", "stile": "--"})
+        for i in (1, 2, 3):
+            val = row.get(f"VWAP {i}")
+            nota = str(row.get(f"Nota VWAP {i}", "") or "").strip()
+            if pd.notna(val) and val != 0:
+                livelli.append({"tipo": f"VWAP {i}", "valore": float(val), "nota": nota, "colore": "#00b4d8", "stile": "--"})
 
-            chiave = f"{ticker}_L{i}"
-            distanza_pct = abs(prezzo - livello) / livello * 100
-            ultimo_invio = stato.get(chiave)
+        if not livelli:
+            continue
 
-            if isinstance(ultimo_invio, bool):
-                ultimo_invio = ora_attuale if ultimo_invio else None
+        # Calcolo distanza % per ogni livello e trovo quelli toccati
+        livelli_toccati = []
+        for liv in livelli:
+            distanza_pct = abs(prezzo - liv["valore"]) / liv["valore"] * 100
+            if distanza_pct <= SOGLIA_TRIGGER_PCT:
+                livelli_toccati.append(liv)
 
-            dentro_zona = distanza_pct <= SOGLIA_TRIGGER_PCT
-            fuori_reset = distanza_pct > SOGLIA_RESET_PCT
+        chiave = f"{ticker}_touch"  # Nuova chiave: un unico stato per ticker (non per livello)
+        ultimo_invio = stato.get(chiave)
 
-            if dentro_zona and ultimo_invio is None:
-                nota_riga = f"\n📝 {nota}" if nota else ""
+        if isinstance(ultimo_invio, bool):
+            ultimo_invio = ora_attuale if ultimo_invio else None
 
-                storico = ottieni_time_series(ticker_td, "1day", 200)
-                if storico.empty:
-                    storico = storico_yfinance(ticker, "6mo", "1d")
-                valutazione = valuta_forza(storico, prezzo, livello) if not storico.empty else "Momentum non disponibile"
+        if livelli_toccati and ultimo_invio is None:
+            # Almeno un livello toccato e alert non ancora inviato
+            convergenza = len(livelli_toccati) >= 2
+            tono = tono_messaggio(bias, convergenza)
 
-                msg = (
-                    f"🔔 {ticker}\n"
-                    f"Prezzo attuale: {prezzo:.4f}\n"
-                    f"Zona livello {i} raggiunta (livello: {livello:.4f}, ±{SOGLIA_TRIGGER_PCT}%)\n"
-                    f"{valutazione}"
-                    f"{nota_riga}"
-                )
-                livelli_ticker = [row.get("Livello 1"), row.get("Livello 2"), row.get("Livello 3")]
-                grafico = genera_grafico(storico, livelli_ticker)
-                invia_telegram(msg, grafico)
-                registra_storico(ticker, i, livello, nota, prezzo)
-                stato[chiave] = ora_attuale
-                print(f"Alert inviato: {chiave}")
+            # Storico per il grafico e la valutazione forza
+            storico = ottieni_time_series(ticker_td, "1day", 200)
+            if storico.empty:
+                storico = storico_yfinance(ticker, "6mo", "1d")
+            # Valutazione forza sul primo livello toccato (o il più vicino)
+            livello_rif = min(livelli_toccati, key=lambda l: abs(prezzo - l["valore"]))
+            valutazione = valuta_forza(storico, prezzo, livello_rif["valore"]) if not storico.empty else "Momentum non disponibile"
 
-            elif fuori_reset and ultimo_invio is not None:
+            # Compongo il messaggio con la tassonomia dei tocchi
+            tocchi_str = " + ".join([f"{l['tipo']} ({l['valore']:.2f})" for l in livelli_toccati])
+            note_str = " | ".join([f"{l['tipo']}: {l['nota']}" for l in livelli_toccati if l["nota"]])
+
+            msg = (
+                f"🔔 {ticker}\n"
+                f"{tono}\n"
+                f"Prezzo attuale: {prezzo:.4f}\n"
+                f"🎯 Tocco: {tocchi_str}\n"
+            )
+            if convergenza:
+                msg += f"📊 Convergenza: {len(livelli_toccati)} livelli ({tocchi_str})\n"
+            msg += f"🌍 Regime: {stato_regime} ({bias})\n"
+            msg += f"{valutazione}\n"
+            if note_str:
+                msg += f"📝 Note: {note_str}\n"
+
+            # Grafico con tutti i livelli (L1-3, POC, VWAP 1-3)
+            grafico = genera_grafico(storico, livelli)
+            invia_telegram(msg, grafico)
+            registra_storico(ticker, livelli_toccati, convergenza, f"{stato_regime} ({bias})", prezzo)
+            stato[chiave] = ora_attuale
+            print(f"Alert inviato: {chiave} ({tocchi_str})")
+
+        elif not livelli_toccati and ultimo_invio is not None:
+            # Verifico se il prezzo è uscito da TUTTI i livelli (distanza > SOGLIA_RESET_PCT)
+            fuori_da_tutti = all(
+                abs(prezzo - liv["valore"]) / liv["valore"] * 100 > SOGLIA_RESET_PCT
+                for liv in livelli
+            )
+            if fuori_da_tutti:
                 del stato[chiave]
+                print(f"Alert resettato: {chiave} (prezzo uscito da tutti i livelli)")
 
     salva_stato(stato)
     salva_prezzi(prezzi_raccolti)
