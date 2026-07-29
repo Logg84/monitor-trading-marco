@@ -25,12 +25,9 @@ WIN_ROC_COMPARE = 15
 WIN_VOL = 25
 WIN_MOM = 5
 
-# === LISTA DI RISERVA NASDAQ-100 ===
-# Wikipedia NON espone più la tabella componenti del NASDAQ-100 in modo leggibile
-# da read_html (lo conferma il debug: 0 match su tutti i parser). Quindi, se lo
-# scraping tira fuori meno di 20 sigle valide, usiamo questa lista statica.
-# È volutamente "larga": un titolo in più non fa danno (viene comunque valutato
-# sui suoi POC). AGGIORNALA qui se cambia la composizione dell'indice.
+# === NUMERO DI POC PORTATI IN WATCHLIST ===
+N_POC_WATCHLIST = 3
+
 NASDAQ100_STATIC = [
     "AAPL", "ADBE", "ADI", "ADSK", "ADP", "ABNB", "ALNY", "AMAT", "AMD", "AMGN",
     "AMZN", "ANSS", "AEP", "APP", "ASML", "AVGO", "AXON", "BKR", "BIIB", "BKNG",
@@ -44,7 +41,6 @@ NASDAQ100_STATIC = [
     "TMUS", "TSLA", "TXN", "TRI", "VRTX", "WBD", "WDC", "WDAY", "XEL", "ZS",
 ]
 
-# Intestazioni di colonna accettate (normalizzate: solo lettere e spazi)
 _HEADER_TARGETS = [
     "ticker symbol", "symbol", "ticker", "tickersymbol",
     "company symbol", "codice", "symbole", "componenti",
@@ -70,7 +66,6 @@ class DataEngine:
             self.debug_log = self.debug_log[-200:]
         print(f"[{level.upper()}] {timestamp} - {msg}")
 
-    # ---------- helper normalizzazione (per l'estrazione ticker) ----------
     def _norm_header(self, s):
         s = str(s)
         s = re.sub(r"\s+", " ", s).strip()
@@ -237,7 +232,6 @@ class DataEngine:
             if not all_tabs:
                 raise ValueError("read_html non ha trovato alcuna tabella con nessun parser.")
 
-            # 1) Match per NOME di colonna (intestazione normalizzata)
             for idx, tab in enumerate(all_tabs):
                 cols_norm = [self._norm_header(c) for c in tab.columns]
                 for target in _HEADER_TARGETS:
@@ -249,7 +243,6 @@ class DataEngine:
                             self.add_debug(f"[wiki] MATCH nome '{target}' tab#{idx} -> {len(tickers)} ticker", "success")
                             return tickers
 
-            # 2) Euristica sui VALORI
             best_tab, best_col, best_n = None, None, 0
             for idx, tab in enumerate(all_tabs):
                 if tab.empty:
@@ -273,7 +266,6 @@ class DataEngine:
                 self.add_debug(f"[wiki] EURISTICA tab#{best_tab} colonna '{best_col}' -> {len(uniq)} ticker", "success")
                 return uniq
 
-            # 3) Ultima ratio (prima colonna prima tabella non vuota)
             self.add_debug(f"[wiki] DIAG nessun match: parsers={diag}, best_euristica={best_n} su tab#{best_tab}.", "warning")
             for tab in all_tabs:
                 if not tab.empty:
@@ -297,9 +289,6 @@ class DataEngine:
         if indice_scelto == "S&P 500":
             tickers = [t.replace('.', '-') for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", headers)]
         elif indice_scelto == "NASDAQ 100":
-            # Wikipedia non espone più la tabella componenti in modo leggibile:
-            # provo lo scraping, ma se tira fuori <20 sigle valide uso la lista
-            # statica di riserva (NASDA100_STATIC).
             raw = self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/NASDAQ-100", headers)
             clean = []
             for t in raw:
@@ -498,27 +487,14 @@ class DataEngine:
                     stato, bias, desc, color = "RIMBALZO ELASTICO", "LONG", "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "indigo"
                 else:
                     stato, bias, desc, color = "CORRENTE DISCENDENTE", "SHORT", "STRATEGIA: Operatività ridotta del 50%. Accumulo ultra-paziente.", "orange"
-            bussola = {
-                "spot": spot, "vix": latest["vix"], "vvx": latest["vvx"], "flip": flip,
-                "rapporto": rapporto, "stato": stato, "bias": bias, "desc": desc, "color": color
-            }
+            bussola = {"spot": spot, "vix": latest["vix"], "vvx": latest["vvx"], "flip": flip, "rapporto": rapporto, "stato": stato, "bias": bias, "desc": desc, "color": color}
             return {"df": df_res, "latest": latest, "bussola": bussola}
         except Exception as e:
             self.add_debug(f"Errore dati macro, uso simulazione: {str(e)}", "warning")
             dates = pd.date_range(end=datetime.datetime.today(), periods=30, freq='D')
             latest = {"spot": 5472.79, "vix": 20.21, "vvx": 91.72, "flip": 5450.0, "rapporto": 4.54}
-            bussola = {
-                "spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"],
-                "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG",
-                "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"
-            }
-            return {
-                "df": pd.DataFrame({
-                    "Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30),
-                    "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)
-                }),
-                "latest": latest, "bussola": bussola
-            }
+            bussola = {"spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"], "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG", "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"}
+            return {"df": pd.DataFrame({"Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30), "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)}), "latest": latest, "bussola": bussola}
 
     # ===============================
     # FUNZIONI DI CALCOLO REA
@@ -580,11 +556,7 @@ class DataEngine:
 
     def compute_vwap_levels(self, hist):
         if hist.empty or len(hist) < WIN_VWAP_3M:
-            return {
-                "vwap_4y": None, "vwap_1y": None, "vwap_3m": None,
-                "dist_4y_pct": None, "dist_1y_pct": None, "dist_3m_pct": None,
-                "convergence_count": 0, "convergence_label": "N/D"
-            }
+            return {"vwap_4y": None, "vwap_1y": None, "vwap_3m": None, "dist_4y_pct": None, "dist_1y_pct": None, "dist_3m_pct": None, "convergence_count": 0, "convergence_label": "N/D"}
         df = hist.copy()
         current_price = float(df['Close'].iloc[-1])
         high = df['High'].astype(float); low = df['Low'].astype(float)
@@ -615,11 +587,7 @@ class DataEngine:
             conv_label = "🔹 BASE (1 VWAP vicino)"
         else:
             conv_label = "⚪ NESSUNA"
-        return {
-            "vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2),
-            "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1),
-            "convergence_count": convergence_count, "convergence_label": conv_label
-        }
+        return {"vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2), "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1), "convergence_count": convergence_count, "convergence_label": conv_label}
 
     def compute_poc(self, hist, start_idx, end_idx, n_bins=60):
         segment = hist.iloc[start_idx:end_idx]
@@ -676,10 +644,7 @@ class DataEngine:
             segment_bars = total_bars - bar_pos
             bar_weight = 1.0 + np.log1p(segment_bars / BARS_PER_YEAR)
             raw_weight = age_weight * drop_weight * bar_weight
-            pocs.append({
-                "anchor_year": int(anchor_date.year), "anchor_date": anchor_date,
-                "drop_pct": round(float(drop), 1), "poc_price": round(float(poc_price), 4), "weight": float(raw_weight),
-            })
+            pocs.append({"anchor_year": int(anchor_date.year), "anchor_date": anchor_date, "drop_pct": round(float(drop), 1), "poc_price": round(float(poc_price), 4), "weight": float(raw_weight)})
         if pocs:
             max_w = max(p["weight"] for p in pocs); min_w = min(p["weight"] for p in pocs)
             for p in pocs:
@@ -703,6 +668,18 @@ class DataEngine:
         if best_poc is None:
             return None, None
         return best_poc, round(float(best_dist), 2)
+
+    def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT):
+        """I `n` POC operativi (entro max_dist_pct) più vicini al prezzo, ordinati per vicinanza.
+        Ritorna lista di dict {poc_price, anchor_year, dist_pct} (può avere meno di n elementi)."""
+        ops = []
+        for poc in pocs:
+            poc_price = float(poc["poc_price"])
+            dist = (current_price - poc_price) / poc_price * 100
+            if abs(dist) <= max_dist_pct:
+                ops.append((abs(dist), poc_price, int(poc["anchor_year"])))
+        ops.sort(key=lambda x: x[0])
+        return [{"poc_price": p, "anchor_year": y, "dist_pct": round(d, 2)} for d, p, y in ops[:n]]
 
     def calcola_segnali_bottom(self, hist):
         if len(hist) < WIN_ROC + 5:
@@ -794,6 +771,9 @@ class DataEngine:
                 continue
             c_data = candidates_hist[ticker]; hist = c_data["hist"]; price_now = c_data["price_now"]; current_dd = c_data["current_dd"]
             poc_label, dist_label, alert_poc = "N/D", "N/D", ""
+            # I 3 POC operativi più vicini (per la watchlist)
+            poc_slots = {f"POC {k}": 0.0 for k in (1, 2, 3)}
+            poc_note_slots = {f"Nota POC {k}": "" for k in (1, 2, 3)}
             try:
                 pocs = self.get_pocs_from_hist(hist)
                 poc_vicino, dist_poc_pct = self.closest_poc(pocs, price_now)
@@ -802,6 +782,10 @@ class DataEngine:
                     dist_label = f"{dist_poc_pct:+.1f}%"
                     wn_vicino = float(poc_vicino.get("weight_norm", 0.0))
                     alert_poc = "🎯 SU POC" if (abs(dist_poc_pct) <= soglia_poc_pct and wn_vicino >= MIN_POC_WEIGHT_NORM) else ""
+                top3 = self.top_operative_pocs(pocs, price_now, n=N_POC_WATCHLIST)
+                for k, item in enumerate(top3, start=1):
+                    poc_slots[f"POC {k}"] = round(float(item["poc_price"]), 4)
+                    poc_note_slots[f"Nota POC {k}"] = f"POC {item['anchor_year']}"
             except Exception as e:
                 self.add_debug(f"Errore calcolo POC per {ticker}: {e}", "warning")
             bottom_score, bottom_dettagli = self.calcola_segnali_bottom(hist)
@@ -810,6 +794,7 @@ class DataEngine:
                 "Ticker": ticker, "Indice": indice_scelto, "Prezzo": round(price_now, 2),
                 "Drawdown (%)": round(current_dd, 2), "Market Cap (B)": round(mcap / 1e9, 2) if mcap > 0 else 0.0,
                 "POC più vicino": poc_label, "Distanza POC (%)": dist_label, "🎯 ALERT POC": alert_poc,
+                **poc_slots, **poc_note_slots,
                 "VWAP 4Y": vwap_info["vwap_4y"], "VWAP 1Y": vwap_info["vwap_1y"], "VWAP 3M": vwap_info["vwap_3m"],
                 "Convergenza VWAP": vwap_info["convergence_label"],
                 "Bottom Score (0-4)": bottom_score, "Bottom Dettagli": bottom_dettagli,
