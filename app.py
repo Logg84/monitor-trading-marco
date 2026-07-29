@@ -12,9 +12,7 @@ from google import genai
 from google.genai import types
 import base64
 
-MAPPA_BORSA_EUROPEA = {
-    "CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA",
-}
+MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
 
 def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
     simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
@@ -30,64 +28,31 @@ MODEL_NAME = "gemini-2.5-flash"
 
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
-# ---------------------------------------------------------------
-# STILE
-# ---------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
 .block-container { padding-top: 2rem; padding-bottom: 2rem; padding-left: 2rem; padding-right: 2rem; max-width: 100%; }
-
 h1 { font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em; margin-bottom: 0.2rem !important; }
-h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 !important;
-     text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0 !important; }
-
+h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 !important; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0 !important; }
 hr { margin: 1.4rem 0 !important; border-color: #232733 !important; }
-
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { display: flex; align-items: center; }
-
-.wl-badge {
-    font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
-    padding: 3px 10px; border-radius: 6px; display: inline-block; border: 1px solid transparent;
-}
+.wl-badge { font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600; padding: 3px 10px; border-radius: 6px; display: inline-block; border: 1px solid transparent; }
 .wl-badge.l1 { color: #f0b90b; background: rgba(240,185,11,0.10); border-color: rgba(240,185,11,0.25); }
 .wl-badge.l2 { color: #00c176; background: rgba(0,193,118,0.10); border-color: rgba(0,193,118,0.25); }
 .wl-badge.l3 { color: #ff4d4d; background: rgba(255,77,77,0.10); border-color: rgba(255,77,77,0.25); }
 .wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
 .wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #a78bfa; background: rgba(167,139,250,0.10); border-color: rgba(167,139,250,0.25); }
 .wl-badge.empty { color: #4a5568; background: transparent; border: 1px dashed #2d3340; }
-
-.wl-header {
-    font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;
-    padding-bottom: 6px; border-bottom: 1px solid #232733; margin-bottom: 4px;
-}
-
-div[data-testid="stButton"] button {
-    border: 1px solid #2d3340; background: transparent; color: #6b7280;
-    border-radius: 6px; transition: all 0.15s ease;
-}
-div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {
-    color: #e8eaed; font-family: 'IBM Plex Mono', monospace; font-weight: 600;
-    text-align: left; border: none; background: transparent; padding-left: 0;
-}
-div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {
-    color: #f0b90b; background: transparent; border: none;
-}
-div[data-testid="stButton"] button:hover {
-    border-color: #ff4d4d; color: #ff4d4d; background: rgba(255,77,77,0.08);
-}
-
+.wl-header { font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; padding-bottom: 6px; border-bottom: 1px solid #232733; margin-bottom: 4px; }
+div[data-testid="stButton"] button { border: 1px solid #2d3340; background: transparent; color: #6b7280; border-radius: 6px; transition: all 0.15s ease; }
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button { color: #e8eaed; font-family: 'IBM Plex Mono', monospace; font-weight: 600; text-align: left; border: none; background: transparent; padding-left: 0; }
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover { color: #f0b90b; background: transparent; border: none; }
+div[data-testid="stButton"] button:hover { border-color: #ff4d4d; color: #ff4d4d; background: rgba(255,77,77,0.08); }
 div[data-testid="stFileUploaderDropzone"] { border: 1px dashed #2d3340; background: #0f1219; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------
-# CLIENT GEMINI
-# ---------------------------------------------------------------
 @st.cache_resource
 def get_client():
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -131,9 +96,6 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
         raise ValueError(f"Risposta bloccata. finish_reason={candidate.finish_reason}")
     return json.loads(response.text)
 
-# ---------------------------------------------------------------
-# CSV: lettura / scrittura  (schema 3 POC + Origine + Auto_Indice)
-# ---------------------------------------------------------------
 COLONNE_ATTESE = [
     "Ticker",
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
@@ -145,7 +107,6 @@ COLONNE_ATTESE = [
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
-
 _TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
 
 def _is_text_col(col: str) -> bool:
@@ -237,6 +198,10 @@ def carica_watchlist() -> pd.DataFrame:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
     df["Origine"] = df["Origine"].replace("", "manuale")
+    # FIX: garantisco dtype float per le colonne numeriche
+    for col in ["Livello 1","Livello 2","Livello 3","VWAP 1","VWAP 2","VWAP 3","POC 1","POC 2","POC 3"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     return df
@@ -256,8 +221,6 @@ def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
     return df
 
 def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
-    # salva_riga è chiamata SOLO da percorsi manuali -> la riga è "manuale" (sacra).
-    # NON tocca POC 1/2/3 né Auto_Indice (sono dati dello screener).
     df = carica_watchlist()
     ticker = ticker.strip().upper()
     if ticker in df["Ticker"].str.upper().values:
@@ -287,9 +250,6 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
     commit_csv_su_github(df)
     return df
 
-# ---------------------------------------------------------------
-# UI
-# ---------------------------------------------------------------
 st.title("📊 Watchlist da Screenshot")
 
 st.info(
@@ -348,9 +308,6 @@ with col_result:
             del st.session_state["ultima_analisi"]
             st.rerun()
 
-# ---------------------------------------------------------------
-# INSERIMENTO MANUALE
-# ---------------------------------------------------------------
 with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
     with st.form("form_inserimento_manuale"):
         col_m1, col_m2, col_m3 = st.columns(3)
@@ -386,9 +343,6 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
 
 st.divider()
 
-# ---------------------------------------------------------------
-# TABELLA + GRAFICO  (16 colonne: + POC 1/2/3)
-# ---------------------------------------------------------------
 st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
 
@@ -482,7 +436,6 @@ else:
     if not df_visualizzata.empty:
         df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
-    # 16 colonne: Ticker L1 L2 L3 V1 V2 V3 P1 P2 P3 Prezzo + 5 azioni
     COLS = [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.3, 0.3, 0.3, 0.3]
     cols = st.columns(COLS)
     etichette = list(zip(cols[:11], ("Ticker", "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3", "Prezzo")))
@@ -521,7 +474,6 @@ else:
             nv1 = c[4].number_input("V1", value=float(r["VWAP 1"]), key=f"edit_v1_{ticker_riga}_{_}", label_visibility="collapsed")
             nv2 = c[5].number_input("V2", value=float(r["VWAP 2"]), key=f"edit_v2_{ticker_riga}_{_}", label_visibility="collapsed")
             nv3 = c[6].number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
-            # POC read-only in editing (sono dati dello screener)
             c[7].markdown(badge(r["POC 1"], "p1"), unsafe_allow_html=True)
             c[8].markdown(badge(r["POC 2"], "p2"), unsafe_allow_html=True)
             c[9].markdown(badge(r["POC 3"], "p3"), unsafe_allow_html=True)
@@ -656,7 +608,6 @@ else:
         linee_vwap_js = "\n".join(
             f'candleSeries.createPriceLine({{price: {v}, color: "#00b4d8", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
             for i, v in enumerate(vwap))
-        # POC: viola, tratteggiato spesso
         linee_poc_js = "\n".join(
             f'candleSeries.createPriceLine({{price: {p}, color: "#a78bfa", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
             for i, p in enumerate(poc_liv))
@@ -686,9 +637,6 @@ else:
         """
         st.components.v1.html(chart_html, height=620)
 
-# ---------------------------------------------------------------
-# STORICO ALERT
-# ---------------------------------------------------------------
 st.divider()
 st.subheader("🕘 Storico Alert")
 HISTORY_PATH = "alert_history.csv"
