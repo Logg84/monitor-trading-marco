@@ -1,0 +1,942 @@
+{
+    "AOS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ACN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ADBE": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "AES": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ABNB": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "AKAM": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ALB": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ARE": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ALGN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "AMT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "APA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "APO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "AMAT": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "APP": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "APTV": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ARES": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ADSK": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "AZO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "AVY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "AXON": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "BALL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BAX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TECH": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BIIB": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "BX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "XYZ": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BSX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BRO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BF-B": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BLDR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BXP": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CCL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CVNA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CDW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CNC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CRL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CHTR": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "CMG": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CIEN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CLX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CTSH": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "COHR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "COIN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CMCSA": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "STZ": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CEG": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "COO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CPRT": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "GLW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CSGP": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CCI": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DHR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DECK": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DVN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DXCM": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "DG": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DLTR": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "DPZ": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DASH": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "DOW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ECHO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "EW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ELV": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "EME": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "EFX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ERIE": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "EL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "EXE": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FDS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FICO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FDXF": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FIS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FSLR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FISV": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FLEX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "IT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "GNRC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "GIS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "GPN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "GDDY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HAL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HCA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HSY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HPE": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HONA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HRL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HUM": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HII": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "IBM": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "IDXX": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "PODD": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "INTC": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "IFF": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "INTU": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "ISRG": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "JBL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "KKR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "KLAC": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "KHC": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "LRCX": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "LVS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "LDOS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "LEN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "LII": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "LULU": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "LITE": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "LYB": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "MRVL": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MKC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "META": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MCHP": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MU": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MSFT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "MAA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TAP": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "MPWR": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MOS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NFLX": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "NEM": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NKE": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NOC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NCLH": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NRG": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NVR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "NXPI": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "ON": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "ORCL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "OTIS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PLTR": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "PSKY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PYPL": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "PNR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PFE": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PCG": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PPG": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PTC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PWR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "QCOM": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "Q": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "RMD": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "RVTY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HOOD": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ROL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ROP": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "CRM": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SNDK": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "SBAC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "STX": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "NOW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SWKS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "LUV": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SWK": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SMCI": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SNPS": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "TMUS": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "TROW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TGT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TER": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TSLA": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "TPL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TTD": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TSCO": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TRMB": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TYL": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "TSN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "UBER": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ULTA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "UPS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "UNH": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "UHS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "VEEV": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "VRSK": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "VRT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "VTRS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "VST": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DIS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "WBD": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "WST": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "WDC": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "WY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "WDAY": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "WYNN": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ZBRA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ZBH": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ZTS": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "ALNY": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "CRWV": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "GFS": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "ILMN": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "INSM": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MELI": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "MSTR": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "PDD": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "RKLB": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "SHOP": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "TRI": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "ZS": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "ADS.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "BEI.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "BMW.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "CON.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "FRE.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "FME.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "HEI.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "IFX.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "MRK.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "QIA.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "RHM.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "SAP.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "G24.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "ENR.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "SHL.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "SY1.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "VNA.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "ZAL.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "CAP.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "DSY.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "EL.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "ERF.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "RMS.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "KER.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "MC.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "RI.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "RNO.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "SGO.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "TEP.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
+    },
+    "AMP.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    },
+    "BC.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    },
+    "CPR.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    },
+    "DIA.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    },
+    "FCT.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    },
+    "PRY.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    },
+    "SPM.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
+    }
+}

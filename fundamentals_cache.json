@@ -1,0 +1,1882 @@
+{
+    "ALGN": {
+        "marketCap": 12967177899.771057,
+        "debtToEquity": 2.797,
+        "freeCashflow": 532954624,
+        "operatingMargins": 0.15469,
+        "returnOnEquity": 0.10824,
+        "last_updated": "2026-07-29T13:59:06.795989"
+    },
+    "AKAM": {
+        "marketCap": 15986584058.855644,
+        "debtToEquity": 119.534,
+        "freeCashflow": 700723392,
+        "operatingMargins": 0.10611,
+        "returnOnEquity": 0.091680005,
+        "last_updated": "2026-07-29T13:59:06.793108"
+    },
+    "ADBE": {
+        "marketCap": 102880952911.37695,
+        "debtToEquity": 61.443,
+        "freeCashflow": 9218374656,
+        "operatingMargins": 0.35327998,
+        "returnOnEquity": 0.62953997,
+        "last_updated": "2026-07-29T13:59:06.790401"
+    },
+    "AOS": {
+        "marketCap": 8672176769.708252,
+        "debtToEquity": 34.981,
+        "freeCashflow": 495612512,
+        "operatingMargins": 0.17111,
+        "returnOnEquity": 0.28267,
+        "last_updated": "2026-07-29T13:59:06.789065"
+    },
+    "APA": {
+        "marketCap": 12746136871.037487,
+        "debtToEquity": 61.314,
+        "freeCashflow": 1691250048,
+        "operatingMargins": 0.38487998,
+        "returnOnEquity": 0.26217,
+        "last_updated": "2026-07-29T13:59:06.798449"
+    },
+    "ALB": {
+        "marketCap": 13499979643.933197,
+        "debtToEquity": 19.845,
+        "freeCashflow": 716711744,
+        "operatingMargins": 0.24786,
+        "returnOnEquity": -0.0182,
+        "last_updated": "2026-07-29T13:59:06.793998"
+    },
+    "APO": {
+        "marketCap": 69948870907.9251,
+        "debtToEquity": 101.267,
+        "freeCashflow": null,
+        "operatingMargins": 0.13489,
+        "returnOnEquity": 0.08492,
+        "last_updated": "2026-07-29T13:59:06.799139"
+    },
+    "ARE": {
+        "marketCap": 9649300921.460114,
+        "debtToEquity": 66.509,
+        "freeCashflow": 1408723072,
+        "operatingMargins": 0.15890999,
+        "returnOnEquity": -0.04144,
+        "last_updated": "2026-07-29T13:59:06.794931"
+    },
+    "AMT": {
+        "marketCap": 82507333623.27213,
+        "debtToEquity": 444.55,
+        "freeCashflow": 2815562496,
+        "operatingMargins": 0.45907003,
+        "returnOnEquity": 0.29952,
+        "last_updated": "2026-07-29T13:59:06.796753"
+    },
+    "AES": {
+        "marketCap": 10579694699.559807,
+        "debtToEquity": 259.603,
+        "freeCashflow": -2964999936,
+        "operatingMargins": 0.18742001,
+        "returnOnEquity": 0.052600004,
+        "last_updated": "2026-07-29T13:59:06.791157"
+    },
+    "ABNB": {
+        "marketCap": 92530384295.82169,
+        "debtToEquity": 33.185,
+        "freeCashflow": 3191000064,
+        "operatingMargins": 0.03211,
+        "returnOnEquity": 0.32325,
+        "last_updated": "2026-07-29T13:59:06.791935"
+    },
+    "ACN": {
+        "marketCap": 104299414551.95929,
+        "debtToEquity": 25.035,
+        "freeCashflow": 12089380864,
+        "operatingMargins": 0.16964,
+        "returnOnEquity": 0.24406,
+        "last_updated": "2026-07-29T13:59:06.789728"
+    },
+    "APTV": {
+        "marketCap": 12608351386.148758,
+        "debtToEquity": 103.823,
+        "freeCashflow": 1091124992,
+        "operatingMargins": 0.0987,
+        "returnOnEquity": 0.040799998,
+        "last_updated": "2026-07-29T13:59:07.816034"
+    },
+    "AXON": {
+        "marketCap": 45368894091.375,
+        "debtToEquity": 52.074,
+        "freeCashflow": 62617500,
+        "operatingMargins": 0.03748,
+        "returnOnEquity": 0.06765,
+        "last_updated": "2026-07-29T13:59:07.907371"
+    },
+    "AMAT": {
+        "marketCap": 360918163947.1994,
+        "debtToEquity": 30.399,
+        "freeCashflow": 3040375040,
+        "operatingMargins": 0.31896,
+        "returnOnEquity": 0.39692003,
+        "last_updated": "2026-07-29T13:59:07.722945"
+    },
+    "ADSK": {
+        "marketCap": 51430760625.1985,
+        "debtToEquity": 85.419,
+        "freeCashflow": 3060999936,
+        "operatingMargins": 0.29524,
+        "returnOnEquity": 0.50396,
+        "last_updated": "2026-07-29T13:59:07.865907"
+    },
+    "APP": {
+        "marketCap": 137698255183.67908,
+        "debtToEquity": 162.888,
+        "freeCashflow": 3180097280,
+        "operatingMargins": 0.78151,
+        "returnOnEquity": 2.66444,
+        "last_updated": "2026-07-29T13:59:07.800475"
+    },
+    "AZO": {
+        "marketCap": 51103259553.636475,
+        "debtToEquity": null,
+        "freeCashflow": 903784256,
+        "operatingMargins": 0.19082001,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:07.874193"
+    },
+    "ARES": {
+        "marketCap": 28119881367.661865,
+        "debtToEquity": 168.762,
+        "freeCashflow": 1757137152,
+        "operatingMargins": 0.18434,
+        "returnOnEquity": 0.14182,
+        "last_updated": "2026-07-29T13:59:07.858904"
+    },
+    "BALL": {
+        "marketCap": 17312679784.034935,
+        "debtToEquity": 145.542,
+        "freeCashflow": 403500000,
+        "operatingMargins": 0.09353,
+        "returnOnEquity": 0.16785999,
+        "last_updated": "2026-07-29T13:59:07.922493"
+    },
+    "AVY": {
+        "marketCap": 12812903971.175766,
+        "debtToEquity": 164.751,
+        "freeCashflow": 809049984,
+        "operatingMargins": 0.12604,
+        "returnOnEquity": 0.30857,
+        "last_updated": "2026-07-29T13:59:07.892352"
+    },
+    "TECH": {
+        "marketCap": 11223041073.36145,
+        "debtToEquity": 13.922,
+        "freeCashflow": 299849376,
+        "operatingMargins": 0.25191,
+        "returnOnEquity": 0.053400002,
+        "last_updated": "2026-07-29T13:59:08.068990"
+    },
+    "BIIB": {
+        "marketCap": 31623133357.14154,
+        "debtToEquity": 35.181,
+        "freeCashflow": 1930925056,
+        "operatingMargins": 0.22899,
+        "returnOnEquity": 0.077010006,
+        "last_updated": "2026-07-29T13:59:08.127221"
+    },
+    "XYZ": {
+        "marketCap": 49658925281.92139,
+        "debtToEquity": 37.514,
+        "freeCashflow": -794561728,
+        "operatingMargins": -0.02632,
+        "returnOnEquity": 0.03743,
+        "last_updated": "2026-07-29T13:59:08.460846"
+    },
+    "BX": {
+        "marketCap": 103623519993.00548,
+        "debtToEquity": 62.529,
+        "freeCashflow": null,
+        "operatingMargins": 0.54357,
+        "returnOnEquity": 0.31374002,
+        "last_updated": "2026-07-29T13:59:08.390171"
+    },
+    "BSX": {
+        "marketCap": 67421071826.639206,
+        "debtToEquity": 42.25,
+        "freeCashflow": 2807124992,
+        "operatingMargins": 0.20603001,
+        "returnOnEquity": 0.14661,
+        "last_updated": "2026-07-29T13:59:08.504135"
+    },
+    "BAX": {
+        "marketCap": 12816178709.344208,
+        "debtToEquity": 161.021,
+        "freeCashflow": 900875008,
+        "operatingMargins": 0.060349997,
+        "returnOnEquity": -0.15010999,
+        "last_updated": "2026-07-29T13:59:08.003342"
+    },
+    "BA": {
+        "marketCap": 168770768518.66443,
+        "debtToEquity": 828.696,
+        "freeCashflow": 2554249984,
+        "operatingMargins": 0.01715,
+        "returnOnEquity": 1.69947,
+        "last_updated": "2026-07-29T13:59:08.483176"
+    },
+    "BLDR": {
+        "marketCap": 7720110264.023346,
+        "debtToEquity": 132.159,
+        "freeCashflow": 640900096,
+        "operatingMargins": 0.0050199996,
+        "returnOnEquity": 0.06958,
+        "last_updated": "2026-07-29T13:59:08.654194"
+    },
+    "BR": {
+        "marketCap": 18847676855.634445,
+        "debtToEquity": 120.878,
+        "freeCashflow": 1187662464,
+        "operatingMargins": 0.18402,
+        "returnOnEquity": 0.42314,
+        "last_updated": "2026-07-29T13:59:08.534677"
+    },
+    "BRO": {
+        "marketCap": 24834781104.99991,
+        "debtToEquity": 63.507,
+        "freeCashflow": 1307624960,
+        "operatingMargins": 0.26193002,
+        "returnOnEquity": 0.10031,
+        "last_updated": "2026-07-29T13:59:08.550961"
+    },
+    "BF-B": {
+        "marketCap": 13463077605.11713,
+        "debtToEquity": 64.95,
+        "freeCashflow": 739625024,
+        "operatingMargins": 0.23246,
+        "returnOnEquity": 0.17846,
+        "last_updated": "2026-07-29T13:59:08.620672"
+    },
+    "CVNA": {
+        "marketCap": 48231277748.1934,
+        "debtToEquity": 121.351,
+        "freeCashflow": 196750000,
+        "operatingMargins": 0.09033,
+        "returnOnEquity": 0.60172004,
+        "last_updated": "2026-07-29T13:59:08.987735"
+    },
+    "BXP": {
+        "marketCap": 11729562594.736374,
+        "debtToEquity": 211.994,
+        "freeCashflow": 941118656,
+        "operatingMargins": 0.25675,
+        "returnOnEquity": 0.05525,
+        "last_updated": "2026-07-29T13:59:08.832961"
+    },
+    "CRL": {
+        "marketCap": 11674894632.593994,
+        "debtToEquity": 102.551,
+        "freeCashflow": 510023744,
+        "operatingMargins": 0.15923999,
+        "returnOnEquity": -0.0587,
+        "last_updated": "2026-07-29T13:59:09.167053"
+    },
+    "CNC": {
+        "marketCap": 31200724124.622345,
+        "debtToEquity": 71.082,
+        "freeCashflow": 9639624704,
+        "operatingMargins": 0.0376,
+        "returnOnEquity": -0.20358999,
+        "last_updated": "2026-07-29T13:59:09.118385"
+    },
+    "CDW": {
+        "marketCap": 18811695659.75,
+        "debtToEquity": 240.522,
+        "freeCashflow": 884099968,
+        "operatingMargins": 0.066199996,
+        "returnOnEquity": 0.44157,
+        "last_updated": "2026-07-29T13:59:09.056592"
+    },
+    "CCL": {
+        "marketCap": 38411809646.85094,
+        "debtToEquity": 201.556,
+        "freeCashflow": 1899374976,
+        "operatingMargins": 0.12787,
+        "returnOnEquity": 0.26689,
+        "last_updated": "2026-07-29T13:59:08.928854"
+    },
+    "CMG": {
+        "marketCap": 43702746988.54065,
+        "debtToEquity": 217.885,
+        "freeCashflow": 1087909760,
+        "operatingMargins": 0.13271,
+        "returnOnEquity": 0.49231997,
+        "last_updated": "2026-07-29T13:59:09.269650"
+    },
+    "CIEN": {
+        "marketCap": 47861164839.677246,
+        "debtToEquity": 54.649,
+        "freeCashflow": 700927872,
+        "operatingMargins": 0.15195,
+        "returnOnEquity": 0.15464,
+        "last_updated": "2026-07-29T13:59:09.288101"
+    },
+    "CTSH": {
+        "marketCap": 25468685577.39258,
+        "debtToEquity": 7.247,
+        "freeCashflow": 1908875008,
+        "operatingMargins": 0.15574001,
+        "returnOnEquity": 0.14876,
+        "last_updated": "2026-07-29T13:59:09.414206"
+    },
+    "COHR": {
+        "marketCap": 45953719990.281235,
+        "debtToEquity": 31.093,
+        "freeCashflow": -197631744,
+        "operatingMargins": 0.13572,
+        "returnOnEquity": 0.04718,
+        "last_updated": "2026-07-29T13:59:09.452792"
+    },
+    "CLX": {
+        "marketCap": 11988746938.970055,
+        "debtToEquity": 4876.087,
+        "freeCashflow": 62750000,
+        "operatingMargins": 0.17006001,
+        "returnOnEquity": 5.46099,
+        "last_updated": "2026-07-29T13:59:09.332246"
+    },
+    "CHTR": {
+        "marketCap": 16752523527.843979,
+        "debtToEquity": 441.578,
+        "freeCashflow": 2198374912,
+        "operatingMargins": 0.23503,
+        "returnOnEquity": 0.27201998,
+        "last_updated": "2026-07-29T13:59:09.214617"
+    },
+    "COIN": {
+        "marketCap": 44300902074.30957,
+        "debtToEquity": 59.081,
+        "freeCashflow": 2407562752,
+        "operatingMargins": -0.07097,
+        "returnOnEquity": 0.06686,
+        "last_updated": "2026-07-29T13:59:09.604569"
+    },
+    "STZ": {
+        "marketCap": 22863817577.799072,
+        "debtToEquity": 123.205,
+        "freeCashflow": 2210487552,
+        "operatingMargins": 0.35931,
+        "returnOnEquity": 0.2369,
+        "last_updated": "2026-07-29T13:59:09.803051"
+    },
+    "COO": {
+        "marketCap": 14207981097.906876,
+        "debtToEquity": 33.093,
+        "freeCashflow": 424275008,
+        "operatingMargins": -0.02866,
+        "returnOnEquity": 0.02853,
+        "last_updated": "2026-07-29T13:59:09.834438"
+    },
+    "CEG": {
+        "marketCap": 92632261030.22226,
+        "debtToEquity": 66.428,
+        "freeCashflow": -4478875136,
+        "operatingMargins": 0.21858,
+        "returnOnEquity": 0.16104999,
+        "last_updated": "2026-07-29T13:59:09.819062"
+    },
+    "CMCSA": {
+        "marketCap": 86373814728.29897,
+        "debtToEquity": 100.474,
+        "freeCashflow": 12697624576,
+        "operatingMargins": 0.17233999,
+        "returnOnEquity": 0.114879996,
+        "last_updated": "2026-07-29T13:59:09.648314"
+    },
+    "GLW": {
+        "marketCap": 109139617474.97806,
+        "debtToEquity": 80.363,
+        "freeCashflow": 612000000,
+        "operatingMargins": 0.15661,
+        "returnOnEquity": 0.1674,
+        "last_updated": "2026-07-29T13:59:10.113512"
+    },
+    "CSGP": {
+        "marketCap": 11887235112.890549,
+        "debtToEquity": 14.35,
+        "freeCashflow": 202200000,
+        "operatingMargins": 0.0033399998,
+        "returnOnEquity": 0.00303,
+        "last_updated": "2026-07-29T13:59:10.140603"
+    },
+    "CPRT": {
+        "marketCap": 28653866074.238106,
+        "debtToEquity": 1.059,
+        "freeCashflow": 999977152,
+        "operatingMargins": 0.37530997,
+        "returnOnEquity": 0.17607,
+        "last_updated": "2026-07-29T13:59:09.961034"
+    },
+    "CCI": {
+        "marketCap": 33716734466.552734,
+        "debtToEquity": null,
+        "freeCashflow": 1036249984,
+        "operatingMargins": 0.46825,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:10.188859"
+    },
+    "DHR": {
+        "marketCap": 142098082163.67227,
+        "debtToEquity": 52.97,
+        "freeCashflow": 4325125120,
+        "operatingMargins": 0.19777,
+        "returnOnEquity": 0.07605,
+        "last_updated": "2026-07-29T13:59:10.208567"
+    },
+    "DECK": {
+        "marketCap": 13992685806.75,
+        "debtToEquity": 20.521,
+        "freeCashflow": null,
+        "operatingMargins": 0.15233,
+        "returnOnEquity": 0.42558,
+        "last_updated": "2026-07-29T13:59:10.263729"
+    },
+    "DVN": {
+        "marketCap": 50749736708.0,
+        "debtToEquity": 56.359,
+        "freeCashflow": 1607500032,
+        "operatingMargins": 0.06856,
+        "returnOnEquity": 0.15178001,
+        "last_updated": "2026-07-29T13:59:10.297234"
+    },
+    "DXCM": {
+        "marketCap": 28986779092.071785,
+        "debtToEquity": 46.833,
+        "freeCashflow": 1056637504,
+        "operatingMargins": 0.2142,
+        "returnOnEquity": 0.35624,
+        "last_updated": "2026-07-29T13:59:10.345441"
+    },
+    "DG": {
+        "marketCap": 28106047829.458107,
+        "debtToEquity": 178.649,
+        "freeCashflow": 1882562304,
+        "operatingMargins": 0.05919,
+        "returnOnEquity": 0.1891,
+        "last_updated": "2026-07-29T13:59:10.456710"
+    },
+    "DLTR": {
+        "marketCap": 24716535691.26654,
+        "debtToEquity": 216.518,
+        "freeCashflow": 1443624960,
+        "operatingMargins": 0.09088001,
+        "returnOnEquity": 0.33976,
+        "last_updated": "2026-07-29T13:59:10.488290"
+    },
+    "DPZ": {
+        "marketCap": 11788096973.440704,
+        "debtToEquity": null,
+        "freeCashflow": 531496512,
+        "operatingMargins": 0.19084999,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:10.595871"
+    },
+    "DASH": {
+        "marketCap": 86873600919.89282,
+        "debtToEquity": 32.194,
+        "freeCashflow": 2295624960,
+        "operatingMargins": 0.052529998,
+        "returnOnEquity": 0.09922,
+        "last_updated": "2026-07-29T13:59:10.634275"
+    },
+    "ECHO": {
+        "marketCap": 24458808346.875366,
+        "debtToEquity": 515.06,
+        "freeCashflow": -457875616,
+        "operatingMargins": 0.08908,
+        "returnOnEquity": -1.1228399,
+        "last_updated": "2026-07-29T13:59:10.797129"
+    },
+    "ELV": {
+        "marketCap": 83442630138.26416,
+        "debtToEquity": 68.953,
+        "freeCashflow": 4306375168,
+        "operatingMargins": 0.04559,
+        "returnOnEquity": 0.11133,
+        "last_updated": "2026-07-29T13:59:10.897569"
+    },
+    "EME": {
+        "marketCap": 30898477483.22296,
+        "debtToEquity": 13.355,
+        "freeCashflow": 891520000,
+        "operatingMargins": 0.08726,
+        "returnOnEquity": 0.39229,
+        "last_updated": "2026-07-29T13:59:11.034352"
+    },
+    "DOW": {
+        "marketCap": 21587152313.565666,
+        "debtToEquity": 111.913,
+        "freeCashflow": 285124992,
+        "operatingMargins": 0.113129996,
+        "returnOnEquity": -0.0554,
+        "last_updated": "2026-07-29T13:59:10.777150"
+    },
+    "EW": {
+        "marketCap": 48413265054.32129,
+        "debtToEquity": 6.806,
+        "freeCashflow": null,
+        "operatingMargins": 0.29839,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:10.814619"
+    },
+    "FDS": {
+        "marketCap": 10401143484.499695,
+        "debtToEquity": 77.284,
+        "freeCashflow": 621161344,
+        "operatingMargins": 0.30542,
+        "returnOnEquity": 0.27032,
+        "last_updated": "2026-07-29T13:59:11.177746"
+    },
+    "EFX": {
+        "marketCap": 22184673126.80127,
+        "debtToEquity": 120.956,
+        "freeCashflow": 947537472,
+        "operatingMargins": 0.17305,
+        "returnOnEquity": 0.14275,
+        "last_updated": "2026-07-29T13:59:11.050545"
+    },
+    "ERIE": {
+        "marketCap": 12659899973.395203,
+        "debtToEquity": 2.108,
+        "freeCashflow": 447472992,
+        "operatingMargins": 0.16876,
+        "returnOnEquity": 0.2585,
+        "last_updated": "2026-07-29T13:59:11.062525"
+    },
+    "EXE": {
+        "marketCap": 21743509939.5963,
+        "debtToEquity": 25.883,
+        "freeCashflow": 1687624960,
+        "operatingMargins": 0.3404,
+        "returnOnEquity": 0.17568001,
+        "last_updated": "2026-07-29T13:59:11.162179"
+    },
+    "FDXF": {
+        "marketCap": 22148302907.62596,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": 0.06027,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:11.406024"
+    },
+    "EL": {
+        "marketCap": 30446850630.180817,
+        "debtToEquity": 232.908,
+        "freeCashflow": 1807624960,
+        "operatingMargins": 0.14925,
+        "returnOnEquity": -0.05949,
+        "last_updated": "2026-07-29T13:59:11.148918"
+    },
+    "FIS": {
+        "marketCap": 23735089667.486008,
+        "debtToEquity": 132.328,
+        "freeCashflow": 2446874880,
+        "operatingMargins": 0.16388,
+        "returnOnEquity": 0.17225,
+        "last_updated": "2026-07-29T13:59:11.506687"
+    },
+    "FICO": {
+        "marketCap": 32115461336.84839,
+        "debtToEquity": null,
+        "freeCashflow": 730540992,
+        "operatingMargins": 0.58187,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:11.345298"
+    },
+    "FSLR": {
+        "marketCap": 21694833333.85672,
+        "debtToEquity": 5.943,
+        "freeCashflow": 1147664768,
+        "operatingMargins": 0.33067,
+        "returnOnEquity": 0.18436001,
+        "last_updated": "2026-07-29T13:59:11.552986"
+    },
+    "FISV": {
+        "marketCap": 29358298361.9662,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:11.669390"
+    },
+    "FLEX": {
+        "marketCap": 38756686574.86713,
+        "debtToEquity": 86.8,
+        "freeCashflow": 839875008,
+        "operatingMargins": 0.05684,
+        "returnOnEquity": 0.17347,
+        "last_updated": "2026-07-29T13:59:11.686136"
+    },
+    "GNRC": {
+        "marketCap": 12027460071.387634,
+        "debtToEquity": 52.086,
+        "freeCashflow": 115297624,
+        "operatingMargins": 0.11071999,
+        "returnOnEquity": 0.07388,
+        "last_updated": "2026-07-29T13:59:11.819006"
+    },
+    "IT": {
+        "marketCap": 10779923280.11229,
+        "debtToEquity": 5293.41,
+        "freeCashflow": 1064192896,
+        "operatingMargins": 0.20499,
+        "returnOnEquity": 0.94878,
+        "last_updated": "2026-07-29T13:59:11.734794"
+    },
+    "GIS": {
+        "marketCap": 20392997322.53537,
+        "debtToEquity": 217.629,
+        "freeCashflow": 2308499968,
+        "operatingMargins": 0.19194001,
+        "returnOnEquity": -0.01028,
+        "last_updated": "2026-07-29T13:59:11.867623"
+    },
+    "GDDY": {
+        "marketCap": 13767976335.551064,
+        "debtToEquity": 1621.618,
+        "freeCashflow": 1347612544,
+        "operatingMargins": 0.24681999,
+        "returnOnEquity": 3.98215,
+        "last_updated": "2026-07-29T13:59:12.048018"
+    },
+    "GPN": {
+        "marketCap": 23988397762.886147,
+        "debtToEquity": 95.593,
+        "freeCashflow": 7124387840,
+        "operatingMargins": 0.12515001,
+        "returnOnEquity": 0.02935,
+        "last_updated": "2026-07-29T13:59:11.985103"
+    },
+    "HPE": {
+        "marketCap": 59920209325.25,
+        "debtToEquity": 84.03,
+        "freeCashflow": 3836000000,
+        "operatingMargins": 0.087,
+        "returnOnEquity": 0.06315,
+        "last_updated": "2026-07-29T13:59:12.203511"
+    },
+    "HSY": {
+        "marketCap": 38087900827.08038,
+        "debtToEquity": 120.011,
+        "freeCashflow": 1527240576,
+        "operatingMargins": 0.21343,
+        "returnOnEquity": 0.23234,
+        "last_updated": "2026-07-29T13:59:12.182067"
+    },
+    "HONA": {
+        "marketCap": 66512976128.44467,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": 0.20152001,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:12.232584"
+    },
+    "HAL": {
+        "marketCap": 26465400499.743156,
+        "debtToEquity": 74.186,
+        "freeCashflow": 2052249984,
+        "operatingMargins": 0.12793,
+        "returnOnEquity": 0.14917,
+        "last_updated": "2026-07-29T13:59:12.090745"
+    },
+    "HII": {
+        "marketCap": 11532968131.663757,
+        "debtToEquity": 56.946,
+        "freeCashflow": 634124992,
+        "operatingMargins": 0.065510005,
+        "returnOnEquity": 0.12198,
+        "last_updated": "2026-07-29T13:59:12.445698"
+    },
+    "HCA": {
+        "marketCap": 90892203126.80054,
+        "debtToEquity": null,
+        "freeCashflow": 3621125120,
+        "operatingMargins": 0.15161,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:12.150878"
+    },
+    "HUM": {
+        "marketCap": 43575121103.1189,
+        "debtToEquity": 77.073,
+        "freeCashflow": 1431374976,
+        "operatingMargins": 0.04671,
+        "returnOnEquity": 0.062800005,
+        "last_updated": "2026-07-29T13:59:12.303983"
+    },
+    "HRL": {
+        "marketCap": 14294431269.953497,
+        "debtToEquity": 4.244,
+        "freeCashflow": 471169760,
+        "operatingMargins": 0.11057,
+        "returnOnEquity": 0.05831,
+        "last_updated": "2026-07-29T13:59:12.288307"
+    },
+    "PODD": {
+        "marketCap": 11711963473.005188,
+        "debtToEquity": 77.844,
+        "freeCashflow": 253375008,
+        "operatingMargins": 0.1603,
+        "returnOnEquity": 0.22997999,
+        "last_updated": "2026-07-29T13:59:12.654178"
+    },
+    "IDXX": {
+        "marketCap": 45285941866.16986,
+        "debtToEquity": 71.04,
+        "freeCashflow": 786844480,
+        "operatingMargins": 0.31783,
+        "returnOnEquity": 0.72915,
+        "last_updated": "2026-07-29T13:59:12.577291"
+    },
+    "IBM": {
+        "marketCap": 214111813932.209,
+        "debtToEquity": 188.97,
+        "freeCashflow": 12049750016,
+        "operatingMargins": 0.16548,
+        "returnOnEquity": 0.34460998,
+        "last_updated": "2026-07-29T13:59:12.545732"
+    },
+    "INTU": {
+        "marketCap": 89022619989.0747,
+        "debtToEquity": 33.448,
+        "freeCashflow": 5232000000,
+        "operatingMargins": 0.46974,
+        "returnOnEquity": 0.22496,
+        "last_updated": "2026-07-29T13:59:12.930363"
+    },
+    "INTC": {
+        "marketCap": 428185156921.3867,
+        "debtToEquity": 48.997,
+        "freeCashflow": 4866375168,
+        "operatingMargins": 0.12189999,
+        "returnOnEquity": -0.10715,
+        "last_updated": "2026-07-29T13:59:12.760584"
+    },
+    "IFF": {
+        "marketCap": 20225141442.709747,
+        "debtToEquity": 45.701,
+        "freeCashflow": 3702625024,
+        "operatingMargins": 0.10106,
+        "returnOnEquity": 0.060510002,
+        "last_updated": "2026-07-29T13:59:12.851524"
+    },
+    "KKR": {
+        "marketCap": 89764845906.42963,
+        "debtToEquity": 69.029,
+        "freeCashflow": null,
+        "operatingMargins": 0.11012,
+        "returnOnEquity": 0.076630004,
+        "last_updated": "2026-07-29T13:59:13.090563"
+    },
+    "JBL": {
+        "marketCap": 30873420543.725708,
+        "debtToEquity": 297.136,
+        "freeCashflow": 1211624960,
+        "operatingMargins": 0.05211,
+        "returnOnEquity": 0.65876,
+        "last_updated": "2026-07-29T13:59:12.988234"
+    },
+    "ISRG": {
+        "marketCap": 128482081958.96655,
+        "debtToEquity": null,
+        "freeCashflow": 2615200000,
+        "operatingMargins": 0.33603,
+        "returnOnEquity": 0.17423001,
+        "last_updated": "2026-07-29T13:59:12.972678"
+    },
+    "KHC": {
+        "marketCap": 32751179356.704197,
+        "debtToEquity": 50.258,
+        "freeCashflow": 3212250112,
+        "operatingMargins": 0.20738001,
+        "returnOnEquity": -0.12576,
+        "last_updated": "2026-07-29T13:59:13.126026"
+    },
+    "KLAC": {
+        "marketCap": 238081712599.01596,
+        "debtToEquity": 105.4,
+        "freeCashflow": 2890187008,
+        "operatingMargins": 0.41215,
+        "returnOnEquity": 0.94975996,
+        "last_updated": "2026-07-29T13:59:13.110342"
+    },
+    "LRCX": {
+        "marketCap": 329754631963.0737,
+        "debtToEquity": 35.282,
+        "freeCashflow": 4352341504,
+        "operatingMargins": 0.35042998,
+        "returnOnEquity": 0.66762,
+        "last_updated": "2026-07-29T13:59:13.149140"
+    },
+    "LVS": {
+        "marketCap": 32154477206.729317,
+        "debtToEquity": 1703.902,
+        "freeCashflow": 2212875008,
+        "operatingMargins": 0.19658001,
+        "returnOnEquity": 1.22869,
+        "last_updated": "2026-07-29T13:59:13.301629"
+    },
+    "LDOS": {
+        "marketCap": 14658409740.950134,
+        "debtToEquity": 137.125,
+        "freeCashflow": 1194749952,
+        "operatingMargins": 0.12227,
+        "returnOnEquity": 0.30579,
+        "last_updated": "2026-07-29T13:59:13.321036"
+    },
+    "LULU": {
+        "marketCap": 13549253461.106094,
+        "debtToEquity": 44.264,
+        "freeCashflow": 1133960960,
+        "operatingMargins": 0.11205,
+        "returnOnEquity": 0.32027,
+        "last_updated": "2026-07-29T13:59:13.641536"
+    },
+    "LITE": {
+        "marketCap": 48551478430.17578,
+        "debtToEquity": 111.445,
+        "freeCashflow": 93350000,
+        "operatingMargins": 0.21771,
+        "returnOnEquity": 0.22834998,
+        "last_updated": "2026-07-29T13:59:13.694390"
+    },
+    "LII": {
+        "marketCap": 15701049307.357422,
+        "debtToEquity": 161.043,
+        "freeCashflow": 187137504,
+        "operatingMargins": 0.14316,
+        "returnOnEquity": 0.76791,
+        "last_updated": "2026-07-29T13:59:13.620939"
+    },
+    "META": {
+        "marketCap": 1493405216801.2476,
+        "debtToEquity": 35.608,
+        "freeCashflow": 25558249472,
+        "operatingMargins": 0.40617,
+        "returnOnEquity": 0.32930002,
+        "last_updated": "2026-07-29T13:59:13.865060"
+    },
+    "MKC": {
+        "marketCap": 14208804112.965088,
+        "debtToEquity": 65.143,
+        "freeCashflow": 714025024,
+        "operatingMargins": 0.17422001,
+        "returnOnEquity": 0.24728,
+        "last_updated": "2026-07-29T13:59:13.813727"
+    },
+    "LYB": {
+        "marketCap": 19405820207.988667,
+        "debtToEquity": 141.24,
+        "freeCashflow": 987000000,
+        "operatingMargins": 0.03474,
+        "returnOnEquity": -0.060089998,
+        "last_updated": "2026-07-29T13:59:13.775427"
+    },
+    "LEN": {
+        "marketCap": 20856701835.45218,
+        "debtToEquity": 28.692,
+        "freeCashflow": 1077926016,
+        "operatingMargins": 0.052750003,
+        "returnOnEquity": 0.07368,
+        "last_updated": "2026-07-29T13:59:13.527167"
+    },
+    "MRVL": {
+        "marketCap": 155822687824.84766,
+        "debtToEquity": 28.97,
+        "freeCashflow": 2269700096,
+        "operatingMargins": 0.14479999,
+        "returnOnEquity": 0.16028,
+        "last_updated": "2026-07-29T13:59:13.790269"
+    },
+    "MU": {
+        "marketCap": 905682936348.7676,
+        "debtToEquity": 6.33,
+        "freeCashflow": 7639499776,
+        "operatingMargins": 0.80370003,
+        "returnOnEquity": 0.66638,
+        "last_updated": "2026-07-29T13:59:13.942086"
+    },
+    "MSFT": {
+        "marketCap": 2909792094428.446,
+        "debtToEquity": 30.271,
+        "freeCashflow": 37011251200,
+        "operatingMargins": 0.46326,
+        "returnOnEquity": 0.34013999,
+        "last_updated": "2026-07-29T13:59:14.004707"
+    },
+    "MCHP": {
+        "marketCap": 40139177716.12198,
+        "debtToEquity": 87.715,
+        "freeCashflow": 1139912448,
+        "operatingMargins": 0.17068,
+        "returnOnEquity": 0.03405,
+        "last_updated": "2026-07-29T13:59:13.901811"
+    },
+    "MPWR": {
+        "marketCap": 63040220150.494995,
+        "debtToEquity": 0.543,
+        "freeCashflow": 491719136,
+        "operatingMargins": 0.29986998,
+        "returnOnEquity": 0.19574,
+        "last_updated": "2026-07-29T13:59:14.390706"
+    },
+    "MAA": {
+        "marketCap": 15952865662.567749,
+        "debtToEquity": 99.825,
+        "freeCashflow": 909082496,
+        "operatingMargins": 0.26567,
+        "returnOnEquity": 0.06711,
+        "last_updated": "2026-07-29T13:59:14.243081"
+    },
+    "TAP": {
+        "marketCap": 8138791353.054199,
+        "debtToEquity": 62.567,
+        "freeCashflow": 774062528,
+        "operatingMargins": 0.124239996,
+        "returnOnEquity": -0.18080999,
+        "last_updated": "2026-07-29T13:59:14.259613"
+    },
+    "NEM": {
+        "marketCap": 95027234887.6441,
+        "debtToEquity": 15.807,
+        "freeCashflow": 8815875072,
+        "operatingMargins": 0.51569,
+        "returnOnEquity": 0.25905,
+        "last_updated": "2026-07-29T13:59:14.522837"
+    },
+    "NKE": {
+        "marketCap": 63545665584.82137,
+        "debtToEquity": 74.289,
+        "freeCashflow": 1889250048,
+        "operatingMargins": 0.12687,
+        "returnOnEquity": 0.22138001,
+        "last_updated": "2026-07-29T13:59:14.540674"
+    },
+    "MOS": {
+        "marketCap": 7265974475.838196,
+        "debtToEquity": 48.19,
+        "freeCashflow": -289787488,
+        "operatingMargins": 0.00791,
+        "returnOnEquity": 0.0059399996,
+        "last_updated": "2026-07-29T13:59:14.470470"
+    },
+    "NFLX": {
+        "marketCap": 301052851282.13544,
+        "debtToEquity": 55.236,
+        "freeCashflow": 25387552768,
+        "operatingMargins": 0.33381,
+        "returnOnEquity": 0.49541,
+        "last_updated": "2026-07-29T13:59:14.508841"
+    },
+    "NCLH": {
+        "marketCap": 9700996872.899437,
+        "debtToEquity": 661.444,
+        "freeCashflow": -1500744960,
+        "operatingMargins": 0.10515001,
+        "returnOnEquity": 0.29533002,
+        "last_updated": "2026-07-29T13:59:14.602868"
+    },
+    "NVR": {
+        "marketCap": 17258044085.83789,
+        "debtToEquity": 30.983,
+        "freeCashflow": null,
+        "operatingMargins": 0.13889,
+        "returnOnEquity": 0.31544,
+        "last_updated": "2026-07-29T13:59:14.778904"
+    },
+    "NRG": {
+        "marketCap": 26485131321.548157,
+        "debtToEquity": 479.237,
+        "freeCashflow": 431624992,
+        "operatingMargins": 0.03637,
+        "returnOnEquity": 0.062480003,
+        "last_updated": "2026-07-29T13:59:14.729421"
+    },
+    "NOC": {
+        "marketCap": 77340528169.49084,
+        "debtToEquity": 95.348,
+        "freeCashflow": 2478000128,
+        "operatingMargins": 0.11604,
+        "returnOnEquity": 0.26958,
+        "last_updated": "2026-07-29T13:59:14.580654"
+    },
+    "ON": {
+        "marketCap": 32037758637.86998,
+        "debtToEquity": 44.337,
+        "freeCashflow": 1282174976,
+        "operatingMargins": 0.18232,
+        "returnOnEquity": 0.074939996,
+        "last_updated": "2026-07-29T13:59:14.991879"
+    },
+    "NXPI": {
+        "marketCap": 62761784604.033295,
+        "debtToEquity": 103.991,
+        "freeCashflow": 2727124992,
+        "operatingMargins": 0.27664,
+        "returnOnEquity": 0.25812998,
+        "last_updated": "2026-07-29T13:59:14.902140"
+    },
+    "ORCL": {
+        "marketCap": 342660827522.85004,
+        "debtToEquity": 388.87,
+        "freeCashflow": -24536750080,
+        "operatingMargins": 0.36202,
+        "returnOnEquity": 0.53376,
+        "last_updated": "2026-07-29T13:59:15.032287"
+    },
+    "OTIS": {
+        "marketCap": 27986808525.398308,
+        "debtToEquity": null,
+        "freeCashflow": 1436249984,
+        "operatingMargins": 0.15133001,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:15.124232"
+    },
+    "PLTR": {
+        "marketCap": 294797456738.0962,
+        "debtToEquity": 2.477,
+        "freeCashflow": 1752997120,
+        "operatingMargins": 0.46183997,
+        "returnOnEquity": 0.32587,
+        "last_updated": "2026-07-29T13:59:15.223837"
+    },
+    "PSKY": {
+        "marketCap": 9031726236.515488,
+        "debtToEquity": 130.167,
+        "freeCashflow": 16400374784,
+        "operatingMargins": 0.095410004,
+        "returnOnEquity": -0.0076800003,
+        "last_updated": "2026-07-29T13:59:15.298627"
+    },
+    "PNR": {
+        "marketCap": 10816258908.448097,
+        "debtToEquity": 54.634,
+        "freeCashflow": 574212480,
+        "operatingMargins": 0.22687,
+        "returnOnEquity": 0.1761,
+        "last_updated": "2026-07-29T13:59:15.372569"
+    },
+    "PCG": {
+        "marketCap": 39334274285.37808,
+        "debtToEquity": 189.45,
+        "freeCashflow": -6150125056,
+        "operatingMargins": 0.24788,
+        "returnOnEquity": 0.09318,
+        "last_updated": "2026-07-29T13:59:15.427926"
+    },
+    "PTC": {
+        "marketCap": 14932588519.48172,
+        "debtToEquity": 35.78,
+        "freeCashflow": 986047232,
+        "operatingMargins": 0.41625,
+        "returnOnEquity": 0.344,
+        "last_updated": "2026-07-29T13:59:15.489104"
+    },
+    "PPG": {
+        "marketCap": 25300263887.786865,
+        "debtToEquity": 93.736,
+        "freeCashflow": 729000000,
+        "operatingMargins": 0.1374,
+        "returnOnEquity": 0.20748,
+        "last_updated": "2026-07-29T13:59:15.473360"
+    },
+    "PWR": {
+        "marketCap": 86449648175.32214,
+        "debtToEquity": 69.121,
+        "freeCashflow": 1037176768,
+        "operatingMargins": 0.04244,
+        "returnOnEquity": 0.13534,
+        "last_updated": "2026-07-29T13:59:15.597969"
+    },
+    "PYPL": {
+        "marketCap": 50366745758.05664,
+        "debtToEquity": 67.608,
+        "freeCashflow": 4618999808,
+        "operatingMargins": 0.16966,
+        "returnOnEquity": 0.24497,
+        "last_updated": "2026-07-29T13:59:15.354462"
+    },
+    "PFE": {
+        "marketCap": 144053449197.3096,
+        "debtToEquity": 71.602,
+        "freeCashflow": 12376625152,
+        "operatingMargins": 0.31617,
+        "returnOnEquity": 0.083100006,
+        "last_updated": "2026-07-29T13:59:15.398210"
+    },
+    "Q": {
+        "marketCap": 26623760410.145256,
+        "debtToEquity": 60.756,
+        "freeCashflow": 702374976,
+        "operatingMargins": 0.22814,
+        "returnOnEquity": 0.07481,
+        "last_updated": "2026-07-29T13:59:15.727843"
+    },
+    "RMD": {
+        "marketCap": 31000724575.347656,
+        "debtToEquity": 12.988,
+        "freeCashflow": 1446655104,
+        "operatingMargins": 0.35327,
+        "returnOnEquity": 0.25246,
+        "last_updated": "2026-07-29T13:59:15.843421"
+    },
+    "QCOM": {
+        "marketCap": 170131402923.58398,
+        "debtToEquity": 55.979,
+        "freeCashflow": 9589624832,
+        "operatingMargins": 0.22059,
+        "returnOnEquity": 0.36083,
+        "last_updated": "2026-07-29T13:59:15.628236"
+    },
+    "RVTY": {
+        "marketCap": 12544896133.396591,
+        "debtToEquity": 46.642,
+        "freeCashflow": 508969248,
+        "operatingMargins": 0.12355,
+        "returnOnEquity": 0.03227,
+        "last_updated": "2026-07-29T13:59:16.017173"
+    },
+    "ROP": {
+        "marketCap": 39672252465.82031,
+        "debtToEquity": 60.531,
+        "freeCashflow": 2265687552,
+        "operatingMargins": 0.27725,
+        "returnOnEquity": 0.13066,
+        "last_updated": "2026-07-29T13:59:16.215098"
+    },
+    "HOOD": {
+        "marketCap": 82121558398.30267,
+        "debtToEquity": 140.483,
+        "freeCashflow": null,
+        "operatingMargins": 0.38519,
+        "returnOnEquity": 0.21461001,
+        "last_updated": "2026-07-29T13:59:16.113778"
+    },
+    "ROL": {
+        "marketCap": 19058169746.10785,
+        "debtToEquity": 78.015,
+        "freeCashflow": 501737504,
+        "operatingMargins": 0.18799,
+        "returnOnEquity": 0.37008998,
+        "last_updated": "2026-07-29T13:59:16.199702"
+    },
+    "CRM": {
+        "marketCap": 151834409500.12207,
+        "debtToEquity": 124.282,
+        "freeCashflow": 16552999936,
+        "operatingMargins": 0.218,
+        "returnOnEquity": 0.16908,
+        "last_updated": "2026-07-29T13:59:16.242459"
+    },
+    "SNDK": {
+        "marketCap": 153044094346.0393,
+        "debtToEquity": 1.503,
+        "freeCashflow": 2259500032,
+        "operatingMargins": 0.69983,
+        "returnOnEquity": 0.39297,
+        "last_updated": "2026-07-29T13:59:16.310496"
+    },
+    "SBAC": {
+        "marketCap": 19038842384.470825,
+        "debtToEquity": null,
+        "freeCashflow": 708085504,
+        "operatingMargins": 0.52423,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:16.361160"
+    },
+    "STX": {
+        "marketCap": 172327180596.45337,
+        "debtToEquity": 381.553,
+        "freeCashflow": 1610000000,
+        "operatingMargins": 0.35668,
+        "returnOnEquity": 17.8797,
+        "last_updated": "2026-07-29T13:59:16.378000"
+    },
+    "SWKS": {
+        "marketCap": 9207853238.46103,
+        "debtToEquity": 20.632,
+        "freeCashflow": 687837504,
+        "operatingMargins": 0.07704,
+        "returnOnEquity": 0.06171,
+        "last_updated": "2026-07-29T13:59:16.455859"
+    },
+    "NOW": {
+        "marketCap": 117348503470.41321,
+        "debtToEquity": 67.538,
+        "freeCashflow": 5149374976,
+        "operatingMargins": 0.04063,
+        "returnOnEquity": 0.14244,
+        "last_updated": "2026-07-29T13:59:16.410972"
+    },
+    "SMCI": {
+        "marketCap": 17801945999.154972,
+        "debtToEquity": 120.798,
+        "freeCashflow": -7448383488,
+        "operatingMargins": 0.061100002,
+        "returnOnEquity": 0.17877,
+        "last_updated": "2026-07-29T13:59:16.670089"
+    },
+    "SWK": {
+        "marketCap": 14491567865.845093,
+        "debtToEquity": 77.606,
+        "freeCashflow": 842187520,
+        "operatingMargins": 0.06437,
+        "returnOnEquity": 0.04165,
+        "last_updated": "2026-07-29T13:59:16.547620"
+    },
+    "SNPS": {
+        "marketCap": 73474750683.97293,
+        "debtToEquity": 35.574,
+        "freeCashflow": 3538958592,
+        "operatingMargins": 0.10383,
+        "returnOnEquity": 0.03824,
+        "last_updated": "2026-07-29T13:59:16.798602"
+    },
+    "LUV": {
+        "marketCap": 21965448971.372475,
+        "debtToEquity": 97.275,
+        "freeCashflow": -834750016,
+        "operatingMargins": 0.033800002,
+        "returnOnEquity": 0.11099,
+        "last_updated": "2026-07-29T13:59:16.528466"
+    },
+    "TMUS": {
+        "marketCap": 194909797404.2854,
+        "debtToEquity": 214.035,
+        "freeCashflow": 11335999488,
+        "operatingMargins": 0.2522,
+        "returnOnEquity": 0.17994,
+        "last_updated": "2026-07-29T13:59:16.816885"
+    },
+    "TER": {
+        "marketCap": 53313565258.88904,
+        "debtToEquity": 2.621,
+        "freeCashflow": 298311264,
+        "operatingMargins": 0.37614,
+        "returnOnEquity": 0.2875,
+        "last_updated": "2026-07-29T13:59:17.075960"
+    },
+    "TGT": {
+        "marketCap": 66048470675.391235,
+        "debtToEquity": 117.548,
+        "freeCashflow": 3141250048,
+        "operatingMargins": 0.0452,
+        "returnOnEquity": 0.22015,
+        "last_updated": "2026-07-29T13:59:17.055258"
+    },
+    "TSLA": {
+        "marketCap": 1206389299709.5483,
+        "debtToEquity": 18.373,
+        "freeCashflow": 4835999744,
+        "operatingMargins": 0.014099999,
+        "returnOnEquity": 0.046669997,
+        "last_updated": "2026-07-29T13:59:17.091442"
+    },
+    "TTD": {
+        "marketCap": 8945221835.721725,
+        "debtToEquity": 17.264,
+        "freeCashflow": 569112640,
+        "operatingMargins": 0.09675,
+        "returnOnEquity": 0.16735001,
+        "last_updated": "2026-07-29T13:59:17.178046"
+    },
+    "TROW": {
+        "marketCap": 25823410635.841232,
+        "debtToEquity": 3.87,
+        "freeCashflow": 1880349952,
+        "operatingMargins": 0.37183997,
+        "returnOnEquity": 0.18688999,
+        "last_updated": "2026-07-29T13:59:17.038122"
+    },
+    "TRMB": {
+        "marketCap": 13761738488.595005,
+        "debtToEquity": 25.062,
+        "freeCashflow": 370112512,
+        "operatingMargins": 0.15874,
+        "returnOnEquity": 0.08252,
+        "last_updated": "2026-07-29T13:59:17.283496"
+    },
+    "TSCO": {
+        "marketCap": 16577852681.858643,
+        "debtToEquity": 248.71,
+        "freeCashflow": 103175000,
+        "operatingMargins": 0.120740004,
+        "returnOnEquity": 0.39513,
+        "last_updated": "2026-07-29T13:59:17.242500"
+    },
+    "TPL": {
+        "marketCap": 27372702538.22644,
+        "debtToEquity": 1.156,
+        "freeCashflow": -56057624,
+        "operatingMargins": 0.77222,
+        "returnOnEquity": 0.36466,
+        "last_updated": "2026-07-29T13:59:17.116492"
+    },
+    "TYL": {
+        "marketCap": 14270424111.968384,
+        "debtToEquity": 1.348,
+        "freeCashflow": 544489280,
+        "operatingMargins": 0.17035,
+        "returnOnEquity": 0.08930001,
+        "last_updated": "2026-07-29T13:59:17.339516"
+    },
+    "ULTA": {
+        "marketCap": 21896605820.23593,
+        "debtToEquity": 89.209,
+        "freeCashflow": 973080128,
+        "operatingMargins": 0.14168,
+        "returnOnEquity": 0.47449002,
+        "last_updated": "2026-07-29T13:59:17.519820"
+    },
+    "UBER": {
+        "marketCap": 143917061432.3765,
+        "debtToEquity": 48.113,
+        "freeCashflow": 6536625152,
+        "operatingMargins": 0.14565,
+        "returnOnEquity": 0.3531,
+        "last_updated": "2026-07-29T13:59:17.371967"
+    },
+    "TSN": {
+        "marketCap": 21599617572.410683,
+        "debtToEquity": 44.41,
+        "freeCashflow": 1029000000,
+        "operatingMargins": 0.0364,
+        "returnOnEquity": 0.02619,
+        "last_updated": "2026-07-29T13:59:17.356918"
+    },
+    "UNH": {
+        "marketCap": 385861489118.45654,
+        "debtToEquity": 69.211,
+        "freeCashflow": 22759749632,
+        "operatingMargins": 0.071329996,
+        "returnOnEquity": 0.14152999,
+        "last_updated": "2026-07-29T13:59:17.772959"
+    },
+    "UPS": {
+        "marketCap": 89211813945.79338,
+        "debtToEquity": 181.508,
+        "freeCashflow": 4625500160,
+        "operatingMargins": 0.0633,
+        "returnOnEquity": 0.33353,
+        "last_updated": "2026-07-29T13:59:17.742177"
+    },
+    "VRSK": {
+        "marketCap": 29248004783.414307,
+        "debtToEquity": null,
+        "freeCashflow": 944362496,
+        "operatingMargins": 0.45004,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:17.884875"
+    },
+    "VRT": {
+        "marketCap": 88068468863.59717,
+        "debtToEquity": 76.913,
+        "freeCashflow": 1964749952,
+        "operatingMargins": 0.16364999,
+        "returnOnEquity": 0.45097,
+        "last_updated": "2026-07-29T13:59:17.974150"
+    },
+    "WBD": {
+        "marketCap": 64245377988.75,
+        "debtToEquity": 96.318,
+        "freeCashflow": 18466875392,
+        "operatingMargins": 0.08590999,
+        "returnOnEquity": -0.049590003,
+        "last_updated": "2026-07-29T13:59:18.122296"
+    },
+    "VST": {
+        "marketCap": 49038131410.380615,
+        "debtToEquity": 366.613,
+        "freeCashflow": -164124992,
+        "operatingMargins": 0.26578,
+        "returnOnEquity": 0.42898,
+        "last_updated": "2026-07-29T13:59:18.023928"
+    },
+    "VTRS": {
+        "marketCap": 20927010392.74515,
+        "debtToEquity": 99.675,
+        "freeCashflow": 2238337536,
+        "operatingMargins": 0.06784,
+        "returnOnEquity": -0.01957,
+        "last_updated": "2026-07-29T13:59:17.996506"
+    },
+    "UHS": {
+        "marketCap": 9989102945.973892,
+        "debtToEquity": 68.74,
+        "freeCashflow": 497965120,
+        "operatingMargins": 0.1114,
+        "returnOnEquity": 0.20948,
+        "last_updated": "2026-07-29T13:59:17.834206"
+    },
+    "VEEV": {
+        "marketCap": 33525047189.76013,
+        "debtToEquity": 1.411,
+        "freeCashflow": 1259549056,
+        "operatingMargins": 0.30932,
+        "returnOnEquity": 0.13934,
+        "last_updated": "2026-07-29T13:59:17.848676"
+    },
+    "WST": {
+        "marketCap": 23580454866.345825,
+        "debtToEquity": 10.585,
+        "freeCashflow": 277937504,
+        "operatingMargins": 0.22469,
+        "returnOnEquity": 0.19087,
+        "last_updated": "2026-07-29T13:59:18.141604"
+    },
+    "WDC": {
+        "marketCap": 160169477749.0625,
+        "debtToEquity": 17.81,
+        "freeCashflow": 2075000064,
+        "operatingMargins": 0.37008998,
+        "returnOnEquity": 0.85920995,
+        "last_updated": "2026-07-29T13:59:18.164543"
+    },
+    "DIS": {
+        "marketCap": 172123017116.35107,
+        "debtToEquity": 41.069,
+        "freeCashflow": 3751375104,
+        "operatingMargins": 0.15512,
+        "returnOnEquity": 0.1101,
+        "last_updated": "2026-07-29T13:59:18.038386"
+    },
+    "WDAY": {
+        "marketCap": 41005006416.8887,
+        "debtToEquity": 56.936,
+        "freeCashflow": 3118749952,
+        "operatingMargins": 0.13297,
+        "returnOnEquity": 0.10858,
+        "last_updated": "2026-07-29T13:59:18.596129"
+    },
+    "ZBRA": {
+        "marketCap": 13622197967.476074,
+        "debtToEquity": 82.104,
+        "freeCashflow": 559000000,
+        "operatingMargins": 0.14983,
+        "returnOnEquity": 0.11781,
+        "last_updated": "2026-07-29T13:59:18.666531"
+    },
+    "ZBH": {
+        "marketCap": 18747481582.049744,
+        "debtToEquity": 59.827,
+        "freeCashflow": 1044124992,
+        "operatingMargins": 0.19687,
+        "returnOnEquity": 0.060650002,
+        "last_updated": "2026-07-29T13:59:18.692941"
+    },
+    "WYNN": {
+        "marketCap": 10254129141.931961,
+        "debtToEquity": null,
+        "freeCashflow": 356894624,
+        "operatingMargins": 0.15323,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:18.652983"
+    },
+    "WY": {
+        "marketCap": 17687175693.870667,
+        "debtToEquity": 57.729,
+        "freeCashflow": -45875000,
+        "operatingMargins": 0.08975001,
+        "returnOnEquity": 0.04161,
+        "last_updated": "2026-07-29T13:59:18.550294"
+    },
+    "ZTS": {
+        "marketCap": 32926176771.534805,
+        "debtToEquity": 286.236,
+        "freeCashflow": 1780875008,
+        "operatingMargins": 0.36561,
+        "returnOnEquity": 0.67748,
+        "last_updated": "2026-07-29T13:59:18.787983"
+    },
+    "MELI": {
+        "marketCap": 94266341448.52417,
+        "debtToEquity": 169.977,
+        "freeCashflow": -4104624896,
+        "operatingMargins": 0.06908,
+        "returnOnEquity": 0.31258,
+        "last_updated": "2026-07-29T13:59:37.955681"
+    },
+    "GFS": {
+        "marketCap": 26502249815.274487,
+        "debtToEquity": 14.675,
+        "freeCashflow": 1192999936,
+        "operatingMargins": 0.11016,
+        "returnOnEquity": 0.06835,
+        "last_updated": "2026-07-29T13:59:37.953239"
+    },
+    "ZS": {
+        "marketCap": 24788452001.553726,
+        "debtToEquity": 78.939,
+        "freeCashflow": 1108818560,
+        "operatingMargins": -0.03276,
+        "returnOnEquity": -0.037100002,
+        "last_updated": "2026-07-29T13:59:37.960709"
+    },
+    "ILMN": {
+        "marketCap": 29459624015.808105,
+        "debtToEquity": 95.067,
+        "freeCashflow": 845625024,
+        "operatingMargins": 0.18332,
+        "returnOnEquity": 0.33822,
+        "last_updated": "2026-07-29T13:59:37.954257"
+    },
+    "MSTR": {
+        "marketCap": 35657023224.47872,
+        "debtToEquity": 18.094,
+        "freeCashflow": -8699502592,
+        "operatingMargins": -116.41528,
+        "returnOnEquity": -0.30756,
+        "last_updated": "2026-07-29T13:59:37.957267"
+    },
+    "RKLB": {
+        "marketCap": 39157388351.672745,
+        "debtToEquity": 6.124,
+        "freeCashflow": -214999376,
+        "operatingMargins": -0.22356,
+        "returnOnEquity": -0.13549,
+        "last_updated": "2026-07-29T13:59:37.959161"
+    },
+    "PDD": {
+        "marketCap": 123992066673.59225,
+        "debtToEquity": 1.21,
+        "freeCashflow": 71642849280,
+        "operatingMargins": 0.18419,
+        "returnOnEquity": 0.254,
+        "last_updated": "2026-07-29T13:59:37.958459"
+    },
+    "TRI": {
+        "marketCap": 46041751671.27432,
+        "debtToEquity": 22.85,
+        "freeCashflow": 1677250048,
+        "operatingMargins": 0.30331,
+        "returnOnEquity": 0.12734,
+        "last_updated": "2026-07-29T13:59:37.960017"
+    },
+    "ALNY": {
+        "marketCap": 38501688238.875,
+        "debtToEquity": 276.203,
+        "freeCashflow": 204714128,
+        "operatingMargins": 0.23016001,
+        "returnOnEquity": 0.90356004,
+        "last_updated": "2026-07-29T13:59:37.952032"
+    },
+    "INSM": {
+        "marketCap": 22594275029.20681,
+        "debtToEquity": 105.336,
+        "freeCashflow": -606202112,
+        "operatingMargins": -0.65459,
+        "returnOnEquity": -2.9446201,
+        "last_updated": "2026-07-29T13:59:37.954936"
+    },
+    "CRWV": {
+        "marketCap": 35235660296.92543,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:37.952708"
+    },
+    "SHOP": {
+        "marketCap": 169629412072.53104,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:37.959685"
+    },
+    "BMW.DE": {
+        "marketCap": 35848314938.86699,
+        "debtToEquity": 112.684,
+        "freeCashflow": 2344892928,
+        "operatingMargins": 0.06553,
+        "returnOnEquity": 0.0709,
+        "last_updated": "2026-07-29T13:59:46.492836"
+    },
+    "ADS.DE": {
+        "marketCap": 32091289427.974,
+        "debtToEquity": 93.747,
+        "freeCashflow": null,
+        "operatingMargins": 0.1071,
+        "returnOnEquity": 0.22917,
+        "last_updated": "2026-07-29T13:59:46.491654"
+    },
+    "SAP.DE": {
+        "marketCap": 185434456139.94214,
+        "debtToEquity": 21.966,
+        "freeCashflow": 9090624512,
+        "operatingMargins": 0.2762,
+        "returnOnEquity": 0.18320999,
+        "last_updated": "2026-07-29T13:59:46.500342"
+    },
+    "BEI.DE": {
+        "marketCap": 17599903749.924477,
+        "debtToEquity": 2.518,
+        "freeCashflow": 375249984,
+        "operatingMargins": 0.11214,
+        "returnOnEquity": 0.11161,
+        "last_updated": "2026-07-29T13:59:46.492294"
+    },
+    "RHM.DE": {
+        "marketCap": 54204616612.31128,
+        "debtToEquity": 35.86,
+        "freeCashflow": 827515008,
+        "operatingMargins": 0.09082,
+        "returnOnEquity": 0.21796,
+        "last_updated": "2026-07-29T13:59:46.499138"
+    },
+    "MRK.DE": {
+        "marketCap": 62542800260.123566,
+        "debtToEquity": 40.372,
+        "freeCashflow": 3080075008,
+        "operatingMargins": 0.18221001,
+        "returnOnEquity": 0.085260004,
+        "last_updated": "2026-07-29T13:59:46.497163"
+    },
+    "FRE.DE": {
+        "marketCap": 25233029579.88406,
+        "debtToEquity": 58.172,
+        "freeCashflow": 1804749952,
+        "operatingMargins": 0.10225,
+        "returnOnEquity": 0.07786,
+        "last_updated": "2026-07-29T13:59:46.494374"
+    },
+    "CON.DE": {
+        "marketCap": 14372430060.453964,
+        "debtToEquity": 143.78,
+        "freeCashflow": 10488999936,
+        "operatingMargins": 0.09372,
+        "returnOnEquity": -0.044439998,
+        "last_updated": "2026-07-29T13:59:46.493481"
+    },
+    "FME.DE": {
+        "marketCap": 11787301446.781158,
+        "debtToEquity": 77.75,
+        "freeCashflow": 1672323840,
+        "operatingMargins": 0.081429996,
+        "returnOnEquity": 0.07852,
+        "last_updated": "2026-07-29T13:59:46.495079"
+    },
+    "QIA.DE": {
+        "marketCap": 7637437248.22998,
+        "debtToEquity": 50.036,
+        "freeCashflow": 238874368,
+        "operatingMargins": 0.23817,
+        "returnOnEquity": 0.11934,
+        "last_updated": "2026-07-29T13:59:46.498269"
+    },
+    "G24.DE": {
+        "marketCap": 5469842424.796738,
+        "debtToEquity": 25.206,
+        "freeCashflow": null,
+        "operatingMargins": 0.55232,
+        "returnOnEquity": 0.1766,
+        "last_updated": "2026-07-29T13:59:47.200056"
+    },
+    "HEI.DE": {
+        "marketCap": 29973242258.526535,
+        "debtToEquity": 43.452,
+        "freeCashflow": 1509675008,
+        "operatingMargins": 0.17628,
+        "returnOnEquity": 0.11068,
+        "last_updated": "2026-07-29T13:59:46.496030"
+    },
+    "SY1.DE": {
+        "marketCap": 12439712806.0,
+        "debtToEquity": 70.286,
+        "freeCashflow": 229320496,
+        "operatingMargins": 0.08786,
+        "returnOnEquity": 0.06534,
+        "last_updated": "2026-07-29T13:59:47.273210"
+    },
+    "ENR.DE": {
+        "marketCap": 116668351352.50598,
+        "debtToEquity": 33.549,
+        "freeCashflow": 4672875008,
+        "operatingMargins": 0.11852,
+        "returnOnEquity": 0.23313999,
+        "last_updated": "2026-07-29T13:59:47.242284"
+    },
+    "VNA.DE": {
+        "marketCap": 17918950383.07509,
+        "debtToEquity": 129.178,
+        "freeCashflow": 1957025024,
+        "operatingMargins": 0.43331,
+        "returnOnEquity": 0.12595001,
+        "last_updated": "2026-07-29T13:59:47.306151"
+    },
+    "ZAL.DE": {
+        "marketCap": 7277834545.272911,
+        "debtToEquity": 52.176,
+        "freeCashflow": 1178249984,
+        "operatingMargins": -0.026600001,
+        "returnOnEquity": 0.04276,
+        "last_updated": "2026-07-29T13:59:47.336723"
+    },
+    "SHL.DE": {
+        "marketCap": 41634202761.081055,
+        "debtToEquity": 83.879,
+        "freeCashflow": 2492000000,
+        "operatingMargins": 0.12746,
+        "returnOnEquity": 0.11467,
+        "last_updated": "2026-07-29T13:59:47.266685"
+    },
+    "IFX.DE": {
+        "marketCap": 72460098804.67297,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:46.496629"
+    },
+    "KER.PA": {
+        "marketCap": 35295980933.759125,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:58.125938"
+    },
+    "MC.PA": {
+        "marketCap": 231312850395.33884,
+        "debtToEquity": 53.306,
+        "freeCashflow": 11537125376,
+        "operatingMargins": 0.22521,
+        "returnOnEquity": 0.16586,
+        "last_updated": "2026-07-29T13:59:58.127116"
+    },
+    "DSY.PA": {
+        "marketCap": 27304876848.65074,
+        "debtToEquity": 36.229,
+        "freeCashflow": 1267137536,
+        "operatingMargins": 0.23403,
+        "returnOnEquity": 0.15088001,
+        "last_updated": "2026-07-29T13:59:58.123687"
+    },
+    "ERF.PA": {
+        "marketCap": 11790733660.654999,
+        "debtToEquity": 96.122,
+        "freeCashflow": 339562496,
+        "operatingMargins": 0.16167,
+        "returnOnEquity": 0.11328,
+        "last_updated": "2026-07-29T13:59:58.124679"
+    },
+    "SGO.PA": {
+        "marketCap": 37192252408.989334,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:58.130239"
+    },
+    "RNO.PA": {
+        "marketCap": 8106834026.872435,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:58.129728"
+    },
+    "TEP.PA": {
+        "marketCap": 3624050565.410488,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:58.131362"
+    },
+    "CAP.PA": {
+        "marketCap": 17694845631.9579,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:58.122980"
+    },
+    "RMS.PA": {
+        "marketCap": 153758042548.0,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T13:59:58.124940"
+    },
+    "RI.PA": {
+        "marketCap": 16982239796.056763,
+        "debtToEquity": 82.292,
+        "freeCashflow": 1504625024,
+        "operatingMargins": 0.30535,
+        "returnOnEquity": 0.08565,
+        "last_updated": "2026-07-29T13:59:58.128295"
+    },
+    "EL.PA": {
+        "marketCap": 75556852124.87564,
+        "debtToEquity": 36.457,
+        "freeCashflow": 3278374912,
+        "operatingMargins": 0.10196,
+        "returnOnEquity": 0.060700003,
+        "last_updated": "2026-07-29T13:59:58.124445"
+    },
+    "PRY.MI": {
+        "marketCap": 33856544457.720024,
+        "debtToEquity": 76.23,
+        "freeCashflow": 1165500032,
+        "operatingMargins": 0.07786,
+        "returnOnEquity": 0.22695999,
+        "last_updated": "2026-07-29T14:00:05.484037"
+    },
+    "FCT.MI": {
+        "marketCap": 4696519152.08736,
+        "debtToEquity": 300.179,
+        "freeCashflow": 561237120,
+        "operatingMargins": 0.03845,
+        "returnOnEquity": 0.12809,
+        "last_updated": "2026-07-29T14:00:05.483401"
+    },
+    "AMP.MI": {
+        "marketCap": 3099430364.537755,
+        "debtToEquity": 166.757,
+        "freeCashflow": 333686624,
+        "operatingMargins": 0.11372,
+        "returnOnEquity": 0.0624,
+        "last_updated": "2026-07-29T14:00:05.480023"
+    },
+    "BC.MI": {
+        "marketCap": 5709279937.744141,
+        "debtToEquity": 210.724,
+        "freeCashflow": 94984752,
+        "operatingMargins": 0.16794,
+        "returnOnEquity": 0.26525,
+        "last_updated": "2026-07-29T14:00:05.480723"
+    },
+    "SPM.MI": {
+        "marketCap": 7722325179.027956,
+        "debtToEquity": 46.529,
+        "freeCashflow": 1155874944,
+        "operatingMargins": 0.044499997,
+        "returnOnEquity": 0.11609,
+        "last_updated": "2026-07-29T14:00:05.484602"
+    },
+    "CPR.MI": {
+        "marketCap": 7012896394.474884,
+        "debtToEquity": 69.829,
+        "freeCashflow": 316924992,
+        "operatingMargins": 0.17391,
+        "returnOnEquity": 0.0863,
+        "last_updated": "2026-07-29T14:00:05.481195"
+    },
+    "DIA.MI": {
+        "marketCap": 3502256487.5081635,
+        "debtToEquity": 47.495,
+        "freeCashflow": null,
+        "operatingMargins": 0.20557,
+        "returnOnEquity": 0.085530005,
+        "last_updated": "2026-07-29T14:00:05.482509"
+    }
+}
