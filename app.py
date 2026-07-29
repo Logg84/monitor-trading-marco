@@ -13,14 +13,10 @@ from google.genai import types
 import base64
 
 MAPPA_BORSA_EUROPEA = {
-    "CPR": "CPR.MI",    # Campari, Borsa Italiana
-    "RI": "RI.PA",      # Pernod Ricard, Euronext Paris
-    "NESN": "NESN.SW",  # Nestlé, SIX Swiss Exchange
-    "AF": "AF.PA",      # Air France-KLM, Euronext Paris
+    "CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA",
 }
 
 def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
-    """Fallback su yfinance. auto_adjust=True rettifica dividendi e split."""
     simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
     try:
         h = yf.Ticker(simbolo).history(period=period, interval=interval, auto_adjust=True)
@@ -51,21 +47,17 @@ h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 
 
 hr { margin: 1.4rem 0 !important; border-color: #232733 !important; }
 
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    display: flex; align-items: center;
-}
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { display: flex; align-items: center; }
 
 .wl-badge {
     font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
-    padding: 3px 10px; border-radius: 6px; display: inline-block;
-    border: 1px solid transparent;
+    padding: 3px 10px; border-radius: 6px; display: inline-block; border: 1px solid transparent;
 }
 .wl-badge.l1 { color: #f0b90b; background: rgba(240,185,11,0.10); border-color: rgba(240,185,11,0.25); }
 .wl-badge.l2 { color: #00c176; background: rgba(0,193,118,0.10); border-color: rgba(0,193,118,0.25); }
 .wl-badge.l3 { color: #ff4d4d; background: rgba(255,77,77,0.10); border-color: rgba(255,77,77,0.25); }
-.wl-badge.v1 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
-.wl-badge.v2 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
-.wl-badge.v3 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
+.wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
+.wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #a78bfa; background: rgba(167,139,250,0.10); border-color: rgba(167,139,250,0.25); }
 .wl-badge.empty { color: #4a5568; background: transparent; border: 1px dashed #2d3340; }
 
 .wl-header {
@@ -89,9 +81,7 @@ div[data-testid="stButton"] button:hover {
     border-color: #ff4d4d; color: #ff4d4d; background: rgba(255,77,77,0.08);
 }
 
-div[data-testid="stFileUploaderDropzone"] {
-    border: 1px dashed #2d3340; background: #0f1219; border-radius: 10px;
-}
+div[data-testid="stFileUploaderDropzone"] { border: 1px dashed #2d3340; background: #0f1219; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -109,12 +99,8 @@ RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
         "ticker": {"type": "STRING"},
-        "livello_1": {"type": "NUMBER"},
-        "livello_2": {"type": "NUMBER"},
-        "livello_3": {"type": "NUMBER"},
-        "vwap_1": {"type": "NUMBER"},
-        "vwap_2": {"type": "NUMBER"},
-        "vwap_3": {"type": "NUMBER"},
+        "livello_1": {"type": "NUMBER"}, "livello_2": {"type": "NUMBER"}, "livello_3": {"type": "NUMBER"},
+        "vwap_1": {"type": "NUMBER"}, "vwap_2": {"type": "NUMBER"}, "vwap_3": {"type": "NUMBER"},
     },
     "required": ["ticker"],
 }
@@ -129,67 +115,53 @@ Se non trovi un dato, lascialo a 0. Rispondi SOLO con i dati richiesti in JSON."
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     response = client.models.generate_content(
         model=MODEL_NAME,
-        contents=[
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-            PROMPT,
-        ],
+        contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type), PROMPT],
         config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=RESPONSE_SCHEMA,
+            response_mime_type="application/json", response_schema=RESPONSE_SCHEMA,
             safety_settings=[
                 types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
             ],
         ),
     )
-
     if not response.candidates:
         raise ValueError(f"Nessuna risposta da Gemini. Prompt feedback: {response.prompt_feedback}")
-
     candidate = response.candidates[0]
     if candidate.finish_reason not in ("STOP", 1):
         raise ValueError(f"Risposta bloccata. finish_reason={candidate.finish_reason}")
-
     return json.loads(response.text)
 
 # ---------------------------------------------------------------
-# CSV: lettura / scrittura
+# CSV: lettura / scrittura  (schema 3 POC + Origine + Auto_Indice)
 # ---------------------------------------------------------------
-# Schema ALLINEATO a watchlist_io.py (single source of truth concettuale):
-# aggiungo Origine (manuale|auto), POC e Nota POC. Così app.py non taglierà mai
-# più queste colonne quando riscrive il CSV, e l'automazione di Screening può usarle.
 COLONNE_ATTESE = [
     "Ticker",
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
     "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
-    "Screenshot",
-    "Origine",
-    "POC",
-    "Nota POC",
+    "Screenshot", "Origine",
+    "POC 1", "Nota POC 1", "POC 2", "Nota POC 2", "POC 3", "Nota POC 3",
+    "Auto_Indice",
 ]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 
+_TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+
+def _is_text_col(col: str) -> bool:
+    return col.startswith("Nota") or col in _TEXT_COLS
+
 def commit_csv_su_github(df: pd.DataFrame):
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return
-
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-
     r = requests.get(url, headers=headers)
     sha = r.json().get("sha") if r.status_code == 200 else None
-
     contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
-    payload = {
-        "message": "Aggiorna watchlist.csv da app Streamlit",
-        "content": contenuto_b64,
-        "branch": "main",
-    }
+    payload = {"message": "Aggiorna watchlist.csv da app Streamlit", "content": contenuto_b64, "branch": "main"}
     if sha:
         payload["sha"] = sha
-
     resp = requests.put(url, headers=headers, json=payload)
     if resp.status_code not in (200, 201):
         st.warning(f"Salvataggio su GitHub fallito: {resp.status_code} {resp.text[:200]}")
@@ -197,16 +169,10 @@ def commit_csv_su_github(df: pd.DataFrame):
 def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione: str) -> str | None:
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
-
     nome_file = f"screenshots/{ticker}_{int(time.time())}.{estensione}"
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{nome_file}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-
-    payload = {
-        "message": f"Aggiungi screenshot {ticker}",
-        "content": base64.b64encode(contenuto_bytes).decode(),
-        "branch": "main",
-    }
+    payload = {"message": f"Aggiungi screenshot {ticker}", "content": base64.b64encode(contenuto_bytes).decode(), "branch": "main"}
     resp = requests.put(url, headers=headers, json=payload)
     if resp.status_code in (200, 201):
         return nome_file
@@ -218,10 +184,7 @@ def dimensione_repo_kb() -> int | None:
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
     try:
-        r = requests.get(
-            f"https://api.github.com/repos/{GITHUB_REPO}",
-            headers={"Authorization": f"token {GITHUB_TOKEN}"},
-        )
+        r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
         if r.status_code == 200:
             return r.json().get("size")
     except Exception:
@@ -229,16 +192,16 @@ def dimensione_repo_kb() -> int | None:
     return None
 
 ALIAS_COLONNE = {
-    "ticker": "Ticker",
-    "livello": "Livello 1",
+    "ticker": "Ticker", "livello": "Livello 1",
     "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
     "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
     "origine": "Origine",
-    "poc": "POC",
+    "POC": "POC 1", "poc": "POC 1",
+    "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
+    "auto_indice": "Auto_Indice",
 }
 
 def _read_watchlist_github() -> pd.DataFrame | None:
-    """Legge watchlist.csv dal repo GitHub (fonte di verità persistente)."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
     try:
@@ -254,8 +217,6 @@ def _read_watchlist_github() -> pd.DataFrame | None:
         return None
 
 def carica_watchlist() -> pd.DataFrame:
-    # GitHub-first: il disco di Streamlit Cloud è effimero, quindi la fonte di
-    # verità è il repo. Il disco locale resta solo come fallback di emergenza.
     df = _read_watchlist_github()
     if df is None or df.empty:
         if os.path.exists(CSV_PATH):
@@ -267,25 +228,17 @@ def carica_watchlist() -> pd.DataFrame:
             df = pd.DataFrame(columns=COLONNE_ATTESE)
     if df.empty:
         df = pd.DataFrame(columns=COLONNE_ATTESE)
-
     df = df.rename(columns=ALIAS_COLONNE)
-
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = "" if (col.startswith("Nota") or col in ("Screenshot", "Origine")) else 0
-
+            df[col] = "" if _is_text_col(col) else 0
     df = df[COLONNE_ATTESE]
-
     for col in COLONNE_ATTESE:
-        if col.startswith("Nota") or col in ("Screenshot", "Origine"):
+        if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
-
-    # Default Origine = manuale: protegge tutti i titoli già presenti dall'automazione.
     df["Origine"] = df["Origine"].replace("", "manuale")
-
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
-
     return df
 
 def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
@@ -303,25 +256,21 @@ def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
     return df
 
 def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
-    # NOTA: salva_riga è chiamata SOLO da percorsi manuali (Gemini, form, editing UI).
-    # Quindi ogni riga che passa di qui è, per definizione, "manuale" (sacra).
+    # salva_riga è chiamata SOLO da percorsi manuali -> la riga è "manuale" (sacra).
+    # NON tocca POC 1/2/3 né Auto_Indice (sono dati dello screener).
     df = carica_watchlist()
     ticker = ticker.strip().upper()
-
     if ticker in df["Ticker"].str.upper().values:
         idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot", "Origine", "Nota POC"]:
+        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot", "Origine"]:
             df[col] = df[col].astype(object)
-
         df.at[idx, "Livello 1"] = l1; df.at[idx, "Nota 1"] = n1
         df.at[idx, "Livello 2"] = l2; df.at[idx, "Nota 2"] = n2
         df.at[idx, "Livello 3"] = l3; df.at[idx, "Nota 3"] = n3
         df.at[idx, "VWAP 1"] = v1; df.at[idx, "Nota VWAP 1"] = nv1
         df.at[idx, "VWAP 2"] = v2; df.at[idx, "Nota VWAP 2"] = nv2
         df.at[idx, "VWAP 3"] = v3; df.at[idx, "Nota VWAP 3"] = nv3
-        # Se ci metti mano tu, diventa tuo: l'auto-pulizia non lo toccherà più.
         df.at[idx, "Origine"] = "manuale"
-
         if screenshot_path:
             df.at[idx, "Screenshot"] = screenshot_path
     else:
@@ -329,13 +278,11 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
             "Ticker": ticker,
             "Livello 1": l1, "Nota 1": n1, "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
             "VWAP 1": v1, "Nota VWAP 1": nv1, "VWAP 2": v2, "Nota VWAP 2": nv2, "VWAP 3": v3, "Nota VWAP 3": nv3,
-            "Screenshot": screenshot_path or "",
-            "Origine": "manuale",
-            "POC": 0,
-            "Nota POC": "",
+            "Screenshot": screenshot_path or "", "Origine": "manuale",
+            "POC 1": 0, "Nota POC 1": "", "POC 2": 0, "Nota POC 2": "", "POC 3": 0, "Nota POC 3": "",
+            "Auto_Indice": "",
         }])
         df = pd.concat([df, nuova_riga], ignore_index=True)
-
     df.to_csv(CSV_PATH, index=False)
     commit_csv_su_github(df)
     return df
@@ -345,10 +292,6 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
 # ---------------------------------------------------------------
 st.title("📊 Watchlist da Screenshot")
 
-# ---------------------------------------------------------------
-# AUTOMAZIONE SCREENER (info) — l'import manuale via CSV è stato rimosso:
-# ora i titoli entrano/escono da soli dalla pagina Screening (vedi watchlist_io).
-# ---------------------------------------------------------------
 st.info(
     "🔗 **Automazione attiva dalla pagina Screening.** I titoli dello screener che toccano "
     "un POC o un VWAP entrano **da soli** nella watchlist con origine `auto` (🤖) e vengono "
@@ -359,13 +302,9 @@ st.info(
 col_upload, col_result = st.columns([1, 1])
 
 with col_upload:
-    uploaded_file = st.file_uploader(
-        "Carica screenshot del grafico", type=["png", "jpg", "jpeg", "webp"]
-    )
-
+    uploaded_file = st.file_uploader("Carica screenshot del grafico", type=["png", "jpg", "jpeg", "webp"])
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Screenshot caricato", use_container_width=True)
-
         if st.button("🔍 Analizza con Gemini", type="primary"):
             with st.spinner("Analisi in corso..."):
                 try:
@@ -381,9 +320,7 @@ with col_result:
     if "ultima_analisi" in st.session_state:
         dati = st.session_state["ultima_analisi"]
         st.subheader("Risultato estratto")
-
         ticker_edit = st.text_input("Ticker", value=dati.get("ticker", ""))
-
         col_l, col_v = st.columns(2)
         with col_l:
             st.markdown("**Livelli**")
@@ -395,21 +332,17 @@ with col_result:
             v1_edit = st.number_input("VWAP 1", value=float(dati.get("vwap_1", 0) or 0))
             v2_edit = st.number_input("VWAP 2", value=float(dati.get("vwap_2", 0) or 0))
             v3_edit = st.number_input("VWAP 3", value=float(dati.get("vwap_3", 0) or 0))
-
         n1_edit = st.text_input("Nota Livello 1", value="", placeholder="es. supporto storico")
         n2_edit = st.text_input("Nota Livello 2", value="", placeholder="es. media mobile 200")
         n3_edit = st.text_input("Nota Livello 3", value="", placeholder="es. resistenza ATH")
         nv1_edit = st.text_input("Nota VWAP 1", value="")
         nv2_edit = st.text_input("Nota VWAP 2", value="")
         nv3_edit = st.text_input("Nota VWAP 3", value="")
-
         if st.button("💾 Salva in watchlist"):
             screenshot_path = None
             if uploaded_file is not None:
                 estensione = uploaded_file.type.split("/")[-1] if uploaded_file.type else "png"
-                screenshot_path = carica_screenshot_su_github(
-                    ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
-                )
+                screenshot_path = carica_screenshot_su_github(ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione)
             salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit,
                        n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
             del st.session_state["ultima_analisi"]
@@ -438,9 +371,7 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
             m_nv1 = st.text_input("Nota V1")
             m_nv2 = st.text_input("Nota V2")
             m_nv3 = st.text_input("Nota V3")
-
         m_submit = st.form_submit_button("💾 Salva Ticker Manuale")
-
     if m_submit:
         if not m_ticker:
             st.error("Il Ticker è obbligatorio.")
@@ -456,15 +387,13 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
 st.divider()
 
 # ---------------------------------------------------------------
-# TABELLA + GRAFICO
+# TABELLA + GRAFICO  (16 colonne: + POC 1/2/3)
 # ---------------------------------------------------------------
 st.subheader("📋 Watchlist salvata")
 df = carica_watchlist()
 
 TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
-
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
-
 _ULTIME_CHIAMATE_API = []
 
 def rispetta_rate_limit():
@@ -497,29 +426,21 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
         return pd.DataFrame()
     try:
         rispetta_rate_limit()
-        r = requests.get(
-            "https://api.twelvedata.com/time_series",
-            params={
-                "symbol": simbolo, "interval": interval, "outputsize": outputsize,
-                "apikey": TD_API_KEY, "order": "ASC",
-            },
-        )
+        r = requests.get("https://api.twelvedata.com/time_series",
+            params={"symbol": simbolo, "interval": interval, "outputsize": outputsize, "apikey": TD_API_KEY, "order": "ASC"})
         dati = r.json()
         if dati.get("status") == "error" or "values" not in dati:
             _ULTIMO_ERRORE_TD = dati.get("message", str(dati))
             print(f"Twelve Data errore per {simbolo}: {_ULTIMO_ERRORE_TD}")
             return pd.DataFrame()
         _ULTIMO_ERRORE_TD = None
-
         df = pd.DataFrame(dati["values"])
         df["datetime"] = pd.to_datetime(df["datetime"])
         df = df.set_index("datetime").sort_index()
         for col in ("open", "high", "low", "close", "volume"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-        df = df.rename(columns={
-            "open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume",
-        })
+        df = df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"})
         return df.dropna(subset=["Close"])
     except Exception as e:
         _ULTIMO_ERRORE_TD = str(e)
@@ -534,22 +455,17 @@ def carica_prezzi_condivisi() -> dict:
     path = "prezzi_attuali.json"
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
-            r = requests.get(
-                f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}",
-                headers={"Authorization": f"token {GITHUB_TOKEN}"},
-            )
+            r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
             if r.status_code == 200:
                 contenuto = base64.b64decode(r.json()["content"]).decode()
                 dati = json.loads(contenuto)
                 return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
         except Exception:
             pass
-
     if os.path.exists(path):
         with open(path) as f:
             dati = json.load(f)
             return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
-
     return {}, ""
 
 def elimina_riga(ticker: str):
@@ -561,24 +477,18 @@ def elimina_riga(ticker: str):
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
 else:
-    ricerca = st.text_input(
-        "Cerca ticker", placeholder="🔍 Cerca ticker...", label_visibility="collapsed"
-    )
+    ricerca = st.text_input("Cerca ticker", placeholder="🔍 Cerca ticker...", label_visibility="collapsed")
     df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
-
     if not df_visualizzata.empty:
         df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
-    # 13 colonne: Ticker, L1, L2, L3, V1, V2, V3, Prezzo, Azioni (5)
-    COLS = [2, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.3, 0.3, 0.3, 0.3]
-    h1, h2, h3_, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13 = st.columns(COLS)
-    etichette = zip(
-        (h1, h2, h3_, h4, h5, h6, h7, h8),
-        ("Ticker", "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "Prezzo"),
-    )
+    # 16 colonne: Ticker L1 L2 L3 V1 V2 V3 P1 P2 P3 Prezzo + 5 azioni
+    COLS = [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.3, 0.3, 0.3, 0.3]
+    cols = st.columns(COLS)
+    etichette = list(zip(cols[:11], ("Ticker", "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3", "Prezzo")))
     for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
-    for col in (h9, h10, h11, h12, h13):
+    for col in cols[11:]:
         col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
 
     if df_visualizzata.empty:
@@ -603,25 +513,26 @@ else:
         origine_riga = str(r.get("Origine", "manuale")).strip().lower()
 
         if st.session_state["editing_ticker"] == ticker_riga:
-            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13 = st.columns(COLS)
-            nuovo_nome_ticker = c1.text_input("Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}_{_}", label_visibility="collapsed")
-            nl1 = c2.number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}_{_}", label_visibility="collapsed")
-            nl2 = c3.number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}_{_}", label_visibility="collapsed")
-            nl3 = c4.number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}_{_}", label_visibility="collapsed")
-            nv1 = c5.number_input("V1", value=float(r["VWAP 1"]), key=f"edit_v1_{ticker_riga}_{_}", label_visibility="collapsed")
-            nv2 = c6.number_input("V2", value=float(r["VWAP 2"]), key=f"edit_v2_{ticker_riga}_{_}", label_visibility="collapsed")
-            nv3 = c7.number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
-            for col in (c8, c9, c10):
-                col.write("")
-
-            if c11.button("💾", key=f"save_{ticker_riga}_{_}"):
+            c = st.columns(COLS)
+            nuovo_nome_ticker = c[0].text_input("Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl1 = c[1].number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl2 = c[2].number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl3 = c[3].number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv1 = c[4].number_input("V1", value=float(r["VWAP 1"]), key=f"edit_v1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv2 = c[5].number_input("V2", value=float(r["VWAP 2"]), key=f"edit_v2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv3 = c[6].number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
+            # POC read-only in editing (sono dati dello screener)
+            c[7].markdown(badge(r["POC 1"], "p1"), unsafe_allow_html=True)
+            c[8].markdown(badge(r["POC 2"], "p2"), unsafe_allow_html=True)
+            c[9].markdown(badge(r["POC 3"], "p3"), unsafe_allow_html=True)
+            c[10].write("")
+            if c[11].button("💾", key=f"save_{ticker_riga}_{_}"):
                 nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}_{_}", r["Nota 1"])
                 nota_2 = st.session_state.get(f"edit_n2_{ticker_riga}_{_}", r["Nota 2"])
                 nota_3 = st.session_state.get(f"edit_n3_{ticker_riga}_{_}", r["Nota 3"])
                 nota_v1 = st.session_state.get(f"edit_nv1_{ticker_riga}_{_}", r["Nota VWAP 1"])
                 nota_v2 = st.session_state.get(f"edit_nv2_{ticker_riga}_{_}", r["Nota VWAP 2"])
                 nota_v3 = st.session_state.get(f"edit_nv3_{ticker_riga}_{_}", r["Nota VWAP 3"])
-
                 ticker_finale = ticker_riga
                 if nuovo_nome_ticker.strip().upper() != ticker_riga.strip().upper():
                     rinomina_ticker(ticker_riga, nuovo_nome_ticker)
@@ -629,10 +540,11 @@ else:
                 salva_riga(ticker_finale, nl1, nl2, nl3, nv1, nv2, nv3, nota_1, nota_2, nota_3, nota_v1, nota_v2, nota_v3)
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-            if c12.button("️", key=f"cancel_{ticker_riga}_{_}"):
+            if c[12].button("️", key=f"cancel_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-
+            for cc in (c[13], c[14], c[15]):
+                cc.write("")
             _, nc1, nc2, nc3, nc4, nc5, nc6, _ = st.columns([2, 1, 1, 1, 1, 1, 1, 2.7])
             nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}_{_}", label_visibility="collapsed")
             nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}_{_}", label_visibility="collapsed")
@@ -640,48 +552,43 @@ else:
             nc4.text_input("Nota V1", value=str(r["Nota VWAP 1"] or ""), key=f"edit_nv1_{ticker_riga}_{_}", label_visibility="collapsed")
             nc5.text_input("Nota V2", value=str(r["Nota VWAP 2"] or ""), key=f"edit_nv2_{ticker_riga}_{_}", label_visibility="collapsed")
             nc6.text_input("Nota V3", value=str(r["Nota VWAP 3"] or ""), key=f"edit_nv3_{ticker_riga}_{_}", label_visibility="collapsed")
-
         else:
-            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13 = st.columns(COLS)
-            # Badge origine: 🤖 = auto (pulibile dall'automazione), niente = manuale (sacro)
+            c = st.columns(COLS)
             prefisso_origine = "🤖 " if origine_riga == "auto" else ""
-            if c1.button(prefisso_origine + ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
+            if c[0].button(prefisso_origine + ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
-            c2.markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
-            c3.markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
-            c4.markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
-            c5.markdown(badge(r["VWAP 1"], "v1", r["Nota VWAP 1"]), unsafe_allow_html=True)
-            c6.markdown(badge(r["VWAP 2"], "v2", r["Nota VWAP 2"]), unsafe_allow_html=True)
-            c7.markdown(badge(r["VWAP 3"], "v3", r["Nota VWAP 3"]), unsafe_allow_html=True)
-
+            c[1].markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
+            c[2].markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
+            c[3].markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
+            c[4].markdown(badge(r["VWAP 1"], "v1", r["Nota VWAP 1"]), unsafe_allow_html=True)
+            c[5].markdown(badge(r["VWAP 2"], "v2", r["Nota VWAP 2"]), unsafe_allow_html=True)
+            c[6].markdown(badge(r["VWAP 3"], "v3", r["Nota VWAP 3"]), unsafe_allow_html=True)
+            c[7].markdown(badge(r["POC 1"], "p1", r["Nota POC 1"]), unsafe_allow_html=True)
+            c[8].markdown(badge(r["POC 2"], "p2", r["Nota POC 2"]), unsafe_allow_html=True)
+            c[9].markdown(badge(r["POC 3"], "p3", r["Nota POC 3"]), unsafe_allow_html=True)
             ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
             prezzo_riga = prezzi_condivisi.get(ticker_riga)
-
             if prezzo_riga is not None:
-                c8.markdown(
-                    f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{prezzo_riga:.2f}</span>',
-                    unsafe_allow_html=True,
-                )
+                c[10].markdown(f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{prezzo_riga:.2f}</span>', unsafe_allow_html=True)
             else:
-                c8.markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
-
+                c[10].markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
             tv_symbol = ticker_td_riga.replace('/', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
             exch = determina_exchange(ticker_td_riga)
             fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
-            c9.markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
-            c10.markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
+            c[11].markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
+            c[12].markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
             if r.get("Screenshot"):
-                if c11.button("🖼️", key=f"screenshot_{ticker_riga}_{_}"):
+                if c[13].button("🖼️", key=f"screenshot_{ticker_riga}_{_}"):
                     st.session_state["screenshot_da_mostrare"] = r["Screenshot"]
                     st.rerun()
             else:
-                c11.write("")
-            if c12.button("✏️", key=f"edit_{ticker_riga}_{_}"):
+                c[13].write("")
+            if c[14].button("✏️", key=f"edit_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = ticker_riga
                 st.rerun()
-            if c13.button("🗑️", key=f"del_{ticker_riga}_{_}"):
+            if c[15].button("🗑️", key=f"del_{ticker_riga}_{_}"):
                 elimina_riga(ticker_riga)
                 st.rerun()
 
@@ -690,10 +597,7 @@ else:
     if st.session_state.get("screenshot_da_mostrare"):
         path = st.session_state["screenshot_da_mostrare"]
         try:
-            r_img = requests.get(
-                f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}",
-                headers={"Authorization": f"token {GITHUB_TOKEN}"},
-            )
+            r_img = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
             if r_img.status_code == 200:
                 img_bytes = base64.b64decode(r_img.json()["content"])
                 with st.expander("🖼️ Screenshot originale", expanded=True):
@@ -718,23 +622,16 @@ else:
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
         st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
     ticker_selezionato = st.session_state["ticker_grafico"]
-
     riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
     livelli = [float(riga[f"Livello {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0]
     vwap = [float(riga[f"VWAP {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"VWAP {i}"]) and riga[f"VWAP {i}"] != 0]
+    poc_liv = [float(riga[f"POC {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"POC {i}"]) and riga[f"POC {i}"] != 0]
 
     import json as _json
 
-    TIMEFRAMES = {
-        "4H": ("4h", 300),
-        "1D": ("1day", 500),
-        "1W": ("1week", 260),
-        "1M": ("1month", 120),
-    }
+    TIMEFRAMES = {"4H": ("4h", 300), "1D": ("1day", 500), "1W": ("1week", 260), "1M": ("1month", 120)}
     st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
-    timeframe = st.radio(
-        "Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed"
-    )
+    timeframe = st.radio("Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed")
     intervallo, outputsize = TIMEFRAMES[timeframe]
 
     ticker_td = mappa_ticker_twelvedata(ticker_selezionato)
@@ -749,26 +646,20 @@ else:
     else:
         usa_timestamp = timeframe == "4H"
         candele = [
-            {
-                "time": int(idx.timestamp()) if usa_timestamp else idx.strftime("%Y-%m-%d"),
-                "open": round(r["Open"], 4),
-                "high": round(r["High"], 4),
-                "low": round(r["Low"], 4),
-                "close": round(r["Close"], 4),
-            }
+            {"time": int(idx.timestamp()) if usa_timestamp else idx.strftime("%Y-%m-%d"),
+             "open": round(r["Open"], 4), "high": round(r["High"], 4), "low": round(r["Low"], 4), "close": round(r["Close"], 4)}
             for idx, r in storico.iterrows()
         ]
-
-        # Linee Livelli (continue)
         linee_livelli_js = "\n".join(
             f'candleSeries.createPriceLine({{price: {liv}, color: "{["#f0b90b", "#00c176", "#ff4d4d"][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
-            for i, liv in enumerate(livelli)
-        )
-        # Linee VWAP (tratteggiate)
+            for i, liv in enumerate(livelli))
         linee_vwap_js = "\n".join(
             f'candleSeries.createPriceLine({{price: {v}, color: "#00b4d8", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
-            for i, v in enumerate(vwap)
-        )
+            for i, v in enumerate(vwap))
+        # POC: viola, tratteggiato spesso
+        linee_poc_js = "\n".join(
+            f'candleSeries.createPriceLine({{price: {p}, color: "#a78bfa", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
+            for i, p in enumerate(poc_liv))
 
         chart_html = f"""
         <div id="chart_container" style="width:100%; height:600px;"></div>
@@ -776,22 +667,19 @@ else:
         <script>
           const container = document.getElementById('chart_container');
           const chart = LightweightCharts.createChart(container, {{
-            width: container.clientWidth,
-            height: 600,
+            width: container.clientWidth, height: 600,
             layout: {{ background: {{ color: '#0e1117' }}, textColor: '#d1d4dc' }},
             grid: {{ vertLines: {{ color: '#1e222d' }}, horzLines: {{ color: '#1e222d' }} }},
             timeScale: {{ borderColor: '#485c7b', timeVisible: {str(usa_timestamp).lower()} }},
           }});
-
           const candleSeries = chart.addCandlestickSeries({{
             upColor: '#26a69a', downColor: '#ef5350',
             borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
           }});
-
           candleSeries.setData({_json.dumps(candele)});
           {linee_livelli_js}
           {linee_vwap_js}
-
+          {linee_poc_js}
           chart.timeScale().fitContent();
           new ResizeObserver(entries => {{ chart.applyOptions({{ width: entries[0].contentRect.width }}); }}).observe(container);
         </script>
@@ -803,13 +691,10 @@ else:
 # ---------------------------------------------------------------
 st.divider()
 st.subheader("🕘 Storico Alert")
-
 HISTORY_PATH = "alert_history.csv"
 
 @st.cache_data(ttl=60)
 def carica_storico_alert() -> pd.DataFrame:
-    # Lo schema è cambiato (Livelli Toccati / Convergenza / Regime): read_csv lo
-    # inferisce da solo, quindi questa funzione si adatta automaticamente.
     colonne = ["Data", "Ticker", "Livelli Toccati", "Convergenza", "Regime", "Prezzo al momento"]
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
@@ -829,8 +714,4 @@ storico_alert = carica_storico_alert()
 if storico_alert.empty:
     st.caption("Nessun alert ancora scattato.")
 else:
-    st.dataframe(
-        storico_alert.sort_values("Data", ascending=False),
-        use_container_width=True,
-        hide_index=True,
-    )
+    st.dataframe(storico_alert.sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
