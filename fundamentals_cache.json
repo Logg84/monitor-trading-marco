@@ -1878,5 +1878,45 @@
         "operatingMargins": 0.20557,
         "returnOnEquity": 0.085530005,
         "last_updated": "2026-07-29T14:00:05.482509"
+    },
+    "AMD": {
+        "marketCap": 698157975565.6779,
+        "debtToEquity": 6.005,
+        "freeCashflow": 7173374976,
+        "operatingMargins": 0.14396,
+        "returnOnEquity": 0.08063,
+        "last_updated": "2026-07-29T15:53:35.524089"
+    },
+    "SLB": {
+        "marketCap": 73472837509.15527,
+        "debtToEquity": 46.958,
+        "freeCashflow": null,
+        "operatingMargins": 0.12706,
+        "returnOnEquity": 0.12909001,
+        "last_updated": "2026-07-29T15:53:35.527850"
+    },
+    "CARR": {
+        "marketCap": 50266727580.16954,
+        "debtToEquity": 91.102,
+        "freeCashflow": 849750016,
+        "operatingMargins": 0.06572,
+        "returnOnEquity": 0.09907,
+        "last_updated": "2026-07-29T15:53:35.524730"
+    },
+    "FIX": {
+        "marketCap": 53305858274.64038,
+        "debtToEquity": 45.489,
+        "freeCashflow": 1841915392,
+        "operatingMargins": 0.07885,
+        "returnOnEquity": 0.55292,
+        "last_updated": "2026-07-29T15:53:35.526192"
+    },
+    "CAT": {
+        "marketCap": 361461084703.74646,
+        "debtToEquity": 230.793,
+        "freeCashflow": 3776624896,
+        "operatingMargins": 0.18180001,
+        "returnOnEquity": 0.51331,
+        "last_updated": "2026-07-29T15:53:35.525715"
     }
 }

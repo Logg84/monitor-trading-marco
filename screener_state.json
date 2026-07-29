@@ -938,5 +938,25 @@
     "SPM.MI": {
         "status": "Active",
         "indice": "FTSE MIB (Italia)"
+    },
+    "AMD": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "CARR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CAT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "FIX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SLB": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
