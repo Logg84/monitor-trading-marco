@@ -13,23 +13,29 @@ from plotly.subplots import make_subplots
 import traceback
 from data_engine import DataEngine, MAX_POC_DIST_PCT
 
-# Auto-refresh opzionale e robusto: se la libreria manca NON fermo la pagina,
-# semplicemente non aggiorno in automatico (su Cloud evita crash silenziosi).
+# set_page_config DEVE essere la prima chiamata Streamlit del file.
+st.set_page_config(page_title="ARGO Screening", layout="wide", page_icon="🎛️")
+
+# Importo watchlist_io DOPO set_page_config (tocca st.secrets a livello modulo).
+# È il ponte: promozione auto + auto-pulizia + I/O watchlist su GitHub.
+from watchlist_io import (
+    carica_watchlist_da_github,
+    commit_csv_su_github,
+    promuovi_auto_da_screener,
+)
+
+# Auto-refresh opzionale e robusto: se la libreria manca NON fermo la pagina.
 try:
     from streamlit_autorefresh import st_autorefresh
     _HAS_AUTOREFRESH = True
 except ImportError:
     _HAS_AUTOREFRESH = False
 
-# set_page_config DEVE essere la prima chiamata Streamlit del file.
-st.set_page_config(page_title="ARGO Screening", layout="wide", page_icon="🎛️")
-
 if _HAS_AUTOREFRESH:
     st_autorefresh(interval=600000, key="argo_screening_refresh")
 
 # ---------------------------------------------------------------
-# STILE (coerente col portale alert; header di navigazione lasciato
-# visibile di proposito, così il menu multipage resta usabile anche su mobile)
+# STILE (coerente con app.py: Inter + IBM Plex Mono, palette dark)
 # ---------------------------------------------------------------
 st.markdown("""
 <style>
@@ -61,9 +67,7 @@ h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spac
 .actor-box .value { font-size: 16px; font-weight: 800; margin: 2px 0; }
 .actor-box .desc { font-size: 10px; color: #cbd5e1; line-height: 1.2; }
 
-div[data-testid="stButton"] button {
-    transition: all .15s ease;
-}
+div[data-testid="stButton"] button { transition: all .15s ease; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,6 +97,9 @@ if "scan_timestamps" not in st.session_state:
     }
 if "debug_log" not in st.session_state:
     st.session_state["debug_log"] = engine.debug_log
+# Riepilogo automazione (mostrato dopo il lancio)
+if "ultimo_report_auto" not in st.session_state:
+    st.session_state["ultimo_report_auto"] = None
 
 
 def add_debug(msg, level="info"):
@@ -110,6 +117,29 @@ def genera_url_tradingview(ticker):
         return f"https://www.tradingview.com/symbols/EPA-{t.replace('.PA', '')}/"
     else:
         return f"https://www.tradingview.com/symbols/{t}/"
+
+
+def pulisci_auto_zombie(indice: str, ticker_correnti_set: set) -> int:
+    """Rimuove dalla watchlist i titoli auto 'di proprietà' di `indice`
+    (tag in Nota POC) che NON compaiono più nello screening corrente di
+    quell'indice: sono usciti dal metodo (es. drawdown rientrato) e non
+    devono più occupare spazio. Non tocca mai i manuali, né gli auto di
+    altri indici che non sto scansionando ora."""
+    df_wl = carica_watchlist_da_github()
+    if df_wl.empty:
+        return 0
+    tag = f"({indice})"
+    idx_da_togliere = []
+    for idx, row in df_wl.iterrows():
+        origine = str(row.get("Origine", "")).strip().lower()
+        nota_poc = str(row.get("Nota POC", ""))
+        if origine == "auto" and tag in nota_poc:
+            if str(row["Ticker"]).strip().upper() not in ticker_correnti_set:
+                idx_da_togliere.append(idx)
+    if idx_da_togliere:
+        df_wl = df_wl.drop(idx_da_togliere)
+        commit_csv_su_github(df_wl)
+    return len(idx_da_togliere)
 
 
 # Dati Macro e Bussola
@@ -189,9 +219,15 @@ with st.sidebar:
     st.markdown("---")
     soglia_poc_pct = st.number_input("Soglia Vicinanza al POC (%) ", value=2.0, step=0.5, help="Segnala il titolo se il prezzo attuale è entro questa percentuale da un POC ancorato")
     st.markdown("---")
+    soglia_promo_pct = st.number_input(
+        "Soglia promozione auto in watchlist (%) ", value=2.5, step=0.5,
+        help="Un titolo entra da solo in watchlist (🤖) se il prezzo è entro questa % da POC o da un VWAP. I manuali non vengono mai toccati."
+    )
+    st.markdown("---")
     st.caption("💡  Quality Score (0-4):  solidità rispetto alla media del suo indice.")
     st.caption("📉  Bottom Score (0-4):  segnali di inversione (Decelerazione ROC, MACD, POC, Volume).")
     st.caption("🧹  POC operativi:  nel grafico vedi solo i POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
+    st.caption("🤖  Automazione:  i titoli che toccano POC/VWAP entrano da soli in watchlist e ne escono quando si allontanano.")
 
     st.markdown("---")
     st.subheader("🕒 Stato Scansioni")
@@ -207,17 +243,21 @@ with st.sidebar:
 
     st.markdown("---")
     if st.button("🚀 AVVIA SCREENING QUALITY (v2)", type="primary"):
-        # FIX LOG: azzero il log VERO del motore, così il riquadro sotto mostra
-        # solo gli eventi di QUESTO screening (prima restava cieco).
+        # FIX LOG: azzero il log VIVO del motore.
         engine.debug_log = []
         st.session_state["debug_log"] = []
         st.session_state["ultimi_spostamenti"] = []
+        st.session_state["ultimo_report_auto"] = None
         total_spostamenti = []
         total_count = 0
+        # Accumulatori automazione
+        tot_agg, tot_agg_upd, tot_rim, tot_zomb = 0, 0, 0, 0
+
         if indice_scelto == "🌍 TUTTI GLI INDICI INSIEME":
             indices_to_scan = ["S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
         else:
             indices_to_scan = [indice_scelto]
+
         for idx_name in indices_to_scan:
             with st.spinner(f"Scansione in corso per {idx_name}..."):
                 result_list, spost = engine.perform_screening(
@@ -231,14 +271,44 @@ with st.sidebar:
                     st.session_state[f"scan_count_{idx_name}"] = 0
                 st.session_state["scan_timestamps"][idx_name] = datetime.datetime.now()
                 st.session_state[f"has_scanned_{idx_name}"] = True
+
+                # ---- AUTOMAZIONE: promozione auto + auto-pulizia per questo indice ----
+                df_scr = pd.DataFrame(result_list) if result_list else pd.DataFrame()
+                stats = promuovi_auto_da_screener(df_scr, idx_name, soglia_trigger_pct=soglia_promo_pct)
+                tot_agg += stats.get("aggiunti", 0)
+                tot_agg_upd += stats.get("aggiornati", 0)
+                tot_rim += stats.get("rimossi", 0)
+                # Pulizia zombie: auto di questo indice usciti dallo screening
+                ticker_correnti = set(str(t).strip().upper() for t in df_scr["Ticker"]) if (not df_scr.empty and "Ticker" in df_scr.columns) else set()
+                tot_zomb += pulisci_auto_zombie(idx_name, ticker_correnti)
+
         st.session_state["ultimi_spostamenti"] = total_spostamenti
         st.session_state["scan_count_all"] = total_count
+        st.session_state["ultimo_report_auto"] = {
+            "aggiunti": tot_agg, "aggiornati": tot_agg_upd,
+            "rimossi": tot_rim, "zombie": tot_zomb,
+        }
         st.success(f"✅ Scansione completata! Trovati {total_count} titoli in totale su {len(indices_to_scan)} indici.")
         st.rerun()
 
+    # ---- REPORT AUTOMAZIONE (dopo il lancio) ----
+    rep = st.session_state.get("ultimo_report_auto")
+    if rep and (rep["aggiunti"] or rep["aggiornati"] or rep["rimossi"] or rep["zombie"]):
+        st.markdown(
+            f"<div style='background:#0f172a;border:1px solid #334155;border-left:4px solid #38bdf8;"
+            f"border-radius:6px;padding:8px 12px;margin-top:8px;font-size:11px;color:#cbd5e1;'>"
+            f"🤖 <b style='color:#38bdf8'>Automazione watchlist</b><br>"
+            f"➕ aggiunti <b style='color:#22c55e'>{rep['aggiunti']}</b> &nbsp;·&nbsp; "
+            f"🔄 aggiornati <b style='color:#60a5fa'>{rep['aggiornati']}</b> &nbsp;·&nbsp; "
+            f"🧹 rimossi (fuori zona) <b style='color:#f59e0b'>{rep['rimossi']}</b> &nbsp;·&nbsp; "
+            f"🗑️ usciti dallo screening <b style='color:#ef4444'>{rep['zombie']}</b>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
     st.markdown("---")
     st.subheader("🔍 Debug Log (ultimi 50 eventi)")
-    # FIX LOG: leggo il log VIVO del motore, non la lista di sessione che nessuno aggiornava.
+    # FIX LOG: leggo il log VIVO del motore.
     _live_log = engine.debug_log
     if _live_log:
         for entry in _live_log[-50:]:
@@ -336,7 +406,7 @@ def grafico_decelerazione(hist, ticker):
     if hist is None or len(hist) < 30:
         return None
     hist_full = hist.copy()
-    df = hist.tail(250).copy()  # ~1 anno di candele giornaliere
+    df = hist.tail(250).copy()
 
     roc = df['Close'].pct_change(periods=20) * 100
     roc_smoothed = roc.rolling(5, min_periods=1).mean()
@@ -367,7 +437,6 @@ def grafico_decelerazione(hist, ticker):
         color = 'rgba(34,197,94,0.12)' if roc_rising.iloc[i] else 'rgba(239,68,68,0.10)'
         fig.add_vrect(x0=df.index[i-1], x1=df.index[i], fillcolor=color, opacity=1, layer="below", line_width=0, row=1, col=1)
 
-    # Disegno SOLO i POC operativi: i relitti storici non schiacciano l'asse Y
     for p in pocs:
         if abs(p["dist_pct"]) > MAX_POC_DIST_PCT:
             continue
@@ -545,7 +614,7 @@ with tab1:
     st.caption("💡 VVIX > 105 con VIX < 25 = falso segnale di calma: le istituzioni si stanno già coprendo (anticipo di crollo).")
 
 # ---------------------------------------------------------------
-# TAB 2 — SCREENING E TITOLI
+# TAB 2 — SCREENING E TITOLI  (SCELTA A: via la tab "Ripartiti / Coperti")
 # ---------------------------------------------------------------
 with tab2:
     st.subheader("📋 Lista Titoli Screening")
@@ -576,7 +645,14 @@ with tab2:
             for msg in st.session_state["ultimi_spostamenti"]:
                 st.markdown(f"- {msg}")
 
-    configurazione_colonne = {"Grafico TW": st.column_config.LinkColumn("Grafico TW", help="Apri su TradingView", display_text="📈 Apri")}
+    configurazione_colonne = {
+        "Grafico TW": st.column_config.LinkColumn("Grafico TW", help="Apri su TradingView", display_text="📈 Apri"),
+        # Numeri puliti a 2 decimali (era il difetto cosmetico 200.140000)
+        "Prezzo": st.column_config.NumberColumn("Prezzo", format="%.2f"),
+        "Drawdown (%)": st.column_config.NumberColumn("Drawdown (%)", format="%.2f"),
+        "Size Suggerita (%)": st.column_config.NumberColumn("Size Suggerita (%)", format="%.2f"),
+        "Market Cap (B)": st.column_config.NumberColumn("Market Cap (B)", format="%.2f"),
+    }
     ordine_colonne = [
         "Ticker", "Indice", "Prezzo", "Drawdown (%)",
         "Quality Score (0-4)", "Bottom Score (0-4)", "Bottom Dettagli",
@@ -621,8 +697,9 @@ with tab2:
         if "Grafico TW" not in df_total.columns:
             df_total["Grafico TW"] = df_total["Ticker"].apply(genera_url_tradingview)
 
-        t1, t2, t3 = st.tabs(["🔥 AZIENDE IN SCONTO (Quality)", "🚀 RIPARTITI / COPERTI", "🎯 ALERT POC"])
-        with t1:
+        # SCELTA A: SOLO due tab (via "Ripartiti / Coperti")
+        t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Quality)", "🎯 ALERT POC"])
+        with t_sconto:
             st.subheader("Titoli in forte sconto - ordinati per Bottom Score")
             df_attivi = df_total[df_total["Stato"] == "Active"].sort_values(by="Bottom Score (0-4)", ascending=False)
             if not df_attivi.empty:
@@ -630,15 +707,7 @@ with tab2:
                 st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config=configurazione_colonne)
             else:
                 st.info("💡 Nessun titolo in forte sconto trovato.")
-        with t2:
-            st.subheader("Titoli in Ripartenza (memoria storica)")
-            df_ripartiti = df_total[df_total["Stato"] == "Ripartito"].sort_values(by="Drawdown (%)", ascending=False)
-            if not df_ripartiti.empty:
-                styled_df = apply_style(df_ripartiti[ordine_colonne + ["Grafico TW"]])
-                st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config=configurazione_colonne)
-            else:
-                st.info("💡 Nessun titolo in ripartenza al momento.")
-        with t3:
+        with t_poc:
             st.subheader(f"Titoli con prezzo entro ±{soglia_poc_pct:.1f}% da un POC affidabile")
             df_poc = df_total[df_total["🎯 ALERT POC"] == "🎯 SU POC"].copy()
             if not df_poc.empty:
@@ -656,7 +725,6 @@ with tab2:
                 @st.cache_data(ttl=600)
                 def get_hist_for_ticker(ticker):
                     try:
-                        # 10y GIORNALIERO: coerente col motore daily
                         hist = yf.download(ticker, period="10y", interval="1d", progress=False)
                         if hist.empty:
                             return None
