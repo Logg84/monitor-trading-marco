@@ -340,4 +340,4 @@ FDXF,0.0,,0.0,,0.0,,0.0,VWAP 4Y,0.0,VWAP 1Y,0.0,VWAP 3M,,auto,151.79,POC da Scre
 HONA,0.0,,0.0,,0.0,,0.0,VWAP 4Y,0.0,VWAP 1Y,0.0,VWAP 3M,,auto,209.46,POC da Screener (S&P 500)
 LII,0.0,,0.0,,0.0,,457.08,VWAP 4Y,518.39,VWAP 1Y,529.26,VWAP 3M,,auto,536.73,POC da Screener (S&P 500)
 LUV,0.0,,0.0,,0.0,,31.91,VWAP 4Y,39.26,VWAP 1Y,44.63,VWAP 3M,,auto,31.69,POC da Screener (S&P 500)
-FMC,6.0,,0.0,,0.0,,0.0,,0.0,,0.0,,,manuale,0.0,
+FMC,2.5,,6.0,,13.4,,0.0,,0.0,,0.0,,,manuale,0.0,
