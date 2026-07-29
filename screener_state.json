@@ -958,5 +958,13 @@
     "SLB": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "AVGO": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "LOW": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }

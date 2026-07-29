@@ -1918,5 +1918,21 @@
         "operatingMargins": 0.18180001,
         "returnOnEquity": 0.51331,
         "last_updated": "2026-07-29T15:53:35.525715"
+    },
+    "AVGO": {
+        "marketCap": 1761827133768.918,
+        "debtToEquity": 74.018,
+        "freeCashflow": 27212249088,
+        "operatingMargins": 0.48988,
+        "returnOnEquity": 0.37280998,
+        "last_updated": "2026-07-29T22:31:27.457491"
+    },
+    "LOW": {
+        "marketCap": 120933290496.13898,
+        "debtToEquity": null,
+        "freeCashflow": 4816124928,
+        "operatingMargins": 0.11067,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-29T22:31:27.458544"
     }
 }
