@@ -5,6 +5,7 @@ import json
 import os
 import requests
 import io
+import base64
 import datetime
 import numpy as np
 import time
@@ -19,6 +20,8 @@ from watchlist_io import (
     carica_watchlist_da_github,
     commit_csv_su_github,
     promuovi_auto_da_screener,
+    GITHUB_TOKEN,
+    GITHUB_REPO,
 )
 
 try:
@@ -65,7 +68,6 @@ h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spac
 
 div[data-testid="stButton"] button { transition: all .15s ease; }
 
-/* ---- Pannello automazione (area principale) ---- */
 .argo-report {
     background: linear-gradient(135deg, #0f172a 0%, #13203a 100%);
     border: 1px solid #1e3a5f; border-left: 5px solid #38bdf8;
@@ -123,6 +125,49 @@ if "debug_log" not in st.session_state:
     st.session_state["debug_log"] = engine.debug_log
 if "ultimo_report_auto" not in st.session_state:
     st.session_state["ultimo_report_auto"] = None
+if "screening_fatto_in_sessione" not in st.session_state:
+    st.session_state["screening_fatto_in_sessione"] = False
+
+
+# ---------------------------------------------------------------
+# LETTURA argo_database.json DA GITHUB (risultati del run automatico)
+# ---------------------------------------------------------------
+def carica_database_da_github() -> dict | None:
+    """Legge argo_database.json dal repo (run automatico delle 21:30).
+    Ritorna None se non configurato / non trovato / errore -> fallback silenzioso."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/argo_database.json"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        r = requests.get(url, headers=headers, timeout=30)
+        if r.status_code != 200:
+            return None
+        contenuto = base64.b64decode(r.json()["content"]).decode()
+        return json.loads(contenuto)
+    except Exception as e:
+        print(f"Errore lettura argo_database.json da GitHub: {e}")
+        return None
+
+
+# Iniezione all'apertura: se in questa sessione NON ho ancora lanciato uno screening
+# a mano, mostro i risultati del run automatico letti da GitHub. In place, così
+# tabella e sessione vedono gli stessi dati. Al riavvio del container ricarica da
+# GitHub; dopo un AVVIA manuale il flag blocca la sovrascrittura dei risultati freschi.
+if not st.session_state["screening_fatto_in_sessione"]:
+    _db_gh = carica_database_da_github()
+    if _db_gh:
+        engine.screener_database.clear()
+        engine.screener_database.update(_db_gh)
+        st.session_state["screener_database"] = engine.screener_database
+        # Timestamp sidebar dal campo _last_scans del run automatico
+        _ls = _db_gh.get("_last_scans", {}) or {}
+        for _idx in st.session_state["scan_timestamps"]:
+            if st.session_state["scan_timestamps"][_idx] is None and _idx in _ls:
+                try:
+                    st.session_state["scan_timestamps"][_idx] = datetime.datetime.fromisoformat(_ls[_idx])
+                except Exception:
+                    pass
 
 
 def add_debug(msg, level="info"):
@@ -245,6 +290,7 @@ with st.sidebar:
     st.caption("📉  Bottom Score (0-4):  segnali di inversione (Decelerazione ROC, MACD, POC, Volume).")
     st.caption("🧹  POC operativi:  nel grafico vedi solo i POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
     st.caption("🤖  Automazione:  i titoli che toccano POC/VWAP entrano da soli in watchlist e ne escono quando si allontanano.")
+    st.caption("⏰  Screening automatico:  1 volta/giorno alle 21:30 UTC. AVVIA = override manuale.")
 
     st.markdown("---")
     st.subheader("🕒 Stato Scansioni")
@@ -307,6 +353,9 @@ with st.sidebar:
             "in_zona": tot_in_zona, "saltati": tot_saltati, "saltati_tickers": tot_saltati_tickers,
             "soglia": soglia_promo_pct,
         }
+        # Override manuale: da ora in questa sessione mostro i risultati freschi,
+        # non quelli di GitHub.
+        st.session_state["screening_fatto_in_sessione"] = True
         st.success(f"✅ Scansione completata! Trovati {total_count} titoli in totale su {len(indices_to_scan)} indici.")
         st.rerun()
 
@@ -322,7 +371,7 @@ with st.sidebar:
         st.caption("Nessun evento di debug registrato.")
 
 # ---------------------------------------------------------------
-# PANNELLO AUTOMAZIONE (area principale, sempre visibile dopo un lancio)
+# PANNELLO AUTOMAZIONE (area principale, sempre visibile dopo un lancio manuale)
 # ---------------------------------------------------------------
 rep = st.session_state.get("ultimo_report_auto")
 if rep is not None:
@@ -335,7 +384,6 @@ if rep is not None:
         f'<div class="ar-chip"><div class="ar-num" style="color:#e2e8f0">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-lock">{rep["saltati"]}</div><div class="ar-lab">🔒 Tuoi, intatti</div></div>'
     )
-    # Riga interpretativa (feedback vivo)
     if rep["in_zona"] == 0:
         nota = (f"Nessun titolo dello screening toccava un POC o un VWAP entro ±{soglia_rep:g}%: "
                 f"<b>niente da promuovere</b> in questo giro. I tuoi titoli manuali restano comunque intatti.")
@@ -685,7 +733,7 @@ with tab2:
     if conteggio is not None:
         st.success(f"Analisi completata su **{conteggio}** titoli.")
     elif saved_data and not is_all_selected:
-        st.info(f"📂 Caricati i dati dell'ultimo screening su **{indice_scelto}**.")
+        st.info(f"📂 Dati del run automatico (o ultimo screening) su **{indice_scelto}**.")
     elif saved_data and is_all_selected:
         st.info("🌍 Vista Globale Attiva: Fusione di tutti i mercati.")
 
@@ -876,4 +924,4 @@ with tab2:
         else:
             st.info("Nessun titolo disponibile per l'analisi.")
     else:
-        st.info(f"📊 Nessun dato disponibile per '{indice_scelto}'. Premi 'AVVIA SCREENING QUALITY (v2)' nella barra laterale per avviare la scansione.")
+        st.info(f"📊 Nessun dato disponibile per '{indice_scelto}'. Il run automatico delle 21:30 UTC popola questa tabella; premi 'AVVIA SCREENING QUALITY (v2)' per un giro manuale immediato.")
