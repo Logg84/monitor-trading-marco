@@ -9,23 +9,16 @@ import requests
 import pandas as pd
 import streamlit as st
 
-# ---------------------------------------------------------------
-# SCHEMA WATCHLIST (3 POC + Auto_Indice). ALLINEARE CON app.py / run_screening.py / alert_checker.py
-# ---------------------------------------------------------------
 COLONNE_ATTESE = [
     "Ticker",
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
     "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
-    "Screenshot",
-    "Origine",
+    "Screenshot", "Origine",
     "POC 1", "Nota POC 1", "POC 2", "Nota POC 2", "POC 3", "Nota POC 3",
     "Auto_Indice",
 ]
-
-# Migrazione: la vecchia colonna singola "POC"/"Nota POC" viene rinominata in POC 1/Nota POC 1.
 ALIAS_COLONNE = {
-    "ticker": "Ticker",
-    "livello": "Livello 1",
+    "ticker": "Ticker", "livello": "Livello 1",
     "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
     "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
     "origine": "Origine",
@@ -33,13 +26,9 @@ ALIAS_COLONNE = {
     "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
     "auto_indice": "Auto_Indice",
 }
-
 CSV_PATH = "watchlist.csv"
-
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if hasattr(st, "secrets") else os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO") if hasattr(st, "secrets") else os.environ.get("GITHUB_REPO")
-
-# Campi testuali (default "" invece di 0)
 _TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
 
 
@@ -61,7 +50,6 @@ def carica_watchlist_da_github() -> pd.DataFrame:
     except Exception as e:
         print(f"Errore lettura watchlist da GitHub: {e}")
         return pd.DataFrame(columns=COLONNE_ATTESE)
-
     df = df.rename(columns=ALIAS_COLONNE)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
@@ -72,6 +60,10 @@ def carica_watchlist_da_github() -> pd.DataFrame:
     for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
+    # FIX: garantisco dtype float per le colonne numeriche
+    for col in ["Livello 1","Livello 2","Livello 3","VWAP 1","VWAP 2","VWAP 3","POC 1","POC 2","POC 3"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     return df
@@ -86,11 +78,7 @@ def commit_csv_su_github(df: pd.DataFrame):
     r = requests.get(url, headers=headers)
     sha = r.json().get("sha") if r.status_code == 200 else None
     contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
-    payload = {
-        "message": "Aggiorna watchlist.csv (promozione auto + auto-pulizia)",
-        "content": contenuto_b64,
-        "branch": "main",
-    }
+    payload = {"message": "Aggiorna watchlist.csv (promozione auto + auto-pulizia)", "content": contenuto_b64, "branch": "main"}
     if sha:
         payload["sha"] = sha
     resp = requests.put(url, headers=headers, json=payload)
@@ -123,12 +111,9 @@ def promuovi_auto_da_screener(
     df_screener_precedente: pd.DataFrame = None,
     soglia_trigger_pct: float = 2.5,
 ) -> dict:
-    """Promozione auto (3 POC + 3 VWAP) + auto-pulizia fuori zona. Non tocca i manuali."""
-    vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0,
-             "in_zona": 0, "saltati": 0, "saltati_tickers": []}
+    vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0, "in_zona": 0, "saltati": 0, "saltati_tickers": []}
     if df_screener.empty:
         return vuoto
-
     df_watchlist = carica_watchlist_da_github()
     aggiunti, rimossi, aggiornati = 0, 0, 0
     in_zona, saltati = 0, 0
@@ -152,7 +137,6 @@ def promuovi_auto_da_screener(
         d3 = abs(prezzo - v3) / v3 * 100 if v3 != 0 else 999
         return min(dist_poc, d4, d1, d3)
 
-    # 1. PROMOZIONE AUTO
     for _, row_s in df_screener.iterrows():
         ticker = str(row_s.get("Ticker", "")).strip().upper()
         if not ticker:
@@ -163,7 +147,6 @@ def promuovi_auto_da_screener(
         if _dists(row_s, prezzo) > soglia_trigger_pct:
             continue
         in_zona += 1
-
         if ticker in df_watchlist["Ticker"].str.upper().values:
             idx = df_watchlist[df_watchlist["Ticker"].str.upper() == ticker].index[0]
             origine = str(df_watchlist.at[idx, "Origine"]).strip().lower()
@@ -172,12 +155,9 @@ def promuovi_auto_da_screener(
                 saltati_tickers.append(ticker)
                 continue
             _write_pocs(df_watchlist, idx, row_s)
-            df_watchlist.at[idx, "VWAP 1"] = _safe_float(row_s.get("VWAP 4Y"), 0.0)
-            df_watchlist.at[idx, "Nota VWAP 1"] = "VWAP 4Y"
-            df_watchlist.at[idx, "VWAP 2"] = _safe_float(row_s.get("VWAP 1Y"), 0.0)
-            df_watchlist.at[idx, "Nota VWAP 2"] = "VWAP 1Y"
-            df_watchlist.at[idx, "VWAP 3"] = _safe_float(row_s.get("VWAP 3M"), 0.0)
-            df_watchlist.at[idx, "Nota VWAP 3"] = "VWAP 3M"
+            df_watchlist.at[idx, "VWAP 1"] = _safe_float(row_s.get("VWAP 4Y"), 0.0); df_watchlist.at[idx, "Nota VWAP 1"] = "VWAP 4Y"
+            df_watchlist.at[idx, "VWAP 2"] = _safe_float(row_s.get("VWAP 1Y"), 0.0); df_watchlist.at[idx, "Nota VWAP 2"] = "VWAP 1Y"
+            df_watchlist.at[idx, "VWAP 3"] = _safe_float(row_s.get("VWAP 3M"), 0.0); df_watchlist.at[idx, "Nota VWAP 3"] = "VWAP 3M"
             aggiornati += 1
         else:
             nuova = pd.DataFrame([{
@@ -195,7 +175,6 @@ def promuovi_auto_da_screener(
             df_watchlist = pd.concat([df_watchlist, nuova], ignore_index=True)
             aggiunti += 1
 
-    # 2. AUTO-PULIZIA fuori zona (solo auto)
     da_rimuovere = set()
     for _, row_s in df_screener.iterrows():
         ticker = str(row_s.get("Ticker", "")).strip().upper()
@@ -212,11 +191,6 @@ def promuovi_auto_da_screener(
             if str(df_watchlist.at[idx, "Origine"]).strip().lower() == "auto":
                 df_watchlist = df_watchlist.drop(idx)
                 rimossi += 1
-
     if aggiunti > 0 or rimossi > 0 or aggiornati > 0:
         commit_csv_su_github(df_watchlist)
-
-    return {
-        "aggiunti": aggiunti, "rimossi": rimossi, "aggiornati": aggiornati,
-        "in_zona": in_zona, "saltati": saltati, "saltati_tickers": saltati_tickers,
-    }
+    return {"aggiunti": aggiunti, "rimossi": rimossi, "aggiornati": aggiornati, "in_zona": in_zona, "saltati": saltati, "saltati_tickers": saltati_tickers}
