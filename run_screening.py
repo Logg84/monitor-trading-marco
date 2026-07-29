@@ -55,6 +55,10 @@ def load_watchlist_disk() -> pd.DataFrame:
     for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
+    # FIX: garantisco dtype float per le colonne numeriche (evita LossySetitemError int64->float)
+    for col in ["Livello 1","Livello 2","Livello 3","VWAP 1","VWAP 2","VWAP 3","POC 1","POC 2","POC 3"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     return df
@@ -159,7 +163,6 @@ def reconcile(df_wl, df_scr, indice, soglia):
 
 
 def pulisci_zombie(df_wl, indice, ticker_correnti):
-    """Rimuove gli auto il cui Auto_Indice == indice e che non sono più nello screening di quell'indice."""
     idx_drop = []
     for idx, row in df_wl.iterrows():
         if str(row.get("Origine", "")).strip().lower() == "auto" and str(row.get("Auto_Indice", "")).strip() == indice:
@@ -171,7 +174,6 @@ def pulisci_zombie(df_wl, indice, ticker_correnti):
 
 
 def legacy_cleanup(df_wl, ticker_globali):
-    """Rimuove gli auto 'legacy' (Auto_Indice vuoto, pre-migrazione) usciti dal metodo ovunque."""
     idx_drop = []
     for idx, row in df_wl.iterrows():
         if str(row.get("Origine", "")).strip().lower() == "auto" and str(row.get("Auto_Indice", "")).strip() == "":
