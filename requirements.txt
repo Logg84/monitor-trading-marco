@@ -7,3 +7,4 @@ yfinance
 numpy
 lxml
 plotly
+html5lib
