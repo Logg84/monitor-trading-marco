@@ -122,6 +122,17 @@ def parse_poc_string(poc_str: str) -> float:
         return 0.0
 
 
+def _safe_float(val, default: float = 0.0) -> float:
+    """Converte a float in modo sicuro: None/''/NaN/'N/D' -> default."""
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        return default if pd.isna(f) else f
+    except (ValueError, TypeError):
+        return default
+
+
 # ---------------------------------------------------------------
 # PROMOZIONE AUTO + AUTO-PULIZIA
 # ---------------------------------------------------------------
@@ -136,16 +147,6 @@ def promuovi_auto_da_screener(
     è entro ±soglia_trigger_pct da POC o VWAP 3M/1Y/4Y.
     Auto-pulizia: rimuove i titoli auto che non rispettano più la soglia.
     Non tocca mai i titoli manuali (Origine=manuale).
-
-    Args:
-        df_screener: risultati dello screening corrente (per indice_corrente).
-        indice_corrente: nome dell'indice (es. "FTSE MIB (Italia)").
-        df_screener_precedente: risultati dello screening precedente per lo stesso indice
-                                (da argo_database.json, per l'auto-pulizia). Può essere None.
-        soglia_trigger_pct: soglia di prossimità (%) per la promozione.
-
-    Returns:
-        dict con {aggiunti, rimossi, aggiornati}.
     """
     if df_screener.empty:
         return {"aggiunti": 0, "rimossi": 0, "aggiornati": 0}
@@ -161,17 +162,18 @@ def promuovi_auto_da_screener(
         if not ticker:
             continue
 
-        prezzo = float(row_s.get("Prezzo", 0) or 0)
+        prezzo = _safe_float(row_s.get("Prezzo"), 0.0)
         if prezzo == 0:
             continue
 
-        # Calcolo distanze % da POC e VWAP
+        # Distanze % da POC e VWAP. NON leggo "Distanza POC (%)" (può essere "N/D"):
+        # ricalcolo la distanza dal valore numerico del POC, come per i VWAP.
         poc_val = parse_poc_string(str(row_s.get("POC più vicino", "N/D")))
-        dist_poc = abs(float(row_s.get("Distanza POC (%)", 999) or 999))
+        dist_poc = abs(prezzo - poc_val) / poc_val * 100 if poc_val != 0 else 999
 
-        vwap_4y = float(row_s.get("VWAP 4Y", 0) or 0)
-        vwap_1y = float(row_s.get("VWAP 1Y", 0) or 0)
-        vwap_3m = float(row_s.get("VWAP 3M", 0) or 0)
+        vwap_4y = _safe_float(row_s.get("VWAP 4Y"), 0.0)
+        vwap_1y = _safe_float(row_s.get("VWAP 1Y"), 0.0)
+        vwap_3m = _safe_float(row_s.get("VWAP 3M"), 0.0)
 
         dist_vwap_4y = abs(prezzo - vwap_4y) / vwap_4y * 100 if vwap_4y != 0 else 999
         dist_vwap_1y = abs(prezzo - vwap_1y) / vwap_1y * 100 if vwap_1y != 0 else 999
@@ -221,32 +223,27 @@ def promuovi_auto_da_screener(
     # ---------------------------------------------------------------
     # 2. AUTO-PULIZIA: rimuovi i titoli auto non più promovibili
     # ---------------------------------------------------------------
-    # Titoli nel df_screener corrente (per l'indice corrente)
     ticker_correnti = set(df_screener["Ticker"].str.upper().values)
 
-    # Titoli nel df_screener precedente (per l'indice corrente)
     ticker_precedenti = set()
     if df_screener_precedente is not None and not df_screener_precedente.empty:
         ticker_precedenti = set(df_screener_precedente["Ticker"].str.upper().values)
 
-    # Titoli auto da rimuovere: quelli che erano nello screening precedente ma NON in quello corrente
-    # (sono usciti dallo screening per l'indice corrente)
     ticker_da_rimuovere = ticker_precedenti - ticker_correnti
 
-    # Inoltre, rimuovi i titoli auto che sono nel df_screener corrente ma NON sono promovibili
-    # (sono nello screening ma non rispettano la soglia di promozione)
+    # Titoli auto nello screening corrente ma NON promovibili (fuori soglia)
     for _, row_s in df_screener.iterrows():
         ticker = str(row_s.get("Ticker", "")).strip().upper()
         if not ticker:
             continue
-        prezzo = float(row_s.get("Prezzo", 0) or 0)
+        prezzo = _safe_float(row_s.get("Prezzo"), 0.0)
         if prezzo == 0:
             continue
         poc_val = parse_poc_string(str(row_s.get("POC più vicino", "N/D")))
-        dist_poc = abs(float(row_s.get("Distanza POC (%)", 999) or 999))
-        vwap_4y = float(row_s.get("VWAP 4Y", 0) or 0)
-        vwap_1y = float(row_s.get("VWAP 1Y", 0) or 0)
-        vwap_3m = float(row_s.get("VWAP 3M", 0) or 0)
+        dist_poc = abs(prezzo - poc_val) / poc_val * 100 if poc_val != 0 else 999
+        vwap_4y = _safe_float(row_s.get("VWAP 4Y"), 0.0)
+        vwap_1y = _safe_float(row_s.get("VWAP 1Y"), 0.0)
+        vwap_3m = _safe_float(row_s.get("VWAP 3M"), 0.0)
         dist_vwap_4y = abs(prezzo - vwap_4y) / vwap_4y * 100 if vwap_4y != 0 else 999
         dist_vwap_1y = abs(prezzo - vwap_1y) / vwap_1y * 100 if vwap_1y != 0 else 999
         dist_vwap_3m = abs(prezzo - vwap_3m) / vwap_3m * 100 if vwap_3m != 0 else 999
