@@ -25,7 +25,26 @@ WIN_ROC_COMPARE = 15
 WIN_VOL = 25
 WIN_MOM = 5
 
-# Intestazioni di colonna accettate (già normalizzate: solo lettere e spazi)
+# === LISTA DI RISERVA NASDAQ-100 ===
+# Wikipedia NON espone più la tabella componenti del NASDAQ-100 in modo leggibile
+# da read_html (lo conferma il debug: 0 match su tutti i parser). Quindi, se lo
+# scraping tira fuori meno di 20 sigle valide, usiamo questa lista statica.
+# È volutamente "larga": un titolo in più non fa danno (viene comunque valutato
+# sui suoi POC). AGGIORNALA qui se cambia la composizione dell'indice.
+NASDAQ100_STATIC = [
+    "AAPL", "ADBE", "ADI", "ADSK", "ADP", "ABNB", "ALNY", "AMAT", "AMD", "AMGN",
+    "AMZN", "ANSS", "AEP", "APP", "ASML", "AVGO", "AXON", "BKR", "BIIB", "BKNG",
+    "CDNS", "CEG", "CHTR", "CMCSA", "CPRT", "CRWD", "CRWV", "CSCO", "CSX", "CTAS",
+    "CTSH", "DASH", "DDOG", "DLTR", "DXCM", "EA", "EXC", "FANG", "FAST", "FTNT",
+    "GEHC", "GFS", "GILD", "GOOG", "GOOGL", "HON", "IDXX", "ILMN", "INSM", "INTC",
+    "INTU", "ISRG", "KDP", "KHC", "KLAC", "LRCX", "LITE", "LULU", "MAR", "MCHP",
+    "MDLZ", "MELI", "META", "MNST", "MRVL", "MU", "MSTR", "MPWR", "NDAQ", "NFLX",
+    "NVDA", "NXPI", "ODFL", "ON", "ORLY", "PANW", "PAYX", "PDD", "PEP", "PLTR",
+    "PYPL", "QCOM", "REGN", "ROP", "RKLB", "SBUX", "SHOP", "SNDK", "SNPS", "STX",
+    "TMUS", "TSLA", "TXN", "TRI", "VRTX", "WBD", "WDC", "WDAY", "XEL", "ZS",
+]
+
+# Intestazioni di colonna accettate (normalizzate: solo lettere e spazi)
 _HEADER_TARGETS = [
     "ticker symbol", "symbol", "ticker", "tickersymbol",
     "company symbol", "codice", "symbole", "componenti",
@@ -53,22 +72,20 @@ class DataEngine:
 
     # ---------- helper normalizzazione (per l'estrazione ticker) ----------
     def _norm_header(self, s):
-        """Riduce un'intestazione a solo lettere+spazi: 'Ticker symbol[1]' -> 'ticker symbol'."""
         s = str(s)
-        s = re.sub(r"\s+", " ", s).strip()      # \n, \t -> spazio
-        s = re.sub(r"\[[^\]]*\]", "", s)         # via note [n]
-        s = re.sub(r"\([^)]*\)", "", s)          # via note (n)
+        s = re.sub(r"\s+", " ", s).strip()
+        s = re.sub(r"\[[^\]]*\]", "", s)
+        s = re.sub(r"\([^)]*\)", "", s)
         s = s.lower()
-        s = re.sub(r"[^a-z ]", "", s)            # solo lettere e spazi
+        s = re.sub(r"[^a-z ]", "", s)
         s = re.sub(r"\s+", " ", s).strip()
         return s
 
     def _clean_val(self, s):
-        """Pulisce un valore di cella: toglie spazi invisibili, note, caratteri non-ASCII."""
         s = str(s)
-        s = s.split("[")[0]                      # via note tipo AAPL[5]
-        s = re.sub(r"\s+", "", s)                # i ticker non hanno spazi
-        s = s.encode("ascii", "ignore").decode() # via caratteri non-ASCII
+        s = s.split("[")[0]
+        s = re.sub(r"\s+", "", s)
+        s = s.encode("ascii", "ignore").decode()
         return s.strip()
 
     def _is_ticker_like(self, s):
@@ -195,7 +212,7 @@ class DataEngine:
         return None
 
     # ===============================
-    # ESTRAZIONE TICKERS (multi-parser: html5lib -> bs4 -> lxml)
+    # ESTRAZIONE TICKERS (multi-parser)
     # ===============================
     def estrai_ticker_wikipedia(self, url, headers=None):
         headers = headers or {'User-Agent': 'Mozilla/5.0'}
@@ -206,8 +223,6 @@ class DataEngine:
                 raise ConnectionError(f"Wikipedia ha risposto con codice {res.status_code}")
             html = res.text
 
-            # Provo i parser in cascata e UNISCO le tabelle: html5lib cattura le
-            # tabelle "complesse" (es. componenti NASDAQ-100) che lxml salta.
             all_tabs = []
             diag = {}
             for parser in ["html5lib", "bs4", "lxml"]:
@@ -234,7 +249,7 @@ class DataEngine:
                             self.add_debug(f"[wiki] MATCH nome '{target}' tab#{idx} -> {len(tickers)} ticker", "success")
                             return tickers
 
-            # 2) Euristica sui VALORI: colonna con più sigle ticker-like, su tutte le tabelle
+            # 2) Euristica sui VALORI
             best_tab, best_col, best_n = None, None, 0
             for idx, tab in enumerate(all_tabs):
                 if tab.empty:
@@ -258,8 +273,8 @@ class DataEngine:
                 self.add_debug(f"[wiki] EURISTICA tab#{best_tab} colonna '{best_col}' -> {len(uniq)} ticker", "success")
                 return uniq
 
-            # 3) Diagnostica + ultima ratio (prima colonna della prima tabella non vuota)
-            self.add_debug(f"[wiki] DIAG nessun match: parsers={diag}, best_euristica={best_n} su tab#{best_tab}. Verifica che 'html5lib' sia in requirements.", "warning")
+            # 3) Ultima ratio (prima colonna prima tabella non vuota)
+            self.add_debug(f"[wiki] DIAG nessun match: parsers={diag}, best_euristica={best_n} su tab#{best_tab}.", "warning")
             for tab in all_tabs:
                 if not tab.empty:
                     tickers = [self._clean_val(t) for t in tab.iloc[:, 0].dropna().astype(str)]
@@ -282,7 +297,21 @@ class DataEngine:
         if indice_scelto == "S&P 500":
             tickers = [t.replace('.', '-') for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", headers)]
         elif indice_scelto == "NASDAQ 100":
-            tickers = [t.replace('.', '-') for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/NASDAQ-100", headers)]
+            # Wikipedia non espone più la tabella componenti in modo leggibile:
+            # provo lo scraping, ma se tira fuori <20 sigle valide uso la lista
+            # statica di riserva (NASDA100_STATIC).
+            raw = self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/NASDAQ-100", headers)
+            clean = []
+            for t in raw:
+                t2 = t.replace('.', '-').strip()
+                if self._is_ticker_like(t2) and t2 not in clean:
+                    clean.append(t2)
+            if len(clean) >= 20:
+                tickers = clean
+                self.add_debug(f"[wiki] NASDAQ-100: uso {len(tickers)} ticker da Wikipedia.", "success")
+            else:
+                tickers = list(dict.fromkeys(NASDAQ100_STATIC))
+                self.add_debug(f"[wiki] NASDAQ-100: Wikipedia ha dato {len(clean)} ticker validi (<20) -> uso lista statica di riserva ({len(tickers)}).", "warning")
         elif indice_scelto == "DAX (Germania)":
             tickers = [self.normalizza_ticker_europeo(t, ".DE") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/DAX", headers)]
         elif indice_scelto == "CAC 40 (Francia)":
@@ -469,14 +498,27 @@ class DataEngine:
                     stato, bias, desc, color = "RIMBALZO ELASTICO", "LONG", "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "indigo"
                 else:
                     stato, bias, desc, color = "CORRENTE DISCENDENTE", "SHORT", "STRATEGIA: Operatività ridotta del 50%. Accumulo ultra-paziente.", "orange"
-            bussola = {"spot": spot, "vix": latest["vix"], "vvx": latest["vvx"], "flip": flip, "rapporto": rapporto, "stato": stato, "bias": bias, "desc": desc, "color": color}
+            bussola = {
+                "spot": spot, "vix": latest["vix"], "vvx": latest["vvx"], "flip": flip,
+                "rapporto": rapporto, "stato": stato, "bias": bias, "desc": desc, "color": color
+            }
             return {"df": df_res, "latest": latest, "bussola": bussola}
         except Exception as e:
             self.add_debug(f"Errore dati macro, uso simulazione: {str(e)}", "warning")
             dates = pd.date_range(end=datetime.datetime.today(), periods=30, freq='D')
             latest = {"spot": 5472.79, "vix": 20.21, "vvx": 91.72, "flip": 5450.0, "rapporto": 4.54}
-            bussola = {"spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"], "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG", "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"}
-            return {"df": pd.DataFrame({"Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30), "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)}), "latest": latest, "bussola": bussola}
+            bussola = {
+                "spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"],
+                "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG",
+                "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"
+            }
+            return {
+                "df": pd.DataFrame({
+                    "Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30),
+                    "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)
+                }),
+                "latest": latest, "bussola": bussola
+            }
 
     # ===============================
     # FUNZIONI DI CALCOLO REA
@@ -538,7 +580,11 @@ class DataEngine:
 
     def compute_vwap_levels(self, hist):
         if hist.empty or len(hist) < WIN_VWAP_3M:
-            return {"vwap_4y": None, "vwap_1y": None, "vwap_3m": None, "dist_4y_pct": None, "dist_1y_pct": None, "dist_3m_pct": None, "convergence_count": 0, "convergence_label": "N/D"}
+            return {
+                "vwap_4y": None, "vwap_1y": None, "vwap_3m": None,
+                "dist_4y_pct": None, "dist_1y_pct": None, "dist_3m_pct": None,
+                "convergence_count": 0, "convergence_label": "N/D"
+            }
         df = hist.copy()
         current_price = float(df['Close'].iloc[-1])
         high = df['High'].astype(float); low = df['Low'].astype(float)
@@ -569,7 +615,11 @@ class DataEngine:
             conv_label = "🔹 BASE (1 VWAP vicino)"
         else:
             conv_label = "⚪ NESSUNA"
-        return {"vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2), "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1), "convergence_count": convergence_count, "convergence_label": conv_label}
+        return {
+            "vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2),
+            "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1),
+            "convergence_count": convergence_count, "convergence_label": conv_label
+        }
 
     def compute_poc(self, hist, start_idx, end_idx, n_bins=60):
         segment = hist.iloc[start_idx:end_idx]
@@ -626,7 +676,10 @@ class DataEngine:
             segment_bars = total_bars - bar_pos
             bar_weight = 1.0 + np.log1p(segment_bars / BARS_PER_YEAR)
             raw_weight = age_weight * drop_weight * bar_weight
-            pocs.append({"anchor_year": int(anchor_date.year), "anchor_date": anchor_date, "drop_pct": round(float(drop), 1), "poc_price": round(float(poc_price), 4), "weight": float(raw_weight)})
+            pocs.append({
+                "anchor_year": int(anchor_date.year), "anchor_date": anchor_date,
+                "drop_pct": round(float(drop), 1), "poc_price": round(float(poc_price), 4), "weight": float(raw_weight),
+            })
         if pocs:
             max_w = max(p["weight"] for p in pocs); min_w = min(p["weight"] for p in pocs)
             for p in pocs:
