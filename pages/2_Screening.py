@@ -15,6 +15,7 @@ from plotly.subplots import make_subplots
 import traceback
 from data_engine import DataEngine, MAX_POC_DIST_PCT
 from nav import render_navbar, section_header
+from metric_guide import render_metric_guide
 
 st.set_page_config(page_title="ARGO Screening", layout="wide", page_icon="🎛️")
 
@@ -188,7 +189,6 @@ def pulisci_auto_zombie(indice: str, ticker_correnti_set: set):
     return len(idx_da_togliere), rimossi_t
 
 
-# Bussola (serve per il banner direttiva tattica e per l'entry mode)
 macro_info = engine.ottieni_bussola_argo()
 argo_bussola = macro_info["bussola"]
 
@@ -245,7 +245,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------
-# SIDEBAR (controlli — resta solo qui)
+# SIDEBAR
 # ---------------------------------------------------------------
 listino_opzioni = ["🌍 TUTTI GLI INDICI INSIEME", "S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
 
@@ -355,7 +355,7 @@ rep = st.session_state.get("ultimo_report_auto")
 if rep is not None:
     soglia_rep = rep.get("soglia", 2.5)
     chips = (
-        f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti 🤖</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti </div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Auto aggiornati</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-vw">{rep["vwappati"]}</div><div class="ar-lab">🔃 VWAP rinfrescati</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🗑️ Usciti (no sconto)</div></div>'
@@ -415,6 +415,11 @@ if rep is not None:
     )
 
 # ---------------------------------------------------------------
+# GUIDA ALLE METRICHE (per i colleghi / chi legge le colonne)
+# ---------------------------------------------------------------
+render_metric_guide()
+
+# ---------------------------------------------------------------
 # GRAFICO DECELERAZIONE
 # ---------------------------------------------------------------
 def grafico_decelerazione(hist, ticker):
@@ -462,7 +467,8 @@ def grafico_decelerazione(hist, ticker):
 
 
 def interpreta_bottom_score(score, dettagli):
-    if score == 4:
+    # FIX: il punteggio può superare 4 in convergenza piena; >=4 = inversione forte.
+    if score >= 4:
         return {"semaforo": "🟢", "titolo": "FORTE INVERSIONE", "colore": "#22c55e", "operazione": "✅ Pronto per l'ingresso. Il titolo è tecnicamente pronto a ripartire. Valutare l'acquisto con stop loss sotto il POC."}
     elif score == 3:
         return {"semaforo": "🟡", "titolo": "SEGNALI INIZIALI", "colore": "#eab308", "operazione": "🔍 Monitoraggio. La decelerazione è iniziata, ma manca ancora la conferma del volume o del POC."}
@@ -473,7 +479,7 @@ def interpreta_bottom_score(score, dettagli):
 
 
 # ---------------------------------------------------------------
-# CORPO: LISTA TITOLI SCREENING (ex tab2, ora vista diretta)
+# CORPO: LISTA TITOLI SCREENING
 # ---------------------------------------------------------------
 st.subheader("📋 Lista Titoli Screening")
 is_all_selected = (indice_scelto == "🌍 TUTTI GLI INDICI INSIEME")
@@ -602,7 +608,7 @@ if has_data_to_show:
                     dd_val = row.get('Drawdown (%)', 'N/D')
                     qs_val = row.get('Quality Score (0-4)', 'N/D')
                     interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
-                    score_pct = int((bottom_score / 4) * 100)
+                    score_pct = min(int((bottom_score / 4) * 100), 100)  # FIX: clamp a 100%
                     thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
                     bar_segments = []
                     for thr, col, lbl in thresholds:
