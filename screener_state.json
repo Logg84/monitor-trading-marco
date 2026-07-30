@@ -966,5 +966,9 @@
     "LOW": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "SAN.PA": {
+        "status": "Active",
+        "indice": "CAC 40 (Francia)"
     }
 }

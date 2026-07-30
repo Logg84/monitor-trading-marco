@@ -1934,5 +1934,13 @@
         "operatingMargins": 0.11067,
         "returnOnEquity": null,
         "last_updated": "2026-07-29T22:31:27.458544"
+    },
+    "SAN.PA": {
+        "marketCap": 88377948056.798,
+        "debtToEquity": 27.372,
+        "freeCashflow": 16672499712,
+        "operatingMargins": 0.20002002,
+        "returnOnEquity": 0.06576,
+        "last_updated": "2026-07-30T12:52:55.617746"
     }
 }
