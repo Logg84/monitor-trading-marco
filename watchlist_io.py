@@ -7,6 +7,8 @@ perché l'utente non li inserisce mai a mano. Livelli e POC manuali = sacri.
 REGOLA PERMANENZA: un auto resta finché è in sconto (>=25% drawdown); viene
 rimosso solo se esce dallo screening (zombie), NON se si allontana dal 2,5%.
 La soglia 2,5% governa solo l'INGRESSO dei nuovi auto e gli alert.
+REPORT: promuovi_auto_da_screener restituisce anche le LISTE dei ticker toccati
+(aggiunti/aggiornati/vwappati) per il pannello di feedback della UI.
 """
 
 import os
@@ -117,17 +119,18 @@ def promuovi_auto_da_screener(
     soglia_trigger_pct: float = 2.5,
 ) -> dict:
     """Rinfresco VWAP sempre (auto+manuali); POC solo su auto; ingresso nuovi solo se in zona.
-    NON rimuove più per 'fuori zona': la rimozione la fa pulisci_auto_zombie nel chiamante."""
-    vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0, "vwappati": 0, "in_zona": 0}
+    NON rimuove più per 'fuori zona': la rimozione la fa pulisci_auto_zombie nel chiamante.
+    Restituisce anche le liste dei ticker toccati, per il pannello di feedback."""
+    vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0, "vwappati": 0, "in_zona": 0,
+             "aggiunti_tickers": [], "aggiornati_tickers": [], "vwappati_tickers": []}
     if df_screener.empty:
         return vuoto
 
     df_watchlist = carica_watchlist_da_github()
     aggiunti, aggiornati, vwappati, in_zona = 0, 0, 0, 0
+    aggiunti_t, aggiornati_t, vwappati_t = [], [], []
 
     def _write_vwap(target_df, idx, row_s):
-        # VWAP sempre aggiornati. La nota la sovrascrivo solo se vuota o già label auto,
-        # così una eventuale nota custom non viene distrutta.
         pairs = [("VWAP 1", "VWAP 4Y", "VWAP 4Y"),
                  ("VWAP 2", "VWAP 1Y", "VWAP 1Y"),
                  ("VWAP 3", "VWAP 3M", "VWAP 3M")]
@@ -170,15 +173,15 @@ def promuovi_auto_da_screener(
         if mask.any():
             idx = df_watchlist[mask].index[0]
             origine = str(df_watchlist.at[idx, "Origine"]).strip().lower()
-            # VWAP rinfrescati SEMPRE (auto e manuali)
             _write_vwap(df_watchlist, idx, row_s)
             if origine == "manuale":
-                vwappati += 1  # manuale: solo VWAP toccati, Livelli e POC intatti
+                vwappati += 1
+                vwappati_t.append(ticker)
             else:
-                _write_pocs(df_watchlist, idx, row_s)  # auto: anche POC + indice
+                _write_pocs(df_watchlist, idx, row_s)
                 aggiornati += 1
+                aggiornati_t.append(ticker)
         else:
-            # Nuovo: entra come auto SOLO se in zona
             if _dists(row_s, prezzo) <= soglia_trigger_pct:
                 nuova = pd.DataFrame([{
                     "Ticker": ticker,
@@ -194,8 +197,12 @@ def promuovi_auto_da_screener(
                 }])
                 df_watchlist = pd.concat([df_watchlist, nuova], ignore_index=True)
                 aggiunti += 1
+                aggiunti_t.append(ticker)
 
     if aggiunti > 0 or aggiornati > 0 or vwappati > 0:
         commit_csv_su_github(df_watchlist)
 
-    return {"aggiunti": aggiunti, "rimossi": 0, "aggiornati": aggiornati, "vwappati": vwappati, "in_zona": in_zona}
+    return {
+        "aggiunti": aggiunti, "rimossi": 0, "aggiornati": aggiornati, "vwappati": vwappati, "in_zona": in_zona,
+        "aggiunti_tickers": aggiunti_t, "aggiornati_tickers": aggiornati_t, "vwappati_tickers": vwappati_t,
+    }
