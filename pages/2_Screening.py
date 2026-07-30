@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import json
 import os
+import html
 import requests
 import io
 import base64
@@ -66,16 +67,23 @@ h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spac
 div[data-testid="stButton"] button { transition: all .15s ease; }
 
 .argo-report {
+    position: relative; overflow: hidden;
     background: linear-gradient(135deg, #0f172a 0%, #13203a 100%);
     border: 1px solid #1e3a5f; border-left: 5px solid #38bdf8;
-    border-radius: 10px; padding: 14px 18px; margin: 4px 0 18px 0;
+    border-radius: 10px; padding: 16px 18px; margin: 4px 0 18px 0;
     box-shadow: 0 8px 30px -18px rgba(56,189,248,.45);
 }
-.argo-report .ar-head {
-    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
-    letter-spacing: .12em; text-transform: uppercase; color: #38bdf8; margin-bottom: 10px;
+.argo-report::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(600px 120px at 0% 0%, rgba(56,189,248,.10), transparent 70%);
+    pointer-events: none;
 }
-.argo-report .ar-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.argo-report .ar-head {
+    position: relative;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: #38bdf8; margin-bottom: 12px;
+}
+.argo-report .ar-chips { position: relative; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .argo-report .ar-chip {
     background: #0b1220; border: 1px solid #243049; border-radius: 8px;
     padding: 7px 12px; min-width: 92px; text-align: left;
@@ -84,12 +92,33 @@ div[data-testid="stButton"] button { transition: all .15s ease; }
 .argo-report .ar-chip:hover { transform: translateY(-2px); border-color: #38bdf8; box-shadow: 0 6px 18px -10px rgba(56,189,248,.6); }
 .argo-report .ar-num { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; }
 .argo-report .ar-lab { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7c8aa3; margin-top: 4px; }
-.argo-report .ar-note { font-size: 12.5px; color: #cbd5e1; line-height: 1.5; }
+.argo-report .ar-note { position: relative; font-size: 12.5px; color: #cbd5e1; line-height: 1.5; }
 .argo-report .ar-note b { color: #f8fafc; }
 .argo-report .ar-add { color: #22c55e; }
 .argo-report .ar-upd { color: #60a5fa; }
 .argo-report .ar-vw { color: #38bdf8; }
 .argo-report .ar-rm { color: #f59e0b; }
+
+/* ---- pill dei ticker nominati ---- */
+.argo-report .ar-tags { position: relative; margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; flex-direction: column; gap: 9px; }
+.argo-report .ar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.argo-report .ar-glabel { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-right: 2px; }
+.argo-report .ar-tag {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+    background: #0b1220; cursor: default;
+    transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+}
+.argo-report .ar-tag:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 6px 16px -10px rgba(56,189,248,.7); }
+.argo-report .ar-tag.ar-add { color: #86efac; border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.10); }
+.argo-report .ar-tag.ar-add:hover { border-color: #22c55e; }
+.argo-report .ar-tag.ar-upd { color: #93c5fd; border-color: rgba(96,165,250,.45); background: rgba(96,165,250,.10); }
+.argo-report .ar-tag.ar-upd:hover { border-color: #60a5fa; }
+.argo-report .ar-tag.ar-vw { color: #67e8f9; border-color: rgba(56,189,248,.45); background: rgba(56,189,248,.10); }
+.argo-report .ar-tag.ar-vw:hover { border-color: #38bdf8; }
+.argo-report .ar-tag.ar-rm { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.10); }
+.argo-report .ar-tag.ar-rm:hover { border-color: #ef4444; }
+.argo-report .ar-tag.ar-tag-more { color: #7c8aa3; border-color: #243049; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -170,24 +199,29 @@ def genera_url_tradingview(ticker):
         return f"https://www.tradingview.com/symbols/{t}/"
 
 
-def pulisci_auto_zombie(indice: str, ticker_correnti_set: set) -> int:
+def pulisci_auto_zombie(indice: str, ticker_correnti_set: set):
+    """Rimuove gli auto 'di proprietà' di `indice` usciti dallo screening.
+    Ritorna (count, lista_ticker_rimossi)."""
     df_wl = carica_watchlist_da_github()
     if df_wl.empty:
-        return 0
+        return 0, []
     tag = f"({indice})"
     idx_da_togliere = []
+    rimossi_t = []
     for idx, row in df_wl.iterrows():
         origine = str(row.get("Origine", "")).strip().lower()
         auto_idx = str(row.get("Auto_Indice", "")).strip()
         nota_poc = str(row.get("Nota POC 1", "")) + str(row.get("Nota POC", ""))
         is_mine = (auto_idx == indice) or (origine == "auto" and tag in nota_poc)
         if origine == "auto" and is_mine:
-            if str(row["Ticker"]).strip().upper() not in ticker_correnti_set:
+            tk = str(row["Ticker"]).strip().upper()
+            if tk not in ticker_correnti_set:
                 idx_da_togliere.append(idx)
+                rimossi_t.append(tk)
     if idx_da_togliere:
         df_wl = df_wl.drop(idx_da_togliere)
         commit_csv_su_github(df_wl)
-    return len(idx_da_togliere)
+    return len(idx_da_togliere), rimossi_t
 
 
 macro_info = engine.ottieni_bussola_argo()
@@ -295,6 +329,7 @@ with st.sidebar:
         total_count = 0
         tot_agg, tot_upd, tot_vw, tot_zomb = 0, 0, 0, 0
         tot_in_zona = 0
+        tot_agg_t, tot_upd_t, tot_vw_t, tot_zomb_t = [], [], [], []
 
         if indice_scelto == "🌍 TUTTI GLI INDICI INSIEME":
             indices_to_scan = ["S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
@@ -321,14 +356,21 @@ with st.sidebar:
                 tot_upd += stats.get("aggiornati", 0)
                 tot_vw += stats.get("vwappati", 0)
                 tot_in_zona += stats.get("in_zona", 0)
+                tot_agg_t += stats.get("aggiunti_tickers", [])
+                tot_upd_t += stats.get("aggiornati_tickers", [])
+                tot_vw_t += stats.get("vwappati_tickers", [])
                 ticker_correnti = set(str(t).strip().upper() for t in df_scr["Ticker"]) if (not df_scr.empty and "Ticker" in df_scr.columns) else set()
-                tot_zomb += pulisci_auto_zombie(idx_name, ticker_correnti)
+                zcount, zlist = pulisci_auto_zombie(idx_name, ticker_correnti)
+                tot_zomb += zcount
+                tot_zomb_t += zlist
 
         st.session_state["ultimi_spostamenti"] = total_spostamenti
         st.session_state["scan_count_all"] = total_count
         st.session_state["ultimo_report_auto"] = {
             "aggiunti": tot_agg, "aggiornati": tot_upd, "vwappati": tot_vw,
             "rimossi": tot_zomb, "in_zona": tot_in_zona, "soglia": soglia_promo_pct,
+            "aggiunti_tickers": tot_agg_t, "aggiornati_tickers": tot_upd_t,
+            "vwappati_tickers": tot_vw_t, "rimossi_tickers": tot_zomb_t,
         }
         st.session_state["screening_fatto_in_sessione"] = True
         st.success(f"✅ Scansione completata! Trovati {total_count} titoli in totale su {len(indices_to_scan)} indici.")
@@ -346,7 +388,7 @@ with st.sidebar:
         st.caption("Nessun evento di debug registrato.")
 
 # ---------------------------------------------------------------
-# PANNELLO AUTOMAZIONE
+# PANNELLO AUTOMAZIONE (con nomi ticker)
 # ---------------------------------------------------------------
 rep = st.session_state.get("ultimo_report_auto")
 if rep is not None:
@@ -358,9 +400,38 @@ if rep is not None:
         f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🗑️ Usciti (no sconto)</div></div>'
         f'<div class="ar-chip"><div class="ar-num" style="color:#e2e8f0">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
     )
-    if rep["in_zona"] == 0:
+
+    def _pills(names, cls, maxn=8):
+        if not names:
+            return ""
+        names = list(dict.fromkeys(str(n) for n in names))  # dedup, ordine preservato
+        shown = names[:maxn]
+        extra = len(names) - len(shown)
+        inner = "".join(f'<span class="ar-tag {cls}">{html.escape(n)}</span>' for n in shown)
+        if extra > 0:
+            inner += f'<span class="ar-tag ar-tag-more">+{extra}</span>'
+        return inner
+
+    groups = [
+        (rep.get("aggiunti_tickers"), "ar-add", "➕ Entrati"),
+        (rep.get("aggiornati_tickers"), "ar-upd", "🔄 Aggiornati"),
+        (rep.get("vwappati_tickers"), "ar-vw", "🔃 VWAP rinfrescati"),
+        (rep.get("rimossi_tickers"), "ar-rm", "🗑️ Usciti"),
+    ]
+    group_html = []
+    for names, cls, label in groups:
+        pills = _pills(names, cls)
+        if pills:
+            group_html.append(
+                f'<div class="ar-group"><span class="ar-glabel {cls}">{label}</span>{pills}</div>'
+            )
+    detail_html = '<div class="ar-tags">' + "".join(group_html) + '</div>' if group_html else ''
+
+    if rep["in_zona"] == 0 and not group_html:
         nota = (f"Nessun titolo dello screening toccava un POC o un VWAP entro ±{soglia_rep:g}%: "
-                f"<b>niente nuovi ingressi</b>. I VWAP dei titoli già in watchlist (in sconto) sono stati comunque rinfrescati.")
+                f"<b>niente nuovi ingressi</b> e nessun VWAP da rinfrescare in questo giro.")
+    elif not group_html:
+        nota = f"<b>{rep['in_zona']}</b> titoli in zona, ma nessuno ha cambiato stato né VWAP rispetto a prima."
     else:
         parti = []
         if rep["aggiunti"]:
@@ -369,7 +440,7 @@ if rep is not None:
             parti.append(f"<span class='ar-upd'><b>{rep['aggiornati']}</b> auto aggiornati</span>")
         if rep["vwappati"]:
             parti.append(f"<span class='ar-vw'><b>{rep['vwappati']}</b> manuali con VWAP rinfrescati</span>")
-        nota = f"Esito: {' · '.join(parti)}." if parti else f"<b>{rep['in_zona']}</b> titoli in zona, nessun cambiamento di stato."
+        nota = f"Esito: {' · '.join(parti)}." if parti else "Nessun cambiamento di stato in questo giro."
     extra = ""
     if rep["rimossi"]:
         extra = f" <span class='ar-rm'>🗑️ {rep['rimossi']}</span> auto rimossi perché non più in sconto."
@@ -379,6 +450,7 @@ if rep is not None:
         '<div class="ar-head">🤖 Automazione watchlist — esito dell\'ultimo screening</div>'
         '<div class="ar-chips">' + chips + '</div>'
         '<div class="ar-note">' + nota + extra + '</div>'
+        + detail_html +
         '</div>',
         unsafe_allow_html=True,
     )
