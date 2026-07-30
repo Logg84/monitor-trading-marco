@@ -1,6 +1,12 @@
 """
 Modulo condiviso per la gestione della watchlist su GitHub.
 Usato da app.py (portale alert) e pages/2_Screening.py (promozione auto).
+
+REGOLA VWAP: i VWAP vengono rinfrescati SEMPRE (auto e manuali) a ogni run,
+perché l'utente non li inserisce mai a mano. Livelli e POC manuali = sacri.
+REGOLA PERMANENZA: un auto resta finché è in sconto (>=25% drawdown); viene
+rimosso solo se esce dallo screening (zombie), NON se si allontana dal 2,5%.
+La soglia 2,5% governa solo l'INGRESSO dei nuovi auto e gli alert.
 """
 
 import os
@@ -30,6 +36,7 @@ CSV_PATH = "watchlist.csv"
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if hasattr(st, "secrets") else os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO") if hasattr(st, "secrets") else os.environ.get("GITHUB_REPO")
 _TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+_VWAP_LABELS = {"VWAP 4Y", "VWAP 1Y", "VWAP 3M"}
 
 
 def _is_text_col(col: str) -> bool:
@@ -60,8 +67,7 @@ def carica_watchlist_da_github() -> pd.DataFrame:
     for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
-    # FIX: garantisco dtype float per le colonne numeriche
-    for col in ["Livello 1","Livello 2","Livello 3","VWAP 1","VWAP 2","VWAP 3","POC 1","POC 2","POC 3"]:
+    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
@@ -78,7 +84,7 @@ def commit_csv_su_github(df: pd.DataFrame):
     r = requests.get(url, headers=headers)
     sha = r.json().get("sha") if r.status_code == 200 else None
     contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
-    payload = {"message": "Aggiorna watchlist.csv (promozione auto + auto-pulizia)", "content": contenuto_b64, "branch": "main"}
+    payload = {"message": "Aggiorna watchlist.csv (promozione auto + rinfresco VWAP)", "content": contenuto_b64, "branch": "main"}
     if sha:
         payload["sha"] = sha
     resp = requests.put(url, headers=headers, json=payload)
@@ -108,16 +114,29 @@ def _safe_float(val, default: float = 0.0) -> float:
 def promuovi_auto_da_screener(
     df_screener: pd.DataFrame,
     indice_corrente: str,
-    df_screener_precedente: pd.DataFrame = None,
     soglia_trigger_pct: float = 2.5,
 ) -> dict:
-    vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0, "in_zona": 0, "saltati": 0, "saltati_tickers": []}
+    """Rinfresco VWAP sempre (auto+manuali); POC solo su auto; ingresso nuovi solo se in zona.
+    NON rimuove più per 'fuori zona': la rimozione la fa pulisci_auto_zombie nel chiamante."""
+    vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0, "vwappati": 0, "in_zona": 0}
     if df_screener.empty:
         return vuoto
+
     df_watchlist = carica_watchlist_da_github()
-    aggiunti, rimossi, aggiornati = 0, 0, 0
-    in_zona, saltati = 0, 0
-    saltati_tickers = []
+    aggiunti, aggiornati, vwappati, in_zona = 0, 0, 0, 0
+
+    def _write_vwap(target_df, idx, row_s):
+        # VWAP sempre aggiornati. La nota la sovrascrivo solo se vuota o già label auto,
+        # così una eventuale nota custom non viene distrutta.
+        pairs = [("VWAP 1", "VWAP 4Y", "VWAP 4Y"),
+                 ("VWAP 2", "VWAP 1Y", "VWAP 1Y"),
+                 ("VWAP 3", "VWAP 3M", "VWAP 3M")]
+        for col, src, label in pairs:
+            target_df.at[idx, col] = _safe_float(row_s.get(src), 0.0)
+            nota_col = "Nota " + col
+            existing = str(target_df.at[idx, nota_col] or "").strip()
+            if existing == "" or existing in _VWAP_LABELS:
+                target_df.at[idx, nota_col] = label
 
     def _write_pocs(target_df, idx, row_s):
         for k in (1, 2, 3):
@@ -144,53 +163,39 @@ def promuovi_auto_da_screener(
         prezzo = _safe_float(row_s.get("Prezzo"), 0.0)
         if prezzo == 0:
             continue
-        if _dists(row_s, prezzo) > soglia_trigger_pct:
-            continue
-        in_zona += 1
-        if ticker in df_watchlist["Ticker"].str.upper().values:
-            idx = df_watchlist[df_watchlist["Ticker"].str.upper() == ticker].index[0]
-            origine = str(df_watchlist.at[idx, "Origine"]).strip().lower()
-            if origine == "manuale":
-                saltati += 1
-                saltati_tickers.append(ticker)
-                continue
-            _write_pocs(df_watchlist, idx, row_s)
-            df_watchlist.at[idx, "VWAP 1"] = _safe_float(row_s.get("VWAP 4Y"), 0.0); df_watchlist.at[idx, "Nota VWAP 1"] = "VWAP 4Y"
-            df_watchlist.at[idx, "VWAP 2"] = _safe_float(row_s.get("VWAP 1Y"), 0.0); df_watchlist.at[idx, "Nota VWAP 2"] = "VWAP 1Y"
-            df_watchlist.at[idx, "VWAP 3"] = _safe_float(row_s.get("VWAP 3M"), 0.0); df_watchlist.at[idx, "Nota VWAP 3"] = "VWAP 3M"
-            aggiornati += 1
-        else:
-            nuova = pd.DataFrame([{
-                "Ticker": ticker,
-                "Livello 1": 0, "Nota 1": "", "Livello 2": 0, "Nota 2": "", "Livello 3": 0, "Nota 3": "",
-                "VWAP 1": _safe_float(row_s.get("VWAP 4Y"), 0.0), "Nota VWAP 1": "VWAP 4Y",
-                "VWAP 2": _safe_float(row_s.get("VWAP 1Y"), 0.0), "Nota VWAP 2": "VWAP 1Y",
-                "VWAP 3": _safe_float(row_s.get("VWAP 3M"), 0.0), "Nota VWAP 3": "VWAP 3M",
-                "Screenshot": "", "Origine": "auto",
-                "POC 1": _safe_float(row_s.get("POC 1"), 0.0), "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
-                "POC 2": _safe_float(row_s.get("POC 2"), 0.0), "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
-                "POC 3": _safe_float(row_s.get("POC 3"), 0.0), "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
-                "Auto_Indice": indice_corrente,
-            }])
-            df_watchlist = pd.concat([df_watchlist, nuova], ignore_index=True)
-            aggiunti += 1
+        if _dists(row_s, prezzo) <= soglia_trigger_pct:
+            in_zona += 1
 
-    da_rimuovere = set()
-    for _, row_s in df_screener.iterrows():
-        ticker = str(row_s.get("Ticker", "")).strip().upper()
-        if not ticker:
-            continue
-        prezzo = _safe_float(row_s.get("Prezzo"), 0.0)
-        if prezzo == 0:
-            continue
-        if _dists(row_s, prezzo) > soglia_trigger_pct:
-            da_rimuovere.add(ticker)
-    for ticker in da_rimuovere:
-        if ticker in df_watchlist["Ticker"].str.upper().values:
-            idx = df_watchlist[df_watchlist["Ticker"].str.upper() == ticker].index[0]
-            if str(df_watchlist.at[idx, "Origine"]).strip().lower() == "auto":
-                df_watchlist = df_watchlist.drop(idx)
-                rimossi += 1
-    if aggiunti > 0 or rimossi > 0 or aggiornati > 0:
+        mask = df_watchlist["Ticker"].str.upper() == ticker
+        if mask.any():
+            idx = df_watchlist[mask].index[0]
+            origine = str(df_watchlist.at[idx, "Origine"]).strip().lower()
+            # VWAP rinfrescati SEMPRE (auto e manuali)
+            _write_vwap(df_watchlist, idx, row_s)
+            if origine == "manuale":
+                vwappati += 1  # manuale: solo VWAP toccati, Livelli e POC intatti
+            else:
+                _write_pocs(df_watchlist, idx, row_s)  # auto: anche POC + indice
+                aggiornati += 1
+        else:
+            # Nuovo: entra come auto SOLO se in zona
+            if _dists(row_s, prezzo) <= soglia_trigger_pct:
+                nuova = pd.DataFrame([{
+                    "Ticker": ticker,
+                    "Livello 1": 0, "Nota 1": "", "Livello 2": 0, "Nota 2": "", "Livello 3": 0, "Nota 3": "",
+                    "VWAP 1": _safe_float(row_s.get("VWAP 4Y"), 0.0), "Nota VWAP 1": "VWAP 4Y",
+                    "VWAP 2": _safe_float(row_s.get("VWAP 1Y"), 0.0), "Nota VWAP 2": "VWAP 1Y",
+                    "VWAP 3": _safe_float(row_s.get("VWAP 3M"), 0.0), "Nota VWAP 3": "VWAP 3M",
+                    "Screenshot": "", "Origine": "auto",
+                    "POC 1": _safe_float(row_s.get("POC 1"), 0.0), "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
+                    "POC 2": _safe_float(row_s.get("POC 2"), 0.0), "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
+                    "POC 3": _safe_float(row_s.get("POC 3"), 0.0), "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
+                    "Auto_Indice": indice_corrente,
+                }])
+                df_watchlist = pd.concat([df_watchlist, nuova], ignore_index=True)
+                aggiunti += 1
+
+    if aggiunti > 0 or aggiornati > 0 or vwappati > 0:
         commit_csv_su_github(df_watchlist)
-    return {"aggiunti": aggiunti, "rimossi": rimossi, "aggiornati": aggiornati, "in_zona": in_zona, "saltati": saltati, "saltati_tickers": saltati_tickers}
+
+    return {"aggiunti": aggiunti, "rimossi": 0, "aggiornati": aggiornati, "vwappati": vwappati, "in_zona": in_zona}
