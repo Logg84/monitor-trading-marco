@@ -2,10 +2,14 @@
 Guida visiva alle metriche operative (Quality Score · Bottom Score · Size Suggerita).
 Modulo isolato: render_metric_guide() disegna un pannello apribile con schede
 vive e un calcolatore interattivo della Size. Chiamato da pages/2_Screening.py.
+
+NOTA RENDERING: _GUIDE_CSS DEVE essere avvolto in <style>...</style>, altrimenti
+Streamlit (unsafe_allow_html) lo stampa come testo grezzo invece di interpretarlo.
 """
 import streamlit as st
 
 _GUIDE_CSS = """
+<style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
 .mg-wrap { position: relative; }
@@ -114,6 +118,7 @@ _GUIDE_CSS = """
     border-top: 1px solid #1b2435; padding-top: 12px;
 }
 .mg-note b { color: #fca5a5; }
+</style>
 """
 
 # colori della scala 0->4
