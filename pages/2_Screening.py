@@ -40,9 +40,13 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.block-container { padding-top: 1.5rem; padding-bottom: 1rem; padding-left: 2rem; padding-right: 2rem; max-width: 100%; }
+.block-container { padding-top: 1.5rem; padding-bottom: 1rem; padding-left: 1.25rem; padding-right: 1.25rem; max-width: 100%; }
 h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spacing: -0.02em; }
 div[data-testid="stButton"] button { transition: all .15s ease; }
+
+/* ---- sidebar compatta: più spazio alla tabella ---- */
+section[data-testid="stSidebar"] { width: 250px !important; min-width: 250px !important; }
+section[data-testid="stSidebar"] > div { width: 250px !important; }
 
 .argo-report {
     position: relative; overflow: hidden;
@@ -82,6 +86,48 @@ div[data-testid="stButton"] button { transition: all .15s ease; }
 .argo-report .ar-tag.ar-rm { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.10); }
 .argo-report .ar-tag.ar-rm:hover { border-color: #ef4444; }
 .argo-report .ar-tag.ar-tag-more { color: #7c8aa3; border-color: #243049; }
+
+/* ---- tabella screening (HTML custom: hover riga, header sticky, ticker sticky) ---- */
+.argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
+.argo-tbl-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.argo-tbl-wrap::-webkit-scrollbar-track { background: transparent; }
+.argo-tbl-wrap::-webkit-scrollbar-thumb { background: #243049; border-radius: 8px; border: 2px solid #0a0f1a; }
+.argo-tbl-wrap::-webkit-scrollbar-thumb:hover { background: #334155; }
+.argo-tbl-wrap::-webkit-scrollbar-corner { background: #0a0f1a; }
+.argo-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.argo-tbl thead th {
+    position: sticky; top: 0; z-index: 3; background: #0b1220; color: #7c8aa3;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .06em;
+    text-transform: uppercase; padding: 11px 10px; text-align: left;
+    border-bottom: 1px solid #243049; white-space: nowrap;
+}
+.argo-tbl thead th.r { text-align: right; }
+.argo-tbl thead th.c { text-align: center; }
+.argo-tbl tbody td {
+    padding: 9px 10px; border-bottom: 1px solid #141d2e; color: #cbd5e1;
+    vertical-align: middle; white-space: nowrap;
+    transition: background .12s ease, color .12s ease;
+}
+.argo-tbl tbody tr:nth-child(even) td { background: rgba(255,255,255,.018); }
+.argo-tbl tbody tr:hover td { background: rgba(56,189,248,.14) !important; color: #f8fafc !important; }
+/* ticker agganciato a sinistra durante lo scroll orizzontale */
+.argo-tbl thead th:first-child, .argo-tbl tbody td:first-child { position: sticky; left: 0; z-index: 2; }
+.argo-tbl thead th:first-child { z-index: 4; background: #0b1220; box-shadow: 2px 0 6px -2px rgba(0,0,0,.6); }
+.argo-tbl tbody td:first-child { background: #0a0f1a; box-shadow: 2px 0 6px -2px rgba(0,0,0,.5); }
+.argo-tbl tbody tr:nth-child(even) td:first-child { background: #0d1320; }
+.argo-tbl tbody tr:hover td:first-child { background: rgba(56,189,248,.14) !important; box-shadow: inset 3px 0 0 #38bdf8, 2px 0 6px -2px rgba(0,0,0,.5); }
+.argo-tbl td.r { text-align: right; }
+.argo-tbl td.c { text-align: center; }
+.argo-tbl td.num { font-family: 'IBM Plex Mono', monospace; }
+.argo-tbl td.tk { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #f1f5f9; }
+.argo-tbl td.idx { color: #7c8aa3; font-size: 11px; }
+.argo-tbl td.dd { color: #fca5a5; }
+.argo-tbl td.muted { color: #475569; }
+.argo-tbl td.det { max-width: 360px; white-space: normal; line-height: 1.35; color: #94a3b8; }
+.argo-tbl td.score { text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 700; }
+.argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
+.argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -283,7 +329,7 @@ with st.sidebar:
                 st.caption(f"✅ {idx_name}: {ts.strftime('%H:%M %d/%m')}")
 
     st.markdown("---")
-    if st.button("🚀 AVVIA SCREENING QUALITY (v2)", type="primary"):
+    if st.button("🚀 AVVIA SCREENING QUALITY (v2)", type="primary", use_container_width=True):
         engine.debug_log = []
         st.session_state["debug_log"] = []
         st.session_state["ultimi_spostamenti"] = []
@@ -355,7 +401,7 @@ rep = st.session_state.get("ultimo_report_auto")
 if rep is not None:
     soglia_rep = rep.get("soglia", 2.5)
     chips = (
-        f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti </div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti 🤖</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Auto aggiornati</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-vw">{rep["vwappati"]}</div><div class="ar-lab">🔃 VWAP rinfrescati</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🗑️ Usciti (no sconto)</div></div>'
@@ -415,9 +461,189 @@ if rep is not None:
     )
 
 # ---------------------------------------------------------------
-# GUIDA ALLE METRICHE (per i colleghi / chi legge le colonne)
+# GUIDA ALLE METRICHE
 # ---------------------------------------------------------------
 render_metric_guide()
+
+# ---------------------------------------------------------------
+# RENDERER TABELLA SCREENING (HTML: hover riga + sticky)
+# ---------------------------------------------------------------
+_HDR = {
+    "Ticker": ("Ticker", "Ticker"),
+    "Indice": ("Indice", "Indice di appartenenza"),
+    "Prezzo": ("Prezzo", "Prezzo attuale"),
+    "Drawdown (%)": ("DD %", "Drawdown dall'ATH (%)"),
+    "Quality Score (0-4)": ("Quality", "Quality Score (0-4) — solidità vs mediana indice"),
+    "Bottom Score (0-4)": ("Bottom", "Bottom Score (0-4) — segnali di inversione"),
+    "Bottom Dettagli": ("Segnali", "Segnali tecnici attivi"),
+    "Size Suggerita (%)": ("Size %", "Size suggerita (% del capitale)"),
+    "Entry Mode": ("Entry", "Modalità di ingresso"),
+    "Market Cap (B)": ("MCap", "Capitalizzazione (miliardi)"),
+    "POC più vicino": ("POC vicino", "POC operativo più vicino"),
+    "Distanza POC (%)": ("Dist POC", "Distanza % dal POC"),
+    "🎯 ALERT POC": ("🎯 Alert", "Alert POC"),
+    "Stato": ("Stato", "Stato del titolo"),
+    "Grafico TW": ("TW", "Apri su TradingView"),
+}
+_RIGHT = {"Prezzo", "Drawdown (%)", "Size Suggerita (%)", "Market Cap (B)", "Distanza POC (%)"}
+_CENTER = {"Quality Score (0-4)", "Bottom Score (0-4)", "🎯 ALERT POC", "Grafico TW", "Stato"}
+
+
+def _esc(v):
+    return html.escape("" if v is None else str(v))
+
+
+def _isna(v):
+    if v is None:
+        return True
+    try:
+        if isinstance(v, float) and pd.isna(v):
+            return True
+    except Exception:
+        pass
+    s = str(v).strip().lower()
+    return s in ("", "nan", "none")
+
+
+def _fmt2(v):
+    if _isna(v):
+        return "—"
+    try:
+        return f"{float(v):.2f}"
+    except Exception:
+        return _esc(v)
+
+
+def _score_bg(col, v):
+    if col.startswith("Quality"):
+        if v >= 3:
+            return "background:#065f46;color:#a7f3d0"
+        if v >= 2:
+            return "background:#143524;color:#86efac"
+        return "background:#3a1414;color:#fca5a5"
+    if v >= 4:
+        return "background:#065f46;color:#a7f3d0"
+    if v >= 3:
+        return "background:#143524;color:#86efac"
+    if v >= 2:
+        return "background:#3a2408;color:#fde68a"
+    return "background:#3a1414;color:#fca5a5"
+
+
+def _pill(text, bg, fg):
+    return f'<span class="pill" style="background:{bg};color:{fg}">{html.escape(str(text))}</span>'
+
+
+def _entry_cell(v):
+    s = str(v)
+    if s.startswith("🚀"):
+        return _pill(s, "rgba(34,197,94,.16)", "#86efac")
+    if s.startswith("⏳"):
+        return _pill(s, "rgba(245,158,11,.16)", "#fcd34d")
+    if s.startswith("⛔"):
+        return _pill(s, "rgba(239,68,68,.16)", "#fca5a5")
+    if s.startswith("📈"):
+        return _pill(s, "rgba(96,165,250,.16)", "#93c5fd")
+    return _pill(s, "rgba(148,163,184,.12)", "#cbd5e1")
+
+
+def _stato_cell(v):
+    s = str(v).strip()
+    if s == "Active":
+        return _pill(s, "rgba(34,197,94,.16)", "#86efac")
+    if s == "Ripartito":
+        return _pill(s, "rgba(245,158,11,.16)", "#fcd34d")
+    if s == "Nuovo":
+        return _pill(s, "rgba(96,165,250,.16)", "#93c5fd")
+    return _pill(s or "—", "rgba(148,163,184,.12)", "#94a3b8")
+
+
+def _alert_cell(v):
+    s = str(v).strip()
+    if "SU POC" in s:
+        return _pill("🎯 SU POC", "rgba(244,63,94,.20)", "#fda4af")
+    return '<span class="muted">—</span>'
+
+
+def _td(col, val):
+    na = _isna(val)
+    raw = "" if na else str(val).strip()
+    if col == "Ticker":
+        return ("tk", "", html.escape(raw) or "—")
+    if col == "Indice":
+        return ("idx", "", html.escape(raw))
+    if col == "Grafico TW":
+        url = "" if na else str(val)
+        inner = f'<a class="tw" href="{html.escape(url, quote=True)}" target="_blank" rel="noopener">📈</a>' if url else "—"
+        return ("c", "", inner)
+    if col in ("Quality Score (0-4)", "Bottom Score (0-4)"):
+        try:
+            v = float(val)
+        except Exception:
+            v = None
+        if v is None or pd.isna(v):
+            return ("score", "", "—")
+        disp = str(int(v)) if float(v).is_integer() else f"{float(v):.1f}"
+        return ("score", _score_bg(col, v), disp)
+    if col == "Bottom Dettagli":
+        return ("det", "", html.escape(raw) or "—")
+    if col == "Entry Mode":
+        return ("", "", _entry_cell(val))
+    if col == "Stato":
+        return ("c", "", _stato_cell(val))
+    if col == "🎯 ALERT POC":
+        return ("c", "", _alert_cell(val))
+    if col == "Prezzo":
+        return ("r num", "", _fmt2(val))
+    if col == "Size Suggerita (%)":
+        return ("r num", "", _fmt2(val))
+    if col == "Market Cap (B)":
+        return ("r num", "", _fmt2(val))
+    if col == "Drawdown (%)":
+        return ("r num dd", "", _fmt2(val))
+    if col == "Distanza POC (%)":
+        if raw in ("", "nan", "None"):
+            return ("r num muted", "", "—")
+        if raw == "N/D":
+            return ("r num muted", "", "N/D")
+        return ("r num", "", html.escape(raw))
+    if col == "POC più vicino":
+        if raw in ("", "nan", "None"):
+            return ("num muted", "", "—")
+        if raw == "N/D":
+            return ("num muted", "", "N/D")
+        return ("num", "", html.escape(raw))
+    return ("", "", html.escape(raw) or "—")
+
+
+def _th_class(col):
+    if col in _RIGHT:
+        return "r"
+    if col in _CENTER:
+        return "c"
+    return ""
+
+
+def _screening_table_html(df, columns):
+    head = "".join(
+        f'<th class="{_th_class(c)}" title="{html.escape(_HDR.get(c, (c, c))[1], quote=True)}">'
+        f'{html.escape(_HDR.get(c, (c, c))[0])}</th>'
+        for c in columns
+    )
+    rows = []
+    for _, r in df.iterrows():
+        cells = []
+        for c in columns:
+            cls, style, inner = _td(c, r.get(c))
+            st_attr = f' style="{style}"' if style else ""
+            cells.append(f'<td class="{cls}"{st_attr}>{inner}</td>')
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+    body = "".join(rows)
+    return (
+        f'<div class="argo-tbl-wrap"><table class="argo-tbl"><thead><tr>{head}</tr></thead>'
+        f'<tbody>{body}</tbody></table></div>'
+    )
+
 
 # ---------------------------------------------------------------
 # GRAFICO DECELERAZIONE
@@ -467,7 +693,6 @@ def grafico_decelerazione(hist, ticker):
 
 
 def interpreta_bottom_score(score, dettagli):
-    # FIX: il punteggio può superare 4 in convergenza piena; >=4 = inversione forte.
     if score >= 4:
         return {"semaforo": "🟢", "titolo": "FORTE INVERSIONE", "colore": "#22c55e", "operazione": "✅ Pronto per l'ingresso. Il titolo è tecnicamente pronto a ripartire. Valutare l'acquisto con stop loss sotto il POC."}
     elif score == 3:
@@ -509,43 +734,12 @@ if st.session_state.get("ultimi_spostamenti"):
         for msg in st.session_state["ultimi_spostamenti"]:
             st.markdown(f"- {msg}")
 
-configurazione_colonne = {
-    "Grafico TW": st.column_config.LinkColumn("Grafico TW", help="Apri su TradingView", display_text="📈 Apri"),
-    "Prezzo": st.column_config.NumberColumn("Prezzo", format="%.2f"),
-    "Drawdown (%)": st.column_config.NumberColumn("Drawdown (%)", format="%.2f"),
-    "Size Suggerita (%)": st.column_config.NumberColumn("Size Suggerita (%)", format="%.2f"),
-    "Market Cap (B)": st.column_config.NumberColumn("Market Cap (B)", format="%.2f"),
-}
 ordine_colonne = [
     "Ticker", "Indice", "Prezzo", "Drawdown (%)",
     "Quality Score (0-4)", "Bottom Score (0-4)", "Bottom Dettagli",
     "Size Suggerita (%)", "Entry Mode",
     "Market Cap (B)", "POC più vicino", "Distanza POC (%)", "🎯 ALERT POC", "Stato"
 ]
-
-
-def color_quality(val):
-    if isinstance(val, (int, float)):
-        if val >= 3: return 'background-color: #065f46; color: #a7f3d0; font-weight: bold;'
-        elif val >= 2: return 'background-color: #1a3a2a; color: #86efac; font-weight: bold;'
-        else: return 'background-color: #7f1d1d; color: #fca5a5; font-weight: bold;'
-    return ''
-
-
-def color_bottom(val):
-    if isinstance(val, (int, float)):
-        if val >= 4: return 'background-color: #065f46; color: #a7f3d0; font-weight: bold;'
-        elif val >= 3: return 'background-color: #1a3a2a; color: #86efac; font-weight: bold;'
-        elif val >= 2: return 'background-color: #78350f; color: #fde68a; font-weight: bold;'
-        else: return 'background-color: #7f1d1d; color: #fca5a5; font-weight: bold;'
-    return ''
-
-
-def apply_style(df):
-    if df.empty:
-        return df
-    return df.style.map(color_quality, subset=['Quality Score (0-4)']).map(color_bottom, subset=['Bottom Score (0-4)'])
-
 
 has_data_to_show = (isinstance(saved_data, list) and len(saved_data) > 0)
 
@@ -562,16 +756,14 @@ if has_data_to_show:
         st.subheader("Titoli in forte sconto - ordinati per Bottom Score")
         df_attivi = df_total[df_total["Stato"] == "Active"].sort_values(by="Bottom Score (0-4)", ascending=False)
         if not df_attivi.empty:
-            styled_df = apply_style(df_attivi[ordine_colonne + ["Grafico TW"]])
-            st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config=configurazione_colonne)
+            st.markdown(_screening_table_html(df_attivi, ordine_colonne + ["Grafico TW"]), unsafe_allow_html=True)
         else:
             st.info("💡 Nessun titolo in forte sconto trovato.")
     with t_poc:
         st.subheader(f"Titoli con prezzo entro ±{soglia_poc_pct:.1f}% da un POC affidabile")
         df_poc = df_total[df_total["🎯 ALERT POC"] == "🎯 SU POC"].copy()
         if not df_poc.empty:
-            styled_df = apply_style(df_poc[ordine_colonne + ["Grafico TW"]])
-            st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config=configurazione_colonne)
+            st.markdown(_screening_table_html(df_poc, ordine_colonne + ["Grafico TW"]), unsafe_allow_html=True)
         else:
             st.info("💡 Nessun titolo attualmente in zona POC affidabile.")
 
@@ -608,7 +800,7 @@ if has_data_to_show:
                     dd_val = row.get('Drawdown (%)', 'N/D')
                     qs_val = row.get('Quality Score (0-4)', 'N/D')
                     interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
-                    score_pct = min(int((bottom_score / 4) * 100), 100)  # FIX: clamp a 100%
+                    score_pct = min(int((bottom_score / 4) * 100), 100)
                     thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
                     bar_segments = []
                     for thr, col, lbl in thresholds:
