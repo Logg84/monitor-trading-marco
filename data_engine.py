@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # === MANOPOLE "POC OPERATIVO" (ritoccale qui) ===
 MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un relitto: ignorato
 MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
+POC_MERGE_PCT = 2.5         # POC della watchlist entro questa % l'uno dall'altro vengono accorpati
 
 # === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
 BARS_PER_YEAR = 252
@@ -669,17 +670,29 @@ class DataEngine:
             return None, None
         return best_poc, round(float(best_dist), 2)
 
-    def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT):
-        """I `n` POC operativi (entro max_dist_pct) più vicini al prezzo, ordinati per vicinanza.
-        Ritorna lista di dict {poc_price, anchor_year, dist_pct} (può avere meno di n elementi)."""
+    def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT, merge_pct=POC_MERGE_PCT):
+        """I `n` POC operativi (entro max_dist_pct) più STRUTTURALI, ma MUTUAMENTE
+        distanti almeno merge_pct: così un cluster di POC quasi identici collassa in
+        uno solo (il più forte del gruppo), mentre POC davvero separati restano.
+        Greedy per weight_norm decrescente. NON usato per l'alert (quello è closest_poc)."""
         ops = []
         for poc in pocs:
             poc_price = float(poc["poc_price"])
             dist = (current_price - poc_price) / poc_price * 100
             if abs(dist) <= max_dist_pct:
-                ops.append((abs(dist), poc_price, int(poc["anchor_year"])))
-        ops.sort(key=lambda x: x[0])
-        return [{"poc_price": p, "anchor_year": y, "dist_pct": round(d, 2)} for d, p, y in ops[:n]]
+                ops.append((float(poc.get("weight_norm", 0.0)), abs(dist), poc_price, int(poc["anchor_year"])))
+        ops.sort(key=lambda x: x[0], reverse=True)  # prima i più strutturali
+        chosen = []
+        for wn, d, price, yr in ops:
+            if all(abs(price - c["poc_price"]) / c["poc_price"] * 100 > merge_pct for c in chosen):
+                chosen.append({
+                    "poc_price": price,
+                    "anchor_year": yr,
+                    "dist_pct": round((current_price - price) / price * 100, 2),
+                })
+                if len(chosen) >= n:
+                    break
+        return chosen
 
     def calcola_segnali_bottom(self, hist):
         if len(hist) < WIN_ROC + 5:
@@ -771,7 +784,6 @@ class DataEngine:
                 continue
             c_data = candidates_hist[ticker]; hist = c_data["hist"]; price_now = c_data["price_now"]; current_dd = c_data["current_dd"]
             poc_label, dist_label, alert_poc = "N/D", "N/D", ""
-            # I 3 POC operativi più vicini (per la watchlist)
             poc_slots = {f"POC {k}": 0.0 for k in (1, 2, 3)}
             poc_note_slots = {f"Nota POC {k}": "" for k in (1, 2, 3)}
             try:
