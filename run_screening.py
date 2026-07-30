@@ -1,6 +1,7 @@
 """
 Screening automatico giornaliero (lanciato da .github/workflows/run_screening.yml).
-I/O su disco; il commit lo fa il workflow. Logica di riconciliazione ALLINEATA a watchlist_io.
+I/O su disco; il commit lo fa il workflow. Logica ALLINEATA a watchlist_io:
+VWAP rinfrescati sempre (auto+manuali), POC solo su auto, rimozione solo zombie.
 """
 
 import os
@@ -35,6 +36,7 @@ ALIAS_COLONNE = {
     "auto_indice": "Auto_Indice",
 }
 _TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+_VWAP_LABELS = {"VWAP 4Y", "VWAP 1Y", "VWAP 3M"}
 
 
 def _is_text_col(col: str) -> bool:
@@ -55,8 +57,7 @@ def load_watchlist_disk() -> pd.DataFrame:
     for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
-    # FIX: garantisco dtype float per le colonne numeriche (evita LossySetitemError int64->float)
-    for col in ["Livello 1","Livello 2","Livello 3","VWAP 1","VWAP 2","VWAP 3","POC 1","POC 2","POC 3"]:
+    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
@@ -91,6 +92,18 @@ def _dists(row_s, prezzo):
     return min(dist_poc, d4, d1, d3)
 
 
+def _write_vwap(df, idx, row_s):
+    pairs = [("VWAP 1", "VWAP 4Y", "VWAP 4Y"),
+             ("VWAP 2", "VWAP 1Y", "VWAP 1Y"),
+             ("VWAP 3", "VWAP 3M", "VWAP 3M")]
+    for col, src, label in pairs:
+        df.at[idx, col] = _safe_float(row_s.get(src), 0.0)
+        nota_col = "Nota " + col
+        existing = str(df.at[idx, nota_col] or "").strip()
+        if existing == "" or existing in _VWAP_LABELS:
+            df.at[idx, nota_col] = label
+
+
 def _write_pocs(df, idx, row_s, indice):
     for k in (1, 2, 3):
         df.at[idx, f"POC {k}"] = _safe_float(row_s.get(f"POC {k}"), 0.0)
@@ -99,7 +112,7 @@ def _write_pocs(df, idx, row_s, indice):
 
 
 def reconcile(df_wl, df_scr, indice, soglia):
-    stats = {"aggiunti": 0, "aggiornati": 0, "rimossi": 0, "in_zona": 0, "saltati": 0, "saltati_tickers": []}
+    stats = {"aggiunti": 0, "aggiornati": 0, "vwappati": 0, "in_zona": 0}
     if df_scr.empty:
         return df_wl, stats
 
@@ -110,55 +123,34 @@ def reconcile(df_wl, df_scr, indice, soglia):
         prezzo = _safe_float(row_s.get("Prezzo"), 0.0)
         if prezzo == 0:
             continue
-        if _dists(row_s, prezzo) > soglia:
-            continue
-        stats["in_zona"] += 1
+        if _dists(row_s, prezzo) <= soglia:
+            stats["in_zona"] += 1
         mask = df_wl["Ticker"].str.upper() == ticker
         if mask.any():
             idx = df_wl[mask].index[0]
             origine = str(df_wl.at[idx, "Origine"]).strip().lower()
+            _write_vwap(df_wl, idx, row_s)  # sempre
             if origine == "manuale":
-                stats["saltati"] += 1
-                stats["saltati_tickers"].append(ticker)
-                continue
-            _write_pocs(df_wl, idx, row_s, indice)
-            df_wl.at[idx, "VWAP 1"] = _safe_float(row_s.get("VWAP 4Y"), 0.0); df_wl.at[idx, "Nota VWAP 1"] = "VWAP 4Y"
-            df_wl.at[idx, "VWAP 2"] = _safe_float(row_s.get("VWAP 1Y"), 0.0); df_wl.at[idx, "Nota VWAP 2"] = "VWAP 1Y"
-            df_wl.at[idx, "VWAP 3"] = _safe_float(row_s.get("VWAP 3M"), 0.0); df_wl.at[idx, "Nota VWAP 3"] = "VWAP 3M"
-            stats["aggiornati"] += 1
+                stats["vwappati"] += 1
+            else:
+                _write_pocs(df_wl, idx, row_s, indice)
+                stats["aggiornati"] += 1
         else:
-            nuova = pd.DataFrame([{
-                "Ticker": ticker,
-                "Livello 1": 0, "Nota 1": "", "Livello 2": 0, "Nota 2": "", "Livello 3": 0, "Nota 3": "",
-                "VWAP 1": _safe_float(row_s.get("VWAP 4Y"), 0.0), "Nota VWAP 1": "VWAP 4Y",
-                "VWAP 2": _safe_float(row_s.get("VWAP 1Y"), 0.0), "Nota VWAP 2": "VWAP 1Y",
-                "VWAP 3": _safe_float(row_s.get("VWAP 3M"), 0.0), "Nota VWAP 3": "VWAP 3M",
-                "Screenshot": "", "Origine": "auto",
-                "POC 1": _safe_float(row_s.get("POC 1"), 0.0), "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
-                "POC 2": _safe_float(row_s.get("POC 2"), 0.0), "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
-                "POC 3": _safe_float(row_s.get("POC 3"), 0.0), "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
-                "Auto_Indice": indice,
-            }])
-            df_wl = pd.concat([df_wl, nuova], ignore_index=True)
-            stats["aggiunti"] += 1
-
-    da_rimuovere = set()
-    for _, row_s in df_scr.iterrows():
-        ticker = str(row_s.get("Ticker", "")).strip().upper()
-        if not ticker:
-            continue
-        prezzo = _safe_float(row_s.get("Prezzo"), 0.0)
-        if prezzo == 0:
-            continue
-        if _dists(row_s, prezzo) > soglia:
-            da_rimuovere.add(ticker)
-    for ticker in da_rimuovere:
-        mask = df_wl["Ticker"].str.upper() == ticker
-        if mask.any():
-            idx = df_wl[mask].index[0]
-            if str(df_wl.at[idx, "Origine"]).strip().lower() == "auto":
-                df_wl = df_wl.drop(idx)
-                stats["rimossi"] += 1
+            if _dists(row_s, prezzo) <= soglia:
+                nuova = pd.DataFrame([{
+                    "Ticker": ticker,
+                    "Livello 1": 0, "Nota 1": "", "Livello 2": 0, "Nota 2": "", "Livello 3": 0, "Nota 3": "",
+                    "VWAP 1": _safe_float(row_s.get("VWAP 4Y"), 0.0), "Nota VWAP 1": "VWAP 4Y",
+                    "VWAP 2": _safe_float(row_s.get("VWAP 1Y"), 0.0), "Nota VWAP 2": "VWAP 1Y",
+                    "VWAP 3": _safe_float(row_s.get("VWAP 3M"), 0.0), "Nota VWAP 3": "VWAP 3M",
+                    "Screenshot": "", "Origine": "auto",
+                    "POC 1": _safe_float(row_s.get("POC 1"), 0.0), "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
+                    "POC 2": _safe_float(row_s.get("POC 2"), 0.0), "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
+                    "POC 3": _safe_float(row_s.get("POC 3"), 0.0), "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
+                    "Auto_Indice": indice,
+                }])
+                df_wl = pd.concat([df_wl, nuova], ignore_index=True)
+                stats["aggiunti"] += 1
     return df_wl, stats
 
 
@@ -189,7 +181,7 @@ def main():
     engine = DataEngine(base_dir=".")
 
     df_wl = load_watchlist_disk()
-    tot = {"aggiunti": 0, "aggiornati": 0, "rimossi": 0, "in_zona": 0, "saltati": 0, "zombie": 0, "legacy": 0}
+    tot = {"aggiunti": 0, "aggiornati": 0, "vwappati": 0, "rimossi": 0, "in_zona": 0, "legacy": 0}
     ticker_globali = set()
 
     for idx in INDICI:
@@ -208,21 +200,21 @@ def main():
         df_wl, stats = reconcile(df_wl, df_scr, idx, SOGLIA_PROMO_PCT)
         df_wl, zomb = pulisci_zombie(df_wl, idx, ticker_corr)
 
-        for k in ("aggiunti", "aggiornati", "rimossi", "in_zona", "saltati"):
+        for k in ("aggiunti", "aggiornati", "vwappati", "in_zona"):
             tot[k] += stats.get(k, 0)
-        tot["zombie"] += zomb
-        print(f"    reconcile: +{stats['aggiunti']} agg={stats['aggiornati']} -{stats['rimossi']} | in_zona={stats['in_zona']} saltati(manuali)={stats['saltati']} zombie={zomb}")
+        tot["rimossi"] += zomb
+        print(f"    reconcile: +{stats['aggiunti']} agg={stats['aggiornati']} vwappati={stats['vwappati']} | in_zona={stats['in_zona']} zombie={zomb}")
 
     df_wl, leg = legacy_cleanup(df_wl, ticker_globali)
     tot["legacy"] = leg
 
     save_watchlist_disk(df_wl)
     print("=== Riepilogo automazione watchlist ===")
-    print(f"  ➕ aggiunti 🤖 : {tot['aggiunti']}")
-    print(f"  🔄 aggiornati  : {tot['aggiornati']}")
-    print(f"  🧹 fuori zona  : {tot['rimossi']}")
-    print(f"  🗑️ zombie      : {tot['zombie']}  (+ legacy normalizzati rimossi: {tot['legacy']})")
-    print(f"  🎯 in zona tot : {tot['in_zona']}  (di cui 🔒 manuali intatti: {tot['saltati']})")
+    print(f"  ➕ aggiunti 🤖      : {tot['aggiunti']}")
+    print(f"  🔄 aggiornati (auto): {tot['aggiornati']}")
+    print(f"  🔃 VWAP rinfrescati : {tot['vwappati']}  (su manuali; VWAP auto già contati in aggiornati)")
+    print(f"  🗑️ rimossi (usciti) : {tot['rimossi']}  (+ legacy normalizzati: {tot['legacy']})")
+    print(f"  🎯 in zona tot      : {tot['in_zona']}")
     print("=== Fine. Il workflow committerà argo_database.json + watchlist.csv ===")
 
 
