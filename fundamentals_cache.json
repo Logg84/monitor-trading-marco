@@ -1942,5 +1942,85 @@
         "operatingMargins": 0.20002002,
         "returnOnEquity": 0.06576,
         "last_updated": "2026-07-30T12:52:55.617746"
+    },
+    "CHRW": {
+        "marketCap": 17317907114.808014,
+        "debtToEquity": 96.501,
+        "freeCashflow": 642142272,
+        "operatingMargins": 0.049060002,
+        "returnOnEquity": 0.34838,
+        "last_updated": "2026-07-30T22:37:44.155578"
+    },
+    "GEHC": {
+        "marketCap": 31590937567.62964,
+        "debtToEquity": 97.055,
+        "freeCashflow": 1483624960,
+        "operatingMargins": 0.11089,
+        "returnOnEquity": 0.19462,
+        "last_updated": "2026-07-30T22:37:44.158636"
+    },
+    "CRH": {
+        "marketCap": 64147220736.0,
+        "debtToEquity": 83.227,
+        "freeCashflow": 786124992,
+        "operatingMargins": -0.00041,
+        "returnOnEquity": 0.15812,
+        "last_updated": "2026-07-30T22:37:44.157322"
+    },
+    "HPQ": {
+        "marketCap": 24564080011.580353,
+        "debtToEquity": null,
+        "freeCashflow": 3450874880,
+        "operatingMargins": 0.07114,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-30T22:37:44.160649"
+    },
+    "GPC": {
+        "marketCap": 17209033843.568756,
+        "debtToEquity": 146.415,
+        "freeCashflow": 917241984,
+        "operatingMargins": 0.06562,
+        "returnOnEquity": 0.0070700003,
+        "last_updated": "2026-07-30T22:37:44.159555"
+    },
+    "AJG": {
+        "marketCap": 65895343124.45068,
+        "debtToEquity": 56.18,
+        "freeCashflow": 1080225024,
+        "operatingMargins": 0.28402,
+        "returnOnEquity": 0.07007,
+        "last_updated": "2026-07-30T22:37:44.154877"
+    },
+    "LHX": {
+        "marketCap": 50653596039.845856,
+        "debtToEquity": 34.574,
+        "freeCashflow": null,
+        "operatingMargins": 0.097270004,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-30T22:37:44.161451"
+    },
+    "MDT": {
+        "marketCap": 109712672062.98363,
+        "debtToEquity": 58.214,
+        "freeCashflow": 4625375232,
+        "operatingMargins": 0.22045,
+        "returnOnEquity": 0.098409995,
+        "last_updated": "2026-07-30T22:37:44.162023"
+    },
+    "CPT": {
+        "marketCap": 11225973711.56015,
+        "debtToEquity": null,
+        "freeCashflow": null,
+        "operatingMargins": null,
+        "returnOnEquity": null,
+        "last_updated": "2026-07-30T22:37:44.156307"
+    },
+    "DHI": {
+        "marketCap": 40704925045.07779,
+        "debtToEquity": 29.451,
+        "freeCashflow": 2413900032,
+        "operatingMargins": 0.1299,
+        "returnOnEquity": 0.12632,
+        "last_updated": "2026-07-30T22:37:44.157885"
     }
 }

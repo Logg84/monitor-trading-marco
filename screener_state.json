@@ -970,5 +970,45 @@
     "SAN.PA": {
         "status": "Active",
         "indice": "CAC 40 (Francia)"
+    },
+    "AJG": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CHRW": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CPT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "CRH": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DHI": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "GEHC": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
+    },
+    "GPC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "HPQ": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "LHX": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "MDT": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
