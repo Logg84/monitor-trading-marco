@@ -11,6 +11,7 @@ from PIL import Image
 from google import genai
 from google.genai import types
 import base64
+from nav import render_navbar, section_header
 
 MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
 
@@ -32,8 +33,7 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.block-container { padding-top: 2rem; padding-bottom: 2rem; padding-left: 2rem; padding-right: 2rem; max-width: 100%; }
-h1 { font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em; margin-bottom: 0.2rem !important; }
+.block-container { padding-top: 1.5rem; padding-bottom: 2rem; padding-left: 2rem; padding-right: 2rem; max-width: 100%; }
 h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 !important; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0 !important; }
 hr { margin: 1.4rem 0 !important; border-color: #232733 !important; }
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { display: flex; align-items: center; }
@@ -52,6 +52,9 @@ div[data-testid="stButton"] button:hover { border-color: #ff4d4d; color: #ff4d4d
 div[data-testid="stFileUploaderDropzone"] { border: 1px dashed #2d3340; background: #0f1219; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
+
+render_navbar("watchlist", hide_sidebar=True)
+section_header("Portafoglio monitorato", "Watchlist & Livelli")
 
 @st.cache_resource
 def get_client():
@@ -198,8 +201,7 @@ def carica_watchlist() -> pd.DataFrame:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
     df["Origine"] = df["Origine"].replace("", "manuale")
-    # FIX: garantisco dtype float per le colonne numeriche
-    for col in ["Livello 1","Livello 2","Livello 3","VWAP 1","VWAP 2","VWAP 3","POC 1","POC 2","POC 3"]:
+    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
@@ -249,8 +251,6 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
     df.to_csv(CSV_PATH, index=False)
     commit_csv_su_github(df)
     return df
-
-st.title("📊 Watchlist da Screenshot")
 
 st.info(
     "🔗 **Automazione attiva dalla pagina Screening.** I titoli dello screener che toccano "
