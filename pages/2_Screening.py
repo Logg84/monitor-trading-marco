@@ -33,9 +33,6 @@ except ImportError:
 if _HAS_AUTOREFRESH:
     st_autorefresh(interval=600000, key="argo_screening_refresh")
 
-# ---------------------------------------------------------------
-# STILE
-# ---------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
@@ -89,19 +86,15 @@ div[data-testid="stButton"] button { transition: all .15s ease; }
 .argo-report .ar-lab { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7c8aa3; margin-top: 4px; }
 .argo-report .ar-note { font-size: 12.5px; color: #cbd5e1; line-height: 1.5; }
 .argo-report .ar-note b { color: #f8fafc; }
-.argo-report .ar-lock { color: #fbbf24; }
 .argo-report .ar-add { color: #22c55e; }
 .argo-report .ar-upd { color: #60a5fa; }
+.argo-report .ar-vw { color: #38bdf8; }
 .argo-report .ar-rm { color: #f59e0b; }
-.argo-report .ar-zm { color: #ef4444; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🎛️ Terminale ARGO × Metodo Rea")
 
-# ---------------------------------------------------------------
-# MOTORE
-# ---------------------------------------------------------------
 if "engine" not in st.session_state:
     st.session_state["engine"] = DataEngine()
 engine = st.session_state["engine"]
@@ -129,12 +122,7 @@ if "screening_fatto_in_sessione" not in st.session_state:
     st.session_state["screening_fatto_in_sessione"] = False
 
 
-# ---------------------------------------------------------------
-# LETTURA argo_database.json DA GITHUB (risultati del run automatico)
-# ---------------------------------------------------------------
 def carica_database_da_github() -> dict | None:
-    """Legge argo_database.json dal repo (run automatico delle 21:30).
-    Ritorna None se non configurato / non trovato / errore -> fallback silenzioso."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
     try:
@@ -150,17 +138,12 @@ def carica_database_da_github() -> dict | None:
         return None
 
 
-# Iniezione all'apertura: se in questa sessione NON ho ancora lanciato uno screening
-# a mano, mostro i risultati del run automatico letti da GitHub. In place, così
-# tabella e sessione vedono gli stessi dati. Al riavvio del container ricarica da
-# GitHub; dopo un AVVIA manuale il flag blocca la sovrascrittura dei risultati freschi.
 if not st.session_state["screening_fatto_in_sessione"]:
     _db_gh = carica_database_da_github()
     if _db_gh:
         engine.screener_database.clear()
         engine.screener_database.update(_db_gh)
         st.session_state["screener_database"] = engine.screener_database
-        # Timestamp sidebar dal campo _last_scans del run automatico
         _ls = _db_gh.get("_last_scans", {}) or {}
         for _idx in st.session_state["scan_timestamps"]:
             if st.session_state["scan_timestamps"][_idx] is None and _idx in _ls:
@@ -195,8 +178,10 @@ def pulisci_auto_zombie(indice: str, ticker_correnti_set: set) -> int:
     idx_da_togliere = []
     for idx, row in df_wl.iterrows():
         origine = str(row.get("Origine", "")).strip().lower()
-        nota_poc = str(row.get("Nota POC", ""))
-        if origine == "auto" and tag in nota_poc:
+        auto_idx = str(row.get("Auto_Indice", "")).strip()
+        nota_poc = str(row.get("Nota POC 1", "")) + str(row.get("Nota POC", ""))
+        is_mine = (auto_idx == indice) or (origine == "auto" and tag in nota_poc)
+        if origine == "auto" and is_mine:
             if str(row["Ticker"]).strip().upper() not in ticker_correnti_set:
                 idx_da_togliere.append(idx)
     if idx_da_togliere:
@@ -205,7 +190,6 @@ def pulisci_auto_zombie(indice: str, ticker_correnti_set: set) -> int:
     return len(idx_da_togliere)
 
 
-# Dati Macro e Bussola
 macro_info = engine.ottieni_bussola_argo()
 macro_data = {"df": macro_info["df"], "latest": macro_info["latest"]}
 latest = macro_info["latest"]
@@ -266,9 +250,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------
-# SIDEBAR
-# ---------------------------------------------------------------
 listino_opzioni = ["🌍 TUTTI GLI INDICI INSIEME", "S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
 
 with st.sidebar:
@@ -283,13 +264,13 @@ with st.sidebar:
     st.markdown("---")
     soglia_promo_pct = st.number_input(
         "Soglia promozione auto in watchlist (%) ", value=2.5, step=0.5,
-        help="Un titolo entra da solo in watchlist (🤖) se il prezzo è entro questa % da POC o da un VWAP. I manuali non vengono mai toccati."
+        help="Un titolo ENTRA da solo in watchlist (🤖) se il prezzo è entro questa % da POC o VWAP. Una volta dentro resta finché è in sconto e i suoi VWAP si rinfrescano a ogni run. I manuali non vengono mai toccati su Livelli/POC."
     )
     st.markdown("---")
     st.caption("💡  Quality Score (0-4):  solidità rispetto alla media del suo indice.")
     st.caption("📉  Bottom Score (0-4):  segnali di inversione (Decelerazione ROC, MACD, POC, Volume).")
     st.caption("🧹  POC operativi:  nel grafico vedi solo i POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
-    st.caption("🤖  Automazione:  i titoli che toccano POC/VWAP entrano da soli in watchlist e ne escono quando si allontanano.")
+    st.caption("🤖  Automazione:  i titoli in zona entrano da soli; i VWAP si rinfrescano sempre; escono solo se non più in sconto.")
     st.caption("⏰  Screening automatico:  1 volta/giorno alle 21:30 UTC. AVVIA = override manuale.")
 
     st.markdown("---")
@@ -312,9 +293,8 @@ with st.sidebar:
         st.session_state["ultimo_report_auto"] = None
         total_spostamenti = []
         total_count = 0
-        tot_agg, tot_upd, tot_rim, tot_zomb = 0, 0, 0, 0
-        tot_in_zona, tot_saltati = 0, 0
-        tot_saltati_tickers = []
+        tot_agg, tot_upd, tot_vw, tot_zomb = 0, 0, 0, 0
+        tot_in_zona = 0
 
         if indice_scelto == "🌍 TUTTI GLI INDICI INSIEME":
             indices_to_scan = ["S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
@@ -339,22 +319,17 @@ with st.sidebar:
                 stats = promuovi_auto_da_screener(df_scr, idx_name, soglia_trigger_pct=soglia_promo_pct)
                 tot_agg += stats.get("aggiunti", 0)
                 tot_upd += stats.get("aggiornati", 0)
-                tot_rim += stats.get("rimossi", 0)
+                tot_vw += stats.get("vwappati", 0)
                 tot_in_zona += stats.get("in_zona", 0)
-                tot_saltati += stats.get("saltati", 0)
-                tot_saltati_tickers.extend(stats.get("saltati_tickers", []))
                 ticker_correnti = set(str(t).strip().upper() for t in df_scr["Ticker"]) if (not df_scr.empty and "Ticker" in df_scr.columns) else set()
                 tot_zomb += pulisci_auto_zombie(idx_name, ticker_correnti)
 
         st.session_state["ultimi_spostamenti"] = total_spostamenti
         st.session_state["scan_count_all"] = total_count
         st.session_state["ultimo_report_auto"] = {
-            "aggiunti": tot_agg, "aggiornati": tot_upd, "rimossi": tot_rim, "zombie": tot_zomb,
-            "in_zona": tot_in_zona, "saltati": tot_saltati, "saltati_tickers": tot_saltati_tickers,
-            "soglia": soglia_promo_pct,
+            "aggiunti": tot_agg, "aggiornati": tot_upd, "vwappati": tot_vw,
+            "rimossi": tot_zomb, "in_zona": tot_in_zona, "soglia": soglia_promo_pct,
         }
-        # Override manuale: da ora in questa sessione mostro i risultati freschi,
-        # non quelli di GitHub.
         st.session_state["screening_fatto_in_sessione"] = True
         st.success(f"✅ Scansione completata! Trovati {total_count} titoli in totale su {len(indices_to_scan)} indici.")
         st.rerun()
@@ -371,40 +346,33 @@ with st.sidebar:
         st.caption("Nessun evento di debug registrato.")
 
 # ---------------------------------------------------------------
-# PANNELLO AUTOMAZIONE (area principale, sempre visibile dopo un lancio manuale)
+# PANNELLO AUTOMAZIONE
 # ---------------------------------------------------------------
 rep = st.session_state.get("ultimo_report_auto")
 if rep is not None:
     soglia_rep = rep.get("soglia", 2.5)
     chips = (
         f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti 🤖</div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Aggiornati</div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🧹 Fuori zona</div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-zm">{rep["zombie"]}</div><div class="ar-lab">🗑️ Usciti screening</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Auto aggiornati</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-vw">{rep["vwappati"]}</div><div class="ar-lab">🔃 VWAP rinfrescati</div></div>'
+        f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🗑️ Usciti (no sconto)</div></div>'
         f'<div class="ar-chip"><div class="ar-num" style="color:#e2e8f0">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-lock">{rep["saltati"]}</div><div class="ar-lab">🔒 Tuoi, intatti</div></div>'
     )
     if rep["in_zona"] == 0:
         nota = (f"Nessun titolo dello screening toccava un POC o un VWAP entro ±{soglia_rep:g}%: "
-                f"<b>niente da promuovere</b> in questo giro. I tuoi titoli manuali restano comunque intatti.")
-    elif rep["saltati"] == rep["in_zona"] and rep["aggiunti"] == 0 and rep["aggiornati"] == 0:
-        nomi = ", ".join(rep["saltati_tickers"]) if rep["saltati_tickers"] else "—"
-        nota = (f"Tutti i <b>{rep['in_zona']}</b> titoli in zona sono <b>già tuoi (manuali)</b> → lasciati intatti per regola, "
-                f"nessuna nuova promozione. In zona: <span class='ar-lock'><b>{nomi}</b></span>.")
+                f"<b>niente nuovi ingressi</b>. I VWAP dei titoli già in watchlist (in sconto) sono stati comunque rinfrescati.")
     else:
         parti = []
         if rep["aggiunti"]:
             parti.append(f"<span class='ar-add'><b>{rep['aggiunti']}</b> nuovi 🤖</span>")
         if rep["aggiornati"]:
-            parti.append(f"<span class='ar-upd'><b>{rep['aggiornati']}</b> aggiornati</span>")
-        nota = f"Promossi in watchlist: {' e '.join(parti)}."
-        if rep["saltati"]:
-            nomi = ", ".join(rep["saltati_tickers"]) if rep["saltati_tickers"] else "—"
-            nota += f" Altri <b>{rep['saltati']}</b> in zona sono tuoi e non li ho toccati (<span class='ar-lock'>{nomi}</span>)."
+            parti.append(f"<span class='ar-upd'><b>{rep['aggiornati']}</b> auto aggiornati</span>")
+        if rep["vwappati"]:
+            parti.append(f"<span class='ar-vw'><b>{rep['vwappati']}</b> manuali con VWAP rinfrescati</span>")
+        nota = f"Esito: {' · '.join(parti)}." if parti else f"<b>{rep['in_zona']}</b> titoli in zona, nessun cambiamento di stato."
     extra = ""
-    if rep["rimossi"] or rep["zombie"]:
-        extra = (f" <span class='ar-rm'>🧹 {rep['rimossi']}</span> rimossi perché usciti dalla zona"
-                 + (f", <span class='ar-zm'>🗑️ {rep['zombie']}</span> usciti dallo screening" if rep["zombie"] else "") + ".")
+    if rep["rimossi"]:
+        extra = f" <span class='ar-rm'>🗑️ {rep['rimossi']}</span> auto rimossi perché non più in sconto."
 
     st.markdown(
         '<div class="argo-report">'
@@ -711,7 +679,7 @@ with tab1:
     st.caption("💡 VVIX > 105 con VIX < 25 = falso segnale di calma: le istituzioni si stanno già coprendo (anticipo di crollo).")
 
 # ---------------------------------------------------------------
-# TAB 2 — SCREENING (SCELTA A: via "Ripartiti / Coperti")
+# TAB 2 — SCREENING
 # ---------------------------------------------------------------
 with tab2:
     st.subheader("📋 Lista Titoli Screening")
