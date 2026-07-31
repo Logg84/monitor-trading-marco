@@ -2022,5 +2022,21 @@
         "operatingMargins": 0.1299,
         "returnOnEquity": 0.12632,
         "last_updated": "2026-07-30T22:37:44.157885"
+    },
+    "IP": {
+        "marketCap": 21620179017.994537,
+        "debtToEquity": 67.022,
+        "freeCashflow": 1795124992,
+        "operatingMargins": 0.00983,
+        "returnOnEquity": -0.16479,
+        "last_updated": "2026-07-31T22:35:08.375437"
+    },
+    "MLM": {
+        "marketCap": 31532504805.578613,
+        "debtToEquity": 51.533,
+        "freeCashflow": 656249984,
+        "operatingMargins": 0.20031,
+        "returnOnEquity": 0.08894,
+        "last_updated": "2026-07-31T22:35:08.376077"
     }
 }

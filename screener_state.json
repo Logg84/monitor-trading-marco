@@ -1010,5 +1010,13 @@
     "MDT": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "IP": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "MLM": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
