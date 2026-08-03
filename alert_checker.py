@@ -39,6 +39,14 @@ def storico_yfinance(ticker: str, period: str = "6mo", interval: str = "1d") -> 
         print(f"Errore storico yfinance per {simbolo}: {e}")
         return pd.DataFrame()
 
+def ottieni_nome_yfinance(ticker: str) -> str | None:
+    simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
+    try:
+        info = yf.Ticker(simbolo).info
+        return info.get("longName") or info.get("shortName")
+    except Exception:
+        return None
+
 TD_API_KEY = os.environ.get("TWELVEDATA_API_KEY")
 CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
@@ -383,6 +391,10 @@ def main():
                 giorni_mancanti = (COOLDOWN_SEC - (ora_attuale - ultimo_invio)) / 86400
                 print(f"{chiave} in zona ma in cooldown ({giorni_mancanti:.1f}g rimanenti) -> skip")
                 continue
+            
+            # Recupera nome per il messaggio
+            nome_azienda = ottieni_nome_yfinance(ticker) or ticker
+
             convergenza = len(livelli_toccati) >= 2
             tono = tono_messaggio(bias, convergenza)
             storico = ottieni_time_series(ticker_td, "1day", 200)
@@ -392,7 +404,8 @@ def main():
             valutazione = valuta_forza(storico, prezzo, livello_rif["valore"]) if not storico.empty else "Momentum non disponibile"
             tocchi_str = " + ".join([f"{l['tipo']} ({l['valore']:.2f})" for l in livelli_toccati])
             note_str = " | ".join([f"{l['tipo']}: {l['nota']}" for l in livelli_toccati if l["nota"]])
-            msg = (f"🔔 {ticker}\n{tono}\nPrezzo attuale: {prezzo:.4f}\n🎯 Tocco: {tocchi_str}\n")
+            
+            msg = (f"🔔 {ticker} · {nome_azienda}\n{tono}\nPrezzo attuale: {prezzo:.4f}\n🎯 Tocco: {tocchi_str}\n")
             if convergenza:
                 msg += f"📊 Convergenza: {len(livelli_toccati)} livelli ({tocchi_str})\n"
             msg += f"🌍 Regime: {stato_regime} ({bias})\n{valutazione}\n"
