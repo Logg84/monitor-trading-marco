@@ -1,0 +1,67 @@
+name: COT Weekly Update
+
+on:
+  schedule:
+    # Venerdì 21:35 UTC, dopo pubblicazione CFTC
+    - cron: "35 21 * * 5"
+    # Sabato 06:35 UTC come recupero se il primo run fallisce
+    - cron: "35 6 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cot-update
+  cancel-in-progress: false
+
+jobs:
+  update-cot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      BRANCH: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          else
+            python -m pip install pandas requests plotly
+          fi
+
+      - name: Build COT files
+        run: |
+          python cot_build.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout "$BRANCH" || git checkout -b "$BRANCH"
+
+          git add cot_data.json cot_report.html
+
+          if git diff --cached --quiet; then
+            echo "Nessuna variazione nei file COT."
+            exit 0
+          fi
+
+          git commit -m "chore(cot): aggiornamento settimanale $(date -u +%Y-%m-%d)"
+          git pull --rebase origin "$BRANCH" || true
+          git push origin "HEAD:$BRANCH"
