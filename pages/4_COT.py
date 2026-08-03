@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json, os, base64, requests, datetime, html as _html
+import yfinance as yf
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from nav import render_navbar, section_header
 
 st.set_page_config(page_title="ARGO COT", layout="wide", page_icon="🛢️")
@@ -12,6 +14,16 @@ GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 
 WINDOW = 104
 MINW = 52
+
+# --- simboli yfinance (future front-month) per le materie prime CFTC ---
+YF_COMM = {
+    "GOLD": "GC=F", "SILVER": "SI=F", "COPPER": "HG=F", "PLATINUM": "PL=F", "PALLADIUM": "PA=F",
+    "WTI": "CL=F", "BRENT": "BZ=F", "RBOB": "RB=F", "HO": "HO=F", "NG": "NG=F",
+    "CORN": "ZC=F", "WHEAT": "ZW=F", "SOYBEANS": "ZS=F", "SOYBEAN_OIL": "ZL=F", "SOYBEAN_MEAL": "ZM=F",
+    "OATS": "ZO=F", "ROUGH_RICE": "ZR=F", "COTTON": "CT=F", "COFFEE": "KC=F",
+    "SUGAR11": "SB=F", "SUGAR14": None, "COCOA": "CC=F", "OJ": "OJ=F", "LUMBER": "LBS=F",
+    "LIVE_CATTLE": "LE=F", "FEEDER_CATTLE": "GF=F", "LEAN_HOGS": "HE=F",
+}
 
 st.markdown("""
 <style>
@@ -70,6 +82,25 @@ def carica_cot():
         return None
 
 
+@st.cache_data(ttl=43200)
+def prezzo_yf(sym):
+    """Serie daily del future front-month; None se assente/errore."""
+    if not sym:
+        return None
+    try:
+        h = yf.download(sym, period="3y", interval="1d", progress=False, auto_adjust=True)
+        if h is None or h.empty:
+            return None
+        if isinstance(h.columns, pd.MultiIndex):
+            h.columns = h.columns.droplevel(-1)
+        c = h["Close"].dropna()
+        if c.index.tz is not None:
+            c = c.tz_localize(None)
+        return c
+    except Exception:
+        return None
+
+
 DATA = carica_cot()
 
 if not DATA:
@@ -79,7 +110,6 @@ if not DATA:
 META = DATA["meta"]; FX = DATA["fx"]; COMM = DATA["comm"]
 COMM_NAME = DATA.get("comm_name", {}); FX_ORDER = DATA.get("fx_order", []); COMM_ORDER = DATA.get("comm_order", [])
 
-# ---- freschezza ----
 try:
     d_rep = datetime.date.fromisoformat(META["date"])
     giorni = (datetime.date.today() - d_rep).days
@@ -98,7 +128,6 @@ st.markdown(
     f'</div>', unsafe_allow_html=True)
 
 
-# ================= helper statistici (speculari al builder) =================
 def series(a, k):
     return [x[k] for x in a[-WINDOW:]]
 
@@ -141,7 +170,6 @@ def comm_state(sym):
     return {"key": key, "tone": tone, "pP": pP, "pM": pM, "pS": pS, "dP": dP, "dM": dM, "revP": revP}
 
 
-# ================= ticker strip =================
 def build_ticker():
     items = []
     for s in FX_ORDER:
@@ -288,18 +316,44 @@ with tab_cm:
 
         g1, g2 = st.columns([1.6, 1], gap="large")
         with g1:
-            st.markdown(f"**Trasferimento rischio — {COMM_NAME.get(sym, sym)}** · {len(arr)} sett. · il prezzo NON è nel COT: la divergenza la confermi su TradingView.")
+            st.markdown(f"**Trasferimento rischio — {COMM_NAME.get(sym, sym)}** · {len(arr)} sett. · la linea ambra (asse destro) è il **prezzo del future front‑month**, allineato alla settimana CFTC.")
+            show_price = st.checkbox("Sovrapponi prezzo dell'asset (asse destro)", value=True, key="cot_price_on")
             n = len(pA)
-            figc = go.Figure()
-            figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant", line={"color": "#d65a4a", "width": 2}, fill="tozeroy", fillcolor="rgba(214,90,74,.08)"))
-            figc.add_trace(go.Scatter(y=mA, name="Managed Money", line={"color": "#4fae7e", "width": 2}))
-            figc.add_trace(go.Scatter(y=sA, name="Swap Dealer", line={"color": "#6fcfcf", "width": 1.5, "dash": "dash"}))
-            figc.update_layout(template="plotly_dark", height=330, margin=dict(l=10, r=10, t=10, b=10),
+            figc = make_subplots(specs=[[{"secondary_y": True}]])
+            figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant", line={"color": "#d65a4a", "width": 2}, fill="tozeroy", fillcolor="rgba(214,90,74,.08)"), secondary_y=False)
+            figc.add_trace(go.Scatter(y=mA, name="Managed Money", line={"color": "#4fae7e", "width": 2}), secondary_y=False)
+            figc.add_trace(go.Scatter(y=sA, name="Swap Dealer", line={"color": "#6fcfcf", "width": 1.5, "dash": "dash"}), secondary_y=False)
+
+            price_note = ""
+            if show_price:
+                close = prezzo_yf(YF_COMM.get(sym))
+                if close is not None and len(close) > 1:
+                    times = [x["t"] for x in arr[-WINDOW:]]
+                    py = []
+                    for t in times:
+                        ts = pd.Timestamp(int(t), unit="ms")
+                        v = close.asof(ts)
+                        py.append(None if pd.isna(v) else float(v))
+                    figc.add_trace(go.Scatter(
+                        y=py, name="Prezzo (front-month)",
+                        line={"color": "#fbbf24", "width": 2.4},
+                        hovertemplate="prezzo %{y:.2f}<extra></extra>"), secondary_y=True)
+                else:
+                    price_note = f"Prezzo non disponibile per {sym} (nessun future front‑month su yfinance)."
+
+            figc.update_layout(template="plotly_dark", height=340, margin=dict(l=10, r=10, t=10, b=10),
                                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                               legend={"orientation": "h", "y": 1.12, "font": {"family": "IBM Plex Mono", "size": 10.5}},
+                               legend={"orientation": "h", "y": 1.14, "font": {"family": "IBM Plex Mono", "size": 10.5}},
                                xaxis={"title": "settimane (ultime 104)", "tickfont": {"size": 9.5, "color": "#64748b"}},
-                               yaxis={"tickfont": {"family": "IBM Plex Mono", "size": 10, "color": "#64748b"}})
+                               )
+            figc.update_yaxes(title_text="contratti", secondary_y=False,
+                              tickfont={"family": "IBM Plex Mono", "size": 10, "color": "#64748b"},
+                              gridcolor="rgba(255,255,255,.05)")
+            figc.update_yaxes(title_text="prezzo", secondary_y=True, showgrid=False,
+                              tickfont={"family": "IBM Plex Mono", "size": 10, "color": "#fbbf24"})
             st.plotly_chart(figc, use_container_width=True)
+            if price_note:
+                st.caption(price_note)
 
             cls_v = "pos" if dP >= 0 else "neg"; cls_m = "pos" if dM >= 0 else "neg"
             st.markdown(
@@ -314,7 +368,6 @@ with tab_cm:
                 f'<div class="cot-met"><div class="lab">Δ MM 2w</div><div class="val {cls_m}">{dM:+.0f}</div></div>'
                 f'</div>', unsafe_allow_html=True)
 
-            # verdict
             opp = (pP < 30 and pM > 70) or (pP > 70 and pM < 30)
             if pP < 20 and pM > 65:
                 vcls = "red" if revP else "yellow"
@@ -348,16 +401,17 @@ with tab_cm:
             st.markdown("".join(als), unsafe_allow_html=True)
 
         with g2:
-            with st.expander("📖 Come leggere le 3 linee", expanded=True):
+            with st.expander("📖 Come leggere le 3 linee + prezzo", expanded=True):
                 st.markdown(
-                    "- 🟥 **Producer/Merchant** — strutturalmente *short* (coprono la merce): il segno NON è il segnale, lo è il **percentile**. Linea che **sale** (meno short) = contesto di **bottom**; linea che **scende** = contesto di **top**.\n"
-                    "- 🟩 **Managed Money** — trend-following, segno leggibile: sopra zero = long, sotto = short. A **estremi** il trend è maturo: non inseguire, non invertire ancora.\n"
-                    "- 🟦 **Swap Dealer** — controparte, rumoroso. Utile solo se **cambia segno / riduce** la posizione: conferma di inversione. Peso secondario.",
+                    "- 🟥 **Producer/Merchant** — strutturalmente *short*: il segnale è il **percentile**. Linea che **sale** = contesto di **bottom**; che **scende** = contesto di **top**.\n"
+                    "- 🟩 **Managed Money** — segno leggibile: sopra zero = long, sotto = short. A **estremi** il trend è maturo.\n"
+                    "- 🟦 **Swap Dealer** — rumoroso; utile solo se cambia segno / riduce.\n"
+                    "- 🟨 **Prezzo (asse destro)** — future front‑month. Serve per la **divergenza**: prezzo su nuovi massimi ma Managed no = carburante in calo.",
                     unsafe_allow_html=False)
             with st.expander("⚙️ Configurazioni operative"):
                 st.markdown(
                     "- **▲ RIALZISTA** — Producer ai minimi + Managed ai massimi = tensione; diventa long **solo quando il Producer inverte**.\n"
                     "- **▼ RIBASSISTA** — speculare: conferma quando il Producer riprende a coprire.\n"
                     "- **TREND VIVO** — Managed in trend *senza* estremi e Producer che accompagna → non operare contro.\n"
-                    "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo (da confermare su TradingView).",
+                    "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo (ora leggibile direttamente sull'asse destro).",
                     unsafe_allow_html=False)
