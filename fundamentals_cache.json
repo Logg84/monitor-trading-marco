@@ -2038,5 +2038,13 @@
         "operatingMargins": 0.20031,
         "returnOnEquity": 0.08894,
         "last_updated": "2026-07-31T22:35:08.376077"
+    },
+    "F": {
+        "marketCap": 57541006691.72762,
+        "debtToEquity": 456.708,
+        "freeCashflow": -7940250112,
+        "operatingMargins": 0.018819999,
+        "returnOnEquity": -0.18252,
+        "last_updated": "2026-08-03T22:35:24.830955"
     }
 }

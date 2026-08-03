@@ -1018,5 +1018,9 @@
     "MLM": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "F": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
