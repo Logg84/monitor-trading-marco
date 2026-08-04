@@ -303,7 +303,7 @@ with tab_cm:
                     f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#64748b;margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
                     unsafe_allow_html=True)
 
-                opts = {s: (COMM_NAME.get(s) or s) for s in mk}   # menu sempre completo (≥52 sett.), come nello standalone
+        opts = {s: (COMM_NAME.get(s) or s) for s in mk}   # menu sempre completo (≥52 sett.), come nello standalone
         if "cot_market" not in st.session_state or st.session_state["cot_market"] not in opts:
             st.session_state["cot_market"] = (visible[0] if visible else mk[0])
         sym = st.selectbox("Mercato", list(opts.keys()), format_func=lambda s: opts[s], label_visibility="collapsed")
