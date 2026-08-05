@@ -2046,5 +2046,29 @@
         "operatingMargins": 0.018819999,
         "returnOnEquity": -0.18252,
         "last_updated": "2026-08-03T22:35:24.830955"
+    },
+    "BBY": {
+        "marketCap": 17809822147.0,
+        "debtToEquity": 134.09,
+        "freeCashflow": 1143750016,
+        "operatingMargins": 0.0404,
+        "returnOnEquity": 0.39104,
+        "last_updated": "2026-08-05T22:36:19.272371"
+    },
+    "OXY": {
+        "marketCap": 53521294626.732895,
+        "debtToEquity": 41.989,
+        "freeCashflow": 3033374976,
+        "operatingMargins": 0.17725,
+        "returnOnEquity": 0.04053,
+        "last_updated": "2026-08-05T22:36:19.273804"
+    },
+    "KR": {
+        "marketCap": 34724848130.72511,
+        "debtToEquity": 373.449,
+        "freeCashflow": 2994500096,
+        "operatingMargins": 0.03224,
+        "returnOnEquity": 0.13779001,
+        "last_updated": "2026-08-05T22:36:19.273198"
     }
 }

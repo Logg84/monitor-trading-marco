@@ -1022,5 +1022,17 @@
     "F": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "BBY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "KR": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "OXY": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
