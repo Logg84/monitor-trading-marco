@@ -11,12 +11,12 @@ import numpy as np
 import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# === MANOPOLE "POC OPERATIVO" ===
-MAX_POC_DIST_PCT = 50.0
-MIN_POC_WEIGHT_NORM = 5.0
-POC_MERGE_PCT = 2.5
+# === MANOPOLE "POC OPERATIVO" (ritoccale qui) ===
+MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un relitto: ignorato
+MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
+POC_MERGE_PCT = 2.5         # POC della watchlist entro questa % l'uno dall'altro vengono accorpati
 
-# === FINESTRE TEMPORALI ===
+# === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
 BARS_PER_YEAR = 252
 WIN_VWAP_3M = 63
 WIN_VWAP_1Y = 252
@@ -26,6 +26,7 @@ WIN_ROC_COMPARE = 15
 WIN_VOL = 25
 WIN_MOM = 5
 
+# === NUMERO DI POC PORTATI IN WATCHLIST ===
 N_POC_WATCHLIST = 3
 
 NASDAQ100_STATIC = [
@@ -48,8 +49,7 @@ _HEADER_TARGETS = [
 
 
 class DataEngine:
-    def __init__(self, base_dir=None, data_file="argo_database.json",
-                 state_file="screener_state.json", cache_file="fundamentals_cache.json"):
+    def __init__(self, base_dir=None, data_file="argo_database.json", state_file="screener_state.json", cache_file="fundamentals_cache.json"):
         self.base_dir = base_dir or os.path.dirname(os.path.abspath(__file__))
         self.data_path = os.path.join(self.base_dir, data_file)
         self.state_path = os.path.join(self.base_dir, state_file)
@@ -60,7 +60,6 @@ class DataEngine:
         self.debug_log = []
         self.load_all()
 
-    # --- metodi di utilità (invariati) ---
     def add_debug(self, msg, level="info"):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         self.debug_log.append({"time": timestamp, "msg": msg, "level": level})
@@ -170,7 +169,6 @@ class DataEngine:
         except Exception as e:
             self.add_debug(f"Errore salvataggio cache fondamentali: {e}", "error")
 
-    # --- metodi per cache storica (invariati) ---
     def _save_to_history_cache(self, ticker, df):
         if df is None or df.empty:
             return
@@ -209,7 +207,9 @@ class DataEngine:
             self.add_debug(f"Errore lettura cache storica per {ticker}: {e}", "warning")
         return None
 
-    # --- estrazione ticker (invariata) ---
+    # ===============================
+    # ESTRAZIONE TICKERS (multi-parser)
+    # ===============================
     def estrai_ticker_wikipedia(self, url, headers=None):
         headers = headers or {'User-Agent': 'Mozilla/5.0'}
         self.add_debug(f"Estrazione ticker da: {url}", "info")
@@ -218,6 +218,7 @@ class DataEngine:
             if res.status_code != 200:
                 raise ConnectionError(f"Wikipedia ha risposto con codice {res.status_code}")
             html = res.text
+
             all_tabs = []
             diag = {}
             for parser in ["html5lib", "bs4", "lxml"]:
@@ -228,8 +229,10 @@ class DataEngine:
                 diag[parser] = len(tabs)
                 all_tabs.extend(tabs)
             self.add_debug(f"[wiki] tabelle per parser: {diag} (totale unione={len(all_tabs)})", "info")
+
             if not all_tabs:
                 raise ValueError("read_html non ha trovato alcuna tabella con nessun parser.")
+
             for idx, tab in enumerate(all_tabs):
                 cols_norm = [self._norm_header(c) for c in tab.columns]
                 for target in _HEADER_TARGETS:
@@ -240,6 +243,7 @@ class DataEngine:
                         if len(tickers) >= 10:
                             self.add_debug(f"[wiki] MATCH nome '{target}' tab#{idx} -> {len(tickers)} ticker", "success")
                             return tickers
+
             best_tab, best_col, best_n = None, None, 0
             for idx, tab in enumerate(all_tabs):
                 if tab.empty:
@@ -262,6 +266,7 @@ class DataEngine:
                         uniq.append(t)
                 self.add_debug(f"[wiki] EURISTICA tab#{best_tab} colonna '{best_col}' -> {len(uniq)} ticker", "success")
                 return uniq
+
             self.add_debug(f"[wiki] DIAG nessun match: parsers={diag}, best_euristica={best_n} su tab#{best_tab}.", "warning")
             for tab in all_tabs:
                 if not tab.empty:
@@ -307,7 +312,9 @@ class DataEngine:
             raise ValueError(f"Indice non riconosciuto: {indice_scelto}")
         return tickers
 
-    # --- download batch (invariato) ---
+    # ===============================
+    # DOWNLOAD PREZZI IN BATCH (GIORNALIERO)
+    # ===============================
     def download_prices_batch(self, tickers, period="10y", interval="1d"):
         self.add_debug(f"Avvio download batch prezzi per {len(tickers)} ticker (Period: {period}, Interval: {interval})...", "info")
         chunk_size = 50
@@ -501,7 +508,9 @@ class DataEngine:
         codice = f"{simbolo} {score}/4"
         return score, codice
 
-    # --- Bussola ARGO (invariata) ---
+    # ===============================
+    # DATI MACRO E BUSSOLA
+    # ===============================
     def ottieni_bussola_argo(self):
         try:
             self.add_debug("Download dati macro per Bussola ARGO...", "info")
@@ -555,9 +564,10 @@ class DataEngine:
             bussola = {"spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"], "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG", "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"}
             return {"df": pd.DataFrame({"Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30), "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)}), "latest": latest, "bussola": bussola}
 
-    # --- POC / VWAP (invariati) ---
+    # ===============================
+    # FUNZIONI DI CALCOLO REA
+    # ===============================
     def find_structural_lows(self, hist):
-        # ... (identico) ...
         df = hist.copy()
         df.index = pd.to_datetime(df.index)
         df["Year"] = df.index.year
@@ -728,13 +738,17 @@ class DataEngine:
         return best_poc, round(float(best_dist), 2)
 
     def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT, merge_pct=POC_MERGE_PCT):
+        """I `n` POC operativi (entro max_dist_pct) più STRUTTURALI, ma MUTUAMENTE
+        distanti almeno merge_pct: così un cluster di POC quasi identici collassa in
+        uno solo (il più forte del gruppo), mentre POC davvero separati restano.
+        Greedy per weight_norm decrescente. NON usato per l'alert (quello è closest_poc)."""
         ops = []
         for poc in pocs:
             poc_price = float(poc["poc_price"])
             dist = (current_price - poc_price) / poc_price * 100
             if abs(dist) <= max_dist_pct:
                 ops.append((float(poc.get("weight_norm", 0.0)), abs(dist), poc_price, int(poc["anchor_year"])))
-        ops.sort(key=lambda x: x[0], reverse=True)
+        ops.sort(key=lambda x: x[0], reverse=True)  # prima i più strutturali
         chosen = []
         for wn, d, price, yr in ops:
             if all(abs(price - c["poc_price"]) / c["poc_price"] * 100 > merge_pct for c in chosen):
@@ -877,7 +891,6 @@ class DataEngine:
             item["Health"] = health_code
             item["Health_Score"] = health_score
 
-            # Size & Entry Mode (invariati)
             mcap_val = item["Market Cap (B)"]
             base_size = 10.0 if mcap_val >= 10.0 else (5.0 if mcap_val >= 2.0 else 2.0)
             size_mult = 1.2 if health_score >= 3 else (1.0 if health_score >= 2 else 0.6)
@@ -886,7 +899,6 @@ class DataEngine:
             if final_size < 1.0:
                 final_size = 0.0
             item["Size Suggerita (%)"] = float(final_size)
-
             dist_label = item["Distanza POC (%)"]
             if dist_label != "N/D":
                 try:
@@ -904,7 +916,6 @@ class DataEngine:
             if argo_bussola['bias'] == "SHORT":
                 entry_mode = "⛔ SHORT (NON ENTRARE)" if final_size == 0 else "⏳ LIMITE (size ridotta)"
             item["Entry Mode"] = str(entry_mode)
-
             status_precedente = self.screener_state.get(ticker, {}).get("status", None)
             if item["Drawdown (%)"] <= -soglia_drawdown:
                 item["Stato"] = "Active"
