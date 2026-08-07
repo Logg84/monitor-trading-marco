@@ -365,11 +365,12 @@ class DataEngine:
         return None
 
     # ===============================
-    # FUNDAMENTALS + HEALTH DATA
+    # FUNDAMENTALS + HEALTH DATA (MODIFICATO)
     # ===============================
     def get_ticker_fundamentals(self, ticker):
         """
         Recupera fondamentali, inclusi quelli per Health Check.
+        Aggiunto 'operatingCashflow' per il nuovo criterio.
         Salva in cache 14 giorni.
         """
         now = datetime.datetime.now()
@@ -398,6 +399,7 @@ class DataEngine:
             # --- dati per Health Check ---
             net_income = None
             revenue_growth = None
+            operating_cf = info.get('operatingCashflow', None)   # <-- nuovo
             try:
                 fin = t.financials
                 if fin is not None and not fin.empty and 'Net Income' in fin.index:
@@ -424,6 +426,7 @@ class DataEngine:
                 "returnOnEquity": info.get('returnOnEquity', None),
                 "netIncome": net_income,
                 "revenueGrowth": revenue_growth,
+                "operatingCashflow": operating_cf,          # nuovo
                 "last_updated": now.isoformat()
             }
             self.fundamentals_cache[ticker] = entry
@@ -436,6 +439,7 @@ class DataEngine:
                 "marketCap": 0, "debtToEquity": None, "freeCashflow": None,
                 "operatingMargins": None, "returnOnEquity": None,
                 "netIncome": None, "revenueGrowth": None,
+                "operatingCashflow": None,
                 "last_updated": now.isoformat()
             }
 
@@ -473,30 +477,29 @@ class DataEngine:
 
     def compute_health_check(self, ticker):
         """
-        Valutazione assoluta salute finanziaria (0-4).
-        Criteri:
-        - Free Cash Flow TTM > 0
-        - Crescita Ricavi YoY (trimestre più recente vs stesso trimestre anno prima) > 0
-        - Utile Netto ultimo anno > 0
-        - Debito/Equity < 1.5
+        Valutazione assoluta salute finanziaria (0-4) - CRITERI ALLARGATI.
+        - Operating Cash Flow > 0 (sostituisce FCF)
+        - Crescita Ricavi YoY > -5% (invece di >0)
+        - Utile Netto > 0
+        - Debito/Equity < 3.0 (invece di 1.5)
         """
         fund = self.fundamentals_cache.get(ticker, {})
         score = 0
-        # FCF
-        fcf = fund.get("freeCashflow")
-        if fcf is not None and fcf > 0:
+        # Operating Cash Flow > 0
+        opcf = fund.get("operatingCashflow")
+        if opcf is not None and opcf > 0:
             score += 1
-        # Crescita ricavi
+        # Crescita Ricavi > -5%
         rev_g = fund.get("revenueGrowth")
-        if rev_g is not None and rev_g > 0:
+        if rev_g is not None and rev_g > -0.05:
             score += 1
-        # Utile netto
+        # Utile Netto > 0
         ni = fund.get("netIncome")
         if ni is not None and ni > 0:
             score += 1
-        # D/E
+        # D/E < 3.0
         de = fund.get("debtToEquity")
-        if de is not None and de < 1.5:
+        if de is not None and de < 3.0:
             score += 1
 
         if score == 4:
@@ -886,7 +889,7 @@ class DataEngine:
         for item in pre_filtered:
             ticker = item["Ticker"]
 
-            # --- NUOVO HEALTH CHECK ---
+            # --- NUOVO HEALTH CHECK con criteri allargati ---
             health_score, health_code = self.compute_health_check(ticker)
             item["Health"] = health_code
             item["Health_Score"] = health_score
