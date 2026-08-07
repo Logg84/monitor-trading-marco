@@ -137,6 +137,22 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { paddin
 render_navbar("screening", hide_sidebar=False)
 section_header("Terminale operativo", "Screening & Titoli in Sconto")
 
+# ---------- LEGENDA HEALTH CHECK ----------
+with st.expander("ℹ️ Legenda Health Check", expanded=False):
+    st.markdown("""
+    **Health Check** – Valutazione assoluta della salute finanziaria (0-4):
+    - 🔹 **Free Cash Flow** TTM > 0 → l'azienda genera cassa operativa
+    - 🔹 **Crescita Ricavi** YoY (ultimo trimestre vs stesso trimestre anno prima) > 0 → fatturato in espansione
+    - 🔹 **Utile Netto** ultimo anno fiscale > 0 → redditività positiva
+    - 🔹 **Debito / Patrimonio Netto** < 1.5 → indebitamento contenuto
+
+    | Punteggio | Simbolo | Significato |
+    |-----------|---------|-------------|
+    | 4/4 | ✅ | Tutti i criteri superati – azienda solida |
+    | 2-3/4 | ⚠️ | Qualche debolezza – attenzione |
+    | 0-1/4 | ❌ | Criteri largamente non soddisfatti – fragile |
+    """)
+
 # ---------------------------------------------------------------
 # MOTORE
 # ---------------------------------------------------------------
@@ -306,7 +322,7 @@ with st.sidebar:
         help="Un titolo ENTRA da solo in watchlist (🤖) se il prezzo è entro questa % da POC o VWAP. Una volta dentro resta finché è in sconto e i suoi VWAP si rinfrescano a ogni run. I manuali non vengono mai toccati su Livelli/POC."
     )
     st.markdown("---")
-    st.caption("💡  Quality Score (0-4):  solidità rispetto alla media del suo indice.")
+    st.caption("💡  Health Check (0-4):  valutazione assoluta della salute finanziaria (FCF, Crescita Ricavi, Utile Netto, D/E).")
     st.caption("📉  Bottom Score (0-4):  segnali di inversione (Decelerazione ROC, MACD, POC, Volume).")
     st.caption("🧹  POC operativi:  nel grafico vedi solo i POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
     st.caption("🤖  Automazione:  i titoli in zona entrano da soli; i VWAP si rinfrescano sempre; escono solo se non più in sconto.")
@@ -453,7 +469,7 @@ _HDR = {
     "Indice": ("Indice", "Indice di appartenenza"),
     "Prezzo": ("Prezzo", "Prezzo attuale"),
     "Drawdown (%)": ("DD %", "Drawdown dall'ATH (%)"),
-    "Quality Score (0-4)": ("Quality", "Quality Score (0-4) — solidità vs mediana indice"),
+    "Health": ("Health", "Health Check (0-4) — salute finanziaria assoluta"),
     "Bottom Score (0-4)": ("Bottom", "Bottom Score (0-4) — segnali di inversione"),
     "Bottom Dettagli": ("Segnali", "Segnali tecnici attivi"),
     "POC più vicino": ("POC vicino", "POC operativo più vicino"),
@@ -467,17 +483,17 @@ _HDR = {
     "Grafico TW": ("TW", "Apri su TradingView"),
 }
 _RIGHT = {"Prezzo", "Drawdown (%)", "Market Cap (B)", "Distanza POC (%)", "VWAP vicino", "Distanza VWAP (%)"}
-_CENTER = {"Quality Score (0-4)", "Bottom Score (0-4)", "🎯 Alert", "Grafico TW", "Stato"}
+_CENTER = {"Health", "Bottom Score (0-4)", "🎯 Alert", "Grafico TW", "Stato"}
 
 # barra ordinamento: chip -> colonna reale + direzione di default
-_CHIPS = ["Ticker", "Prezzo", "DD%", "Quality", "Bottom", "MCap", "dPOC%", "dVWAP%"]
+_CHIPS = ["Ticker", "Prezzo", "DD%", "Health", "Bottom", "MCap", "dPOC%", "dVWAP%"]
 _CHIP2COL = {
     "Ticker": "Ticker", "Prezzo": "Prezzo", "DD%": "Drawdown (%)",
-    "Quality": "Quality Score (0-4)", "Bottom": "Bottom Score (0-4)",
+    "Health": "Health_Score", "Bottom": "Bottom Score (0-4)",
     "MCap": "Market Cap (B)", "dPOC%": "_dist_poc_num", "dVWAP%": "Distanza VWAP (%)",
 }
 _CHIP_DIR = {
-    "Ticker": "asc", "Prezzo": "desc", "DD%": "asc", "Quality": "desc",
+    "Ticker": "asc", "Prezzo": "desc", "DD%": "asc", "Health": "desc",
     "Bottom": "desc", "MCap": "desc", "dPOC%": "asc", "dVWAP%": "asc",
 }
 
@@ -569,13 +585,15 @@ def _fmt2(v):
 
 
 def _score_bg(col, v):
-    if col.startswith("Quality"):
-        if v >= 3: return "background:#065f46;color:#a7f3d0"
-        if v >= 2: return "background:#143524;color:#86efac"
+    # usato solo per Bottom Score
+    if col.startswith("Bottom"):
+        if v >= 4: return "background:#065f46;color:#a7f3d0"
+        if v >= 3: return "background:#143524;color:#86efac"
+        if v >= 2: return "background:#3a2408;color:#fde68a"
         return "background:#3a1414;color:#fca5a5"
-    if v >= 4: return "background:#065f46;color:#a7f3d0"
-    if v >= 3: return "background:#143524;color:#86efac"
-    if v >= 2: return "background:#3a2408;color:#fde68a"
+    # fallback
+    if v >= 3: return "background:#065f46;color:#a7f3d0"
+    if v >= 2: return "background:#143524;color:#86efac"
     return "background:#3a1414;color:#fca5a5"
 
 
@@ -617,6 +635,16 @@ def _alert_cell(val, row):
     return inner
 
 
+def _health_style(score):
+    """Stili per la colonna Health in base al punteggio."""
+    if score == 4:
+        return "background:#065f46; color:#a7f3d0"
+    elif score >= 2:
+        return "background:#78350f; color:#fde68a"
+    else:
+        return "background:#7f1d1d; color:#fca5a5"
+
+
 def _td(col, val, row=None):
     na = _isna(val)
     raw = "" if na else str(val).strip()
@@ -628,7 +656,17 @@ def _td(col, val, row=None):
         url = "" if na else str(val)
         inner = f'<a class="tw" href="{html.escape(url, quote=True)}" target="_blank" rel="noopener">📈</a>' if url else "—"
         return ("c", "", inner)
-    if col in ("Quality Score (0-4)", "Bottom Score (0-4)"):
+    if col == "Health":
+        score = row.get("Health_Score") if row is not None else None
+        if score is None or pd.isna(score):
+            return ("score", "", "—")
+        try:
+            score_int = int(score)
+        except (ValueError, TypeError):
+            return ("score", "", str(val))
+        disp = str(val).strip()  # es. "✅ 4/4"
+        return ("score", _health_style(score_int), disp)
+    if col == "Bottom Score (0-4)":
         try:
             v = float(val)
         except Exception:
@@ -809,7 +847,7 @@ if st.session_state.get("ultimi_spostamenti"):
 
 ordine_colonne = [
     "Ticker", "Indice", "Prezzo", "Drawdown (%)",
-    "Quality Score (0-4)", "Bottom Score (0-4)", "Bottom Dettagli",
+    "Health", "Bottom Score (0-4)", "Bottom Dettagli",
     "POC più vicino", "Distanza POC (%)", "VWAP vicino", "Distanza VWAP (%)",
     "🎯 Alert", "Market Cap (B)", "Entry Mode", "Stato"
 ]
@@ -826,7 +864,7 @@ if has_data_to_show:
     # calcola VWAP vicino / distanze / alert unificato
     df_total = arricchisci(df_total, soglia_poc_pct)
 
-    t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Quality)", "🎯 ALERT POC / VWAP"])
+    t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Health)", "🎯 ALERT POC / VWAP"])
 
     with t_sconto:
         st.subheader("Titoli in forte sconto")
@@ -879,7 +917,7 @@ if has_data_to_show:
                         bottom_score = 0
                     bottom_dettagli = str(row.get('Bottom Dettagli', 'Nessun segnale'))
                     dd_val = row.get('Drawdown (%)', 'N/D')
-                    qs_val = row.get('Quality Score (0-4)', 'N/D')
+                    health_val = row.get('Health', 'N/D')
                     interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
                     score_pct = min(int((bottom_score / 4) * 100), 100)
                     thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
@@ -899,7 +937,7 @@ if has_data_to_show:
                         '<div style="margin-bottom:6px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
                         '<div style="display:flex;gap:0;">' + bar_html + '</div></div>'
                         '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + bottom_dettagli + '</div>'
-                        '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Quality Score: ' + str(qs_val) + '/4</div></div>')
+                        '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
                     st.markdown(card_html, unsafe_allow_html=True)
                     legenda_html = ('<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:11px;color:#94a3b8;">'
                         '<b style="color:#e2e8f0;">📖 Come leggere i pannelli:</b><br>'
