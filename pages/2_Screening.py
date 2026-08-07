@@ -137,7 +137,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { paddin
 render_navbar("screening", hide_sidebar=False)
 section_header("Terminale operativo", "Screening & Titoli in Sconto")
 
-# ---------- LEGENDA HEALTH CHECK ----------
+# ---------- LEGENDA HEALTH CHECK (aggiornata con nota mercati europei) ----------
 with st.expander("ℹ️ Legenda Health Check", expanded=False):
     st.markdown("""
     **Health Check** – Valutazione assoluta della salute finanziaria (0-4):
@@ -151,6 +151,10 @@ with st.expander("ℹ️ Legenda Health Check", expanded=False):
     | 4/4 | ✅ | Tutti i criteri superati – azienda solida |
     | 2-3/4 | ⚠️ | Qualche debolezza – attenzione |
     | 0-1/4 | ❌ | Criteri largamente non soddisfatti – fragile |
+
+    **Nota per i mercati europei**  
+    Le small cap europee possono mostrare fisiologicamente D/E più elevati o FCF negativo per investimenti.  
+    Un punteggio di 2‑3/4 ⚠️ in questi casi non è di per sé un segnale di debolezza: va letto nel contesto della capitalizzazione e del settore.
     """)
 
 # ---------------------------------------------------------------
