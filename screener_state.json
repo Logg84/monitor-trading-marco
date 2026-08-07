@@ -1034,5 +1034,17 @@
     "OXY": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "DVA": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "DOC": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "SPGI": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }

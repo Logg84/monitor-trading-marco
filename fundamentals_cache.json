@@ -2070,5 +2070,29 @@
         "operatingMargins": 0.03224,
         "returnOnEquity": 0.13779001,
         "last_updated": "2026-08-05T22:36:19.273198"
+    },
+    "DVA": {
+        "marketCap": 11526745883.17871,
+        "debtToEquity": 1241.986,
+        "freeCashflow": 1042460032,
+        "operatingMargins": 0.16061,
+        "returnOnEquity": 0.88475,
+        "last_updated": "2026-08-07T01:05:34.818195"
+    },
+    "SPGI": {
+        "marketCap": 119464749121.09375,
+        "debtToEquity": 42.98,
+        "freeCashflow": 5448249856,
+        "operatingMargins": 0.4479,
+        "returnOnEquity": 0.14255,
+        "last_updated": "2026-08-07T01:05:34.819865"
+    },
+    "DOC": {
+        "marketCap": 14546755975.192745,
+        "debtToEquity": 108.653,
+        "freeCashflow": null,
+        "operatingMargins": 0.1599,
+        "returnOnEquity": 0.03039,
+        "last_updated": "2026-08-07T01:05:34.819014"
     }
 }
