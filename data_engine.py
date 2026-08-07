@@ -11,12 +11,12 @@ import numpy as np
 import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# === MANOPOLE "POC OPERATIVO" (ritoccale qui) ===
-MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un relitto: ignorato
-MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
-POC_MERGE_PCT = 2.5         # POC della watchlist entro questa % l'uno dall'altro vengono accorpati
+# === MANOPOLE "POC OPERATIVO" ===
+MAX_POC_DIST_PCT = 50.0
+MIN_POC_WEIGHT_NORM = 5.0
+POC_MERGE_PCT = 2.5
 
-# === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
+# === FINESTRE TEMPORALI ===
 BARS_PER_YEAR = 252
 WIN_VWAP_3M = 63
 WIN_VWAP_1Y = 252
@@ -26,7 +26,6 @@ WIN_ROC_COMPARE = 15
 WIN_VOL = 25
 WIN_MOM = 5
 
-# === NUMERO DI POC PORTATI IN WATCHLIST ===
 N_POC_WATCHLIST = 3
 
 NASDAQ100_STATIC = [
@@ -49,7 +48,8 @@ _HEADER_TARGETS = [
 
 
 class DataEngine:
-    def __init__(self, base_dir=None, data_file="argo_database.json", state_file="screener_state.json", cache_file="fundamentals_cache.json"):
+    def __init__(self, base_dir=None, data_file="argo_database.json",
+                 state_file="screener_state.json", cache_file="fundamentals_cache.json"):
         self.base_dir = base_dir or os.path.dirname(os.path.abspath(__file__))
         self.data_path = os.path.join(self.base_dir, data_file)
         self.state_path = os.path.join(self.base_dir, state_file)
@@ -60,6 +60,7 @@ class DataEngine:
         self.debug_log = []
         self.load_all()
 
+    # --- metodi di utilità (invariati) ---
     def add_debug(self, msg, level="info"):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         self.debug_log.append({"time": timestamp, "msg": msg, "level": level})
@@ -169,6 +170,7 @@ class DataEngine:
         except Exception as e:
             self.add_debug(f"Errore salvataggio cache fondamentali: {e}", "error")
 
+    # --- metodi per cache storica (invariati) ---
     def _save_to_history_cache(self, ticker, df):
         if df is None or df.empty:
             return
@@ -207,9 +209,7 @@ class DataEngine:
             self.add_debug(f"Errore lettura cache storica per {ticker}: {e}", "warning")
         return None
 
-    # ===============================
-    # ESTRAZIONE TICKERS (multi-parser)
-    # ===============================
+    # --- estrazione ticker (invariata) ---
     def estrai_ticker_wikipedia(self, url, headers=None):
         headers = headers or {'User-Agent': 'Mozilla/5.0'}
         self.add_debug(f"Estrazione ticker da: {url}", "info")
@@ -218,7 +218,6 @@ class DataEngine:
             if res.status_code != 200:
                 raise ConnectionError(f"Wikipedia ha risposto con codice {res.status_code}")
             html = res.text
-
             all_tabs = []
             diag = {}
             for parser in ["html5lib", "bs4", "lxml"]:
@@ -229,10 +228,8 @@ class DataEngine:
                 diag[parser] = len(tabs)
                 all_tabs.extend(tabs)
             self.add_debug(f"[wiki] tabelle per parser: {diag} (totale unione={len(all_tabs)})", "info")
-
             if not all_tabs:
                 raise ValueError("read_html non ha trovato alcuna tabella con nessun parser.")
-
             for idx, tab in enumerate(all_tabs):
                 cols_norm = [self._norm_header(c) for c in tab.columns]
                 for target in _HEADER_TARGETS:
@@ -243,7 +240,6 @@ class DataEngine:
                         if len(tickers) >= 10:
                             self.add_debug(f"[wiki] MATCH nome '{target}' tab#{idx} -> {len(tickers)} ticker", "success")
                             return tickers
-
             best_tab, best_col, best_n = None, None, 0
             for idx, tab in enumerate(all_tabs):
                 if tab.empty:
@@ -266,7 +262,6 @@ class DataEngine:
                         uniq.append(t)
                 self.add_debug(f"[wiki] EURISTICA tab#{best_tab} colonna '{best_col}' -> {len(uniq)} ticker", "success")
                 return uniq
-
             self.add_debug(f"[wiki] DIAG nessun match: parsers={diag}, best_euristica={best_n} su tab#{best_tab}.", "warning")
             for tab in all_tabs:
                 if not tab.empty:
@@ -312,9 +307,7 @@ class DataEngine:
             raise ValueError(f"Indice non riconosciuto: {indice_scelto}")
         return tickers
 
-    # ===============================
-    # DOWNLOAD PREZZI IN BATCH (GIORNALIERO)
-    # ===============================
+    # --- download batch (invariato) ---
     def download_prices_batch(self, tickers, period="10y", interval="1d"):
         self.add_debug(f"Avvio download batch prezzi per {len(tickers)} ticker (Period: {period}, Interval: {interval})...", "info")
         chunk_size = 50
@@ -365,9 +358,13 @@ class DataEngine:
         return None
 
     # ===============================
-    # MOTORE FONDAMENTALI E CACHE
+    # FUNDAMENTALS + HEALTH DATA
     # ===============================
     def get_ticker_fundamentals(self, ticker):
+        """
+        Recupera fondamentali, inclusi quelli per Health Check.
+        Salva in cache 14 giorni.
+        """
         now = datetime.datetime.now()
         if ticker in self.fundamentals_cache:
             cache_entry = self.fundamentals_cache[ticker]
@@ -390,12 +387,36 @@ class DataEngine:
                 pass
             if not mcap:
                 mcap = info.get('marketCap', 0)
+
+            # --- dati per Health Check ---
+            net_income = None
+            revenue_growth = None
+            try:
+                fin = t.financials
+                if fin is not None and not fin.empty and 'Net Income' in fin.index:
+                    net_income = float(fin.loc['Net Income'].iloc[0])
+            except Exception:
+                pass
+            try:
+                qfin = t.quarterly_financials
+                if qfin is not None and not qfin.empty and 'Total Revenue' in qfin.index:
+                    rev = qfin.loc['Total Revenue']
+                    if len(rev) >= 5:
+                        current_q = float(rev.iloc[0])
+                        prev_q_same = float(rev.iloc[4])
+                        if prev_q_same != 0:
+                            revenue_growth = (current_q - prev_q_same) / abs(prev_q_same)
+            except Exception:
+                pass
+
             entry = {
                 "marketCap": mcap,
                 "debtToEquity": info.get('debtToEquity', None),
                 "freeCashflow": info.get('freeCashflow', None),
                 "operatingMargins": info.get('operatingMargins', None),
                 "returnOnEquity": info.get('returnOnEquity', None),
+                "netIncome": net_income,
+                "revenueGrowth": revenue_growth,
                 "last_updated": now.isoformat()
             }
             self.fundamentals_cache[ticker] = entry
@@ -406,7 +427,9 @@ class DataEngine:
                 return self.fundamentals_cache[ticker]
             return {
                 "marketCap": 0, "debtToEquity": None, "freeCashflow": None,
-                "operatingMargins": None, "returnOnEquity": None, "last_updated": now.isoformat()
+                "operatingMargins": None, "returnOnEquity": None,
+                "netIncome": None, "revenueGrowth": None,
+                "last_updated": now.isoformat()
             }
 
     def fetch_fundamentals_parallel(self, tickers):
@@ -441,9 +464,44 @@ class DataEngine:
                     self.add_debug(f"Eccezione per {ticker}: {exc}", "warning")
         self.save_cache()
 
-    # ===============================
-    # DATI MACRO E BUSSOLA
-    # ===============================
+    def compute_health_check(self, ticker):
+        """
+        Valutazione assoluta salute finanziaria (0-4).
+        Criteri:
+        - Free Cash Flow TTM > 0
+        - Crescita Ricavi YoY (trimestre più recente vs stesso trimestre anno prima) > 0
+        - Utile Netto ultimo anno > 0
+        - Debito/Equity < 1.5
+        """
+        fund = self.fundamentals_cache.get(ticker, {})
+        score = 0
+        # FCF
+        fcf = fund.get("freeCashflow")
+        if fcf is not None and fcf > 0:
+            score += 1
+        # Crescita ricavi
+        rev_g = fund.get("revenueGrowth")
+        if rev_g is not None and rev_g > 0:
+            score += 1
+        # Utile netto
+        ni = fund.get("netIncome")
+        if ni is not None and ni > 0:
+            score += 1
+        # D/E
+        de = fund.get("debtToEquity")
+        if de is not None and de < 1.5:
+            score += 1
+
+        if score == 4:
+            simbolo = "✅"
+        elif score >= 2:
+            simbolo = "⚠️"
+        else:
+            simbolo = "❌"
+        codice = f"{simbolo} {score}/4"
+        return score, codice
+
+    # --- Bussola ARGO (invariata) ---
     def ottieni_bussola_argo(self):
         try:
             self.add_debug("Download dati macro per Bussola ARGO...", "info")
@@ -497,10 +555,9 @@ class DataEngine:
             bussola = {"spot": latest["spot"], "vix": latest["vix"], "vvx": latest["vvx"], "flip": latest["flip"], "rapporto": latest["rapporto"], "stato": "RIMBALZO ELASTICO", "bias": "LONG", "desc": "STRATEGIA: Esaurimento del panico. Ingressi Long veloci (size dimezzata).", "color": "indigo"}
             return {"df": pd.DataFrame({"Date": dates, "SPX": np.linspace(5400, 5472, 30), "VIX": np.linspace(20, 20.21, 30), "VVIX": np.linspace(90, 91.72, 30), "Flip_Line": np.linspace(5380, 5450, 30), "Ratio": np.linspace(4.5, 4.54, 30)}), "latest": latest, "bussola": bussola}
 
-    # ===============================
-    # FUNZIONI DI CALCOLO REA
-    # ===============================
+    # --- POC / VWAP (invariati) ---
     def find_structural_lows(self, hist):
+        # ... (identico) ...
         df = hist.copy()
         df.index = pd.to_datetime(df.index)
         df["Year"] = df.index.year
@@ -671,17 +728,13 @@ class DataEngine:
         return best_poc, round(float(best_dist), 2)
 
     def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT, merge_pct=POC_MERGE_PCT):
-        """I `n` POC operativi (entro max_dist_pct) più STRUTTURALI, ma MUTUAMENTE
-        distanti almeno merge_pct: così un cluster di POC quasi identici collassa in
-        uno solo (il più forte del gruppo), mentre POC davvero separati restano.
-        Greedy per weight_norm decrescente. NON usato per l'alert (quello è closest_poc)."""
         ops = []
         for poc in pocs:
             poc_price = float(poc["poc_price"])
             dist = (current_price - poc_price) / poc_price * 100
             if abs(dist) <= max_dist_pct:
                 ops.append((float(poc.get("weight_norm", 0.0)), abs(dist), poc_price, int(poc["anchor_year"])))
-        ops.sort(key=lambda x: x[0], reverse=True)  # prima i più strutturali
+        ops.sort(key=lambda x: x[0], reverse=True)
         chosen = []
         for wn, d, price, yr in ops:
             if all(abs(price - c["poc_price"]) / c["poc_price"] * 100 > merge_pct for c in chosen):
@@ -810,41 +863,30 @@ class DataEngine:
                 "VWAP 4Y": vwap_info["vwap_4y"], "VWAP 1Y": vwap_info["vwap_1y"], "VWAP 3M": vwap_info["vwap_3m"],
                 "Convergenza VWAP": vwap_info["convergence_label"],
                 "Bottom Score (0-4)": bottom_score, "Bottom Dettagli": bottom_dettagli,
-                "_debtToEquity": fund.get("debtToEquity", None), "_freeCashflow": fund.get("freeCashflow", None),
-                "_operatingMargins": fund.get("operatingMargins", None), "_returnOnEquity": fund.get("returnOnEquity", None)
             })
         self.add_debug(f"Pre-filtrati rimasti dopo Market Cap: {len(pre_filtered)}", "info")
         if not pre_filtered:
             return [], []
-        df_fund = pd.DataFrame(pre_filtered)
-        med_debt = df_fund["_debtToEquity"].dropna().median() if not df_fund["_debtToEquity"].dropna().empty else 0.0
-        med_fcf = df_fund["_freeCashflow"].dropna().median() if not df_fund["_freeCashflow"].dropna().empty else 0.0
-        med_margin = df_fund["_operatingMargins"].dropna().median() if not df_fund["_operatingMargins"].dropna().empty else 0.0
-        med_roe = df_fund["_returnOnEquity"].dropna().median() if not df_fund["_returnOnEquity"].dropna().empty else 0.0
-        medians = {"debtToEquity": med_debt, "freeCashflow": med_fcf, "operatingMargins": med_margin, "returnOnEquity": med_roe}
-        self.add_debug(f"Mediane calcolate per {indice_scelto}: {medians}", "info")
         macro_info = self.ottieni_bussola_argo(); argo_bussola = macro_info["bussola"]
         final_list = []; spostamenti_rilevati = []
         for item in pre_filtered:
-            ticker = item["Ticker"]; score = 0
-            d_eq = item["_debtToEquity"]; fcf = item["_freeCashflow"]; op_m = item["_operatingMargins"]; roe = item["_returnOnEquity"]
-            if d_eq is not None and d_eq <= medians["debtToEquity"]:
-                score += 1
-            if fcf is not None and fcf >= medians["freeCashflow"]:
-                score += 1
-            if op_m is not None and op_m >= medians["operatingMargins"]:
-                score += 1
-            if roe is not None and roe >= medians["returnOnEquity"]:
-                score += 1
-            item["Quality Score (0-4)"] = int(score)
+            ticker = item["Ticker"]
+
+            # --- NUOVO HEALTH CHECK ---
+            health_score, health_code = self.compute_health_check(ticker)
+            item["Health"] = health_code
+            item["Health_Score"] = health_score
+
+            # Size & Entry Mode (invariati)
             mcap_val = item["Market Cap (B)"]
             base_size = 10.0 if mcap_val >= 10.0 else (5.0 if mcap_val >= 2.0 else 2.0)
-            size_mult = 1.2 if score >= 3 else (1.0 if score >= 2 else 0.6)
+            size_mult = 1.2 if health_score >= 3 else (1.0 if health_score >= 2 else 0.6)
             argo_mult = 0.3 if argo_bussola['bias'] == "SHORT" else (0.6 if argo_bussola['bias'] == "NEUTRO" else 1.0)
             final_size = round(base_size * size_mult * argo_mult, 1)
             if final_size < 1.0:
                 final_size = 0.0
             item["Size Suggerita (%)"] = float(final_size)
+
             dist_label = item["Distanza POC (%)"]
             if dist_label != "N/D":
                 try:
@@ -862,6 +904,7 @@ class DataEngine:
             if argo_bussola['bias'] == "SHORT":
                 entry_mode = "⛔ SHORT (NON ENTRARE)" if final_size == 0 else "⏳ LIMITE (size ridotta)"
             item["Entry Mode"] = str(entry_mode)
+
             status_precedente = self.screener_state.get(ticker, {}).get("status", None)
             if item["Drawdown (%)"] <= -soglia_drawdown:
                 item["Stato"] = "Active"
@@ -877,8 +920,6 @@ class DataEngine:
                     item["Stato"] = "Ripartito"
                 else:
                     item["Stato"] = "Nuovo"
-            for temp_field in ["_debtToEquity", "_freeCashflow", "_operatingMargins", "_returnOnEquity"]:
-                item.pop(temp_field, None)
             final_list.append(item)
         self.screener_database[indice_scelto] = final_list
         if "_last_scans" not in self.screener_database:
