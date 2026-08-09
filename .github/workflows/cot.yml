@@ -1,0 +1,32 @@
+name: COT Weekly Update
+
+on:
+  schedule:
+    - cron: '0 22 * * 5'   # venerdì ore 22 UTC
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas openpyxl requests numpy
+
+      - name: Run COT build
+        run: python cot_build.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "cot-bot"
+          git config user.email "cot-bot@argo.local"
+          git pull -X ours origin main
+          git add cot_data.json cot_report.html
+          git commit -m "Aggiorna dati COT settimanali" || echo "Nessuna modifica"
+          git push origin main
