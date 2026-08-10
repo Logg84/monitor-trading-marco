@@ -2094,5 +2094,16 @@
         "operatingMargins": 0.1599,
         "returnOnEquity": 0.03039,
         "last_updated": "2026-08-07T01:05:34.819014"
+    },
+    "UDR": {
+        "marketCap": 12098810551.49897,
+        "debtToEquity": 156.144,
+        "freeCashflow": 779827776,
+        "operatingMargins": 0.20177999,
+        "returnOnEquity": 0.13739,
+        "netIncome": 377704000.0,
+        "revenueGrowth": 0.0,
+        "operatingCashflow": 887260032,
+        "last_updated": "2026-08-10T22:08:38.520997"
     }
 }

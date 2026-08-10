@@ -1046,5 +1046,9 @@
     "SPGI": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "UDR": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
