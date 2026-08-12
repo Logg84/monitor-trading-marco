@@ -1050,5 +1050,9 @@
     "UDR": {
         "status": "Active",
         "indice": "S&P 500"
+    },
+    "MNST": {
+        "status": "Active",
+        "indice": "NASDAQ 100"
     }
 }
