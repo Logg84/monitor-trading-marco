@@ -1,7 +1,7 @@
 """
 Controllo automatico dei livelli di prezzo salvati in watchlist.csv (cron GitHub Actions).
 Legge L1-3 + POC 1-3 + VWAP 1-3 come zone di tocco. Cooldown anti-ripetizione per ticker.
-Blocca l'esecuzione nel weekend (sabato/dom).
+Blocca l'esecuzione nel weekend (sabato/dom) e fuori orari di mercato NYSE.
 """
 
 import os
@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 import mplfinance as mpf
 import yfinance as yf
+from zoneinfo import ZoneInfo
 
 MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
 
@@ -356,20 +357,51 @@ def git_commit_push(files: list[str], messaggio: str):
 # ==============================================================================
 
 
-# ===================== NUOVO: BLOCCO WEEKEND =====================
-def e_weekend() -> bool:
-    """Restituisce True se oggi è sabato o domenica."""
-    oggi = datetime.date.today()
-    return oggi.weekday() >= 5  # 5=sabato, 6=domenica
-# ==================================================================
+# ===================== NUOVO: CONTROLLO ORARI DI MERCATO =====================
+def e_mercato_chiuso() -> bool:
+    """
+    Restituisce True se il mercato NYSE è chiuso.
+    Blocca:
+    - Weekend (sabato/domenica)
+    - Ore notturne (prima 9:30 ET e dopo 16:00 ET)
+    
+    NYSE orari: 9:30-16:00 ET
+    - Estate (DST attivo, marzo-novembre): 13:30-20:00 UTC
+    - Inverno (ora solare): 14:30-21:00 UTC
+    
+    Usa zoneinfo per gestire automaticamente il DST.
+    """
+    # Orario corrente in ET (Eastern Time)
+    tz_ny = ZoneInfo("America/New_York")
+    ora_ny = datetime.datetime.now(tz_ny)
+    
+    # Weekend: sabato (5) o domenica (6)
+    if ora_ny.weekday() >= 5:
+        return True
+    
+    # Estrai ora e minuti
+    ora = ora_ny.hour
+    minuto = ora_ny.minute
+    
+    # Mercato aperto: 9:30 - 16:00 ET
+    minuti_da_mezzanotte = ora * 60 + minuto
+    apertura_minuti = 9 * 60 + 30  # 9:30 = 570 minuti
+    chiusura_minuti = 16 * 60      # 16:00 = 960 minuti
+    
+    # Chiuso se prima dell'apertura o dopo la chiusura
+    if minuti_da_mezzanotte < apertura_minuti or minuti_da_mezzanotte > chiusura_minuti:
+        return True
+    
+    return False
+# ==============================================================================
 
 
 def main():
-    # ==================== BLOCCO WEEKEND ====================
-    if e_weekend():
-        print("⏸️ Oggi è weekend (sabato o domenica). Nessun alert verrà inviato. Ciao!")
+    # ==================== CONTROLLO ORARI DI MERCATO ====================
+    if e_mercato_chiuso():
+        print("⏸️ Mercato NYSE chiuso (weekend o fuori orario 9:30-16:00 ET). Nessun alert verrà inviato. Ciao!")
         return
-    # =======================================================
+    # ===================================================================
 
     chiavi_simili = [k for k in os.environ if "TWELVE" in k.upper()]
     print(f"Variabili d'ambiente con 'TWELVE' nel nome: {chiavi_simili}")
