@@ -9,6 +9,8 @@ rimosso solo se esce dallo screening (zombie), NON se si allontana dal 2,5%.
 La soglia 2,5% governa solo l'INGRESSO dei nuovi auto e gli alert.
 REPORT: promuovi_auto_da_screener restituisce anche le LISTE dei ticker toccati
 (aggiunti/aggiornati/vwappati) per il pannello di feedback della UI.
+
+NUOVO: Zone POC (aree, non punti) - POC Low/High per ogni POC operativo.
 """
 
 import os
@@ -22,7 +24,9 @@ COLONNE_ATTESE = [
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
     "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
     "Screenshot", "Origine",
-    "POC 1", "Nota POC 1", "POC 2", "Nota POC 2", "POC 3", "Nota POC 3",
+    "POC 1", "POC 1 Low", "POC 1 High", "Nota POC 1",
+    "POC 2", "POC 2 Low", "POC 2 High", "Nota POC 2",
+    "POC 3", "POC 3 Low", "POC 3 High", "Nota POC 3",
     "Auto_Indice",
 ]
 ALIAS_COLONNE = {
@@ -69,7 +73,9 @@ def carica_watchlist_da_github() -> pd.DataFrame:
     for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
-    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
+    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3",
+                "POC 1", "POC 2", "POC 3",
+                "POC 1 Low", "POC 1 High", "POC 2 Low", "POC 2 High", "POC 3 Low", "POC 3 High"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
     if df.columns.duplicated().any():
@@ -120,7 +126,10 @@ def promuovi_auto_da_screener(
 ) -> dict:
     """Rinfresco VWAP sempre (auto+manuali); POC solo su auto; ingresso nuovi solo se in zona.
     NON rimuove più per 'fuori zona': la rimozione la fa pulisci_auto_zombie nel chiamante.
-    Restituisce anche le liste dei ticker toccati, per il pannello di feedback."""
+    Restituisce anche le liste dei ticker toccati, per il pannello di feedback.
+    
+    NUOVO: Zone POC - considera dentro zona se prezzo tra POC Low e POC High.
+    """
     vuoto = {"aggiunti": 0, "rimossi": 0, "aggiornati": 0, "vwappati": 0, "in_zona": 0,
              "aggiunti_tickers": [], "aggiornati_tickers": [], "vwappati_tickers": []}
     if df_screener.empty:
@@ -142,21 +151,38 @@ def promuovi_auto_da_screener(
                 target_df.at[idx, nota_col] = label
 
     def _write_pocs(target_df, idx, row_s):
+        """Scrive POC e zone (low/high) per i 3 POC operativi."""
         for k in (1, 2, 3):
             target_df.at[idx, f"POC {k}"] = _safe_float(row_s.get(f"POC {k}"), 0.0)
+            target_df.at[idx, f"POC {k} Low"] = _safe_float(row_s.get(f"POC {k} Low"), 0.0)
+            target_df.at[idx, f"POC {k} High"] = _safe_float(row_s.get(f"POC {k} High"), 0.0)
             target_df.at[idx, f"Nota POC {k}"] = str(row_s.get(f"Nota POC {k}", "") or "")
         target_df.at[idx, "Auto_Indice"] = indice_corrente
 
     def _dists(row_s, prezzo):
+        """Calcola la distanza minima considerando zone POC e VWAP.
+        Se il prezzo è dentro una zona POC, distanza = 0.
+        Altrimenti calcola distanza % dal punto POC o VWAP più vicino."""
+        # Controlla se il prezzo è dentro una zona POC
+        for k in (1, 2, 3):
+            poc_low = _safe_float(row_s.get(f"POC {k} Low"), 0.0)
+            poc_high = _safe_float(row_s.get(f"POC {k} High"), 0.0)
+            if poc_low > 0 and poc_high > 0 and poc_low <= prezzo <= poc_high:
+                return 0.0  # dentro zona
+        
+        # Calcola distanza dai punti POC
         poc_vals = [_safe_float(row_s.get(f"POC {k}"), 0.0) for k in (1, 2, 3)]
         poc_vals = [v for v in poc_vals if v != 0]
         dist_poc = min(abs(prezzo - v) / v * 100 for v in poc_vals) if poc_vals else 999
+        
+        # Calcola distanza dai VWAP
         v4 = _safe_float(row_s.get("VWAP 4Y"), 0.0)
         v1 = _safe_float(row_s.get("VWAP 1Y"), 0.0)
         v3 = _safe_float(row_s.get("VWAP 3M"), 0.0)
         d4 = abs(prezzo - v4) / v4 * 100 if v4 != 0 else 999
         d1 = abs(prezzo - v1) / v1 * 100 if v1 != 0 else 999
         d3 = abs(prezzo - v3) / v3 * 100 if v3 != 0 else 999
+        
         return min(dist_poc, d4, d1, d3)
 
     for _, row_s in df_screener.iterrows():
@@ -190,9 +216,18 @@ def promuovi_auto_da_screener(
                     "VWAP 2": _safe_float(row_s.get("VWAP 1Y"), 0.0), "Nota VWAP 2": "VWAP 1Y",
                     "VWAP 3": _safe_float(row_s.get("VWAP 3M"), 0.0), "Nota VWAP 3": "VWAP 3M",
                     "Screenshot": "", "Origine": "auto",
-                    "POC 1": _safe_float(row_s.get("POC 1"), 0.0), "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
-                    "POC 2": _safe_float(row_s.get("POC 2"), 0.0), "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
-                    "POC 3": _safe_float(row_s.get("POC 3"), 0.0), "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
+                    "POC 1": _safe_float(row_s.get("POC 1"), 0.0),
+                    "POC 1 Low": _safe_float(row_s.get("POC 1 Low"), 0.0),
+                    "POC 1 High": _safe_float(row_s.get("POC 1 High"), 0.0),
+                    "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
+                    "POC 2": _safe_float(row_s.get("POC 2"), 0.0),
+                    "POC 2 Low": _safe_float(row_s.get("POC 2 Low"), 0.0),
+                    "POC 2 High": _safe_float(row_s.get("POC 2 High"), 0.0),
+                    "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
+                    "POC 3": _safe_float(row_s.get("POC 3"), 0.0),
+                    "POC 3 Low": _safe_float(row_s.get("POC 3 Low"), 0.0),
+                    "POC 3 High": _safe_float(row_s.get("POC 3 High"), 0.0),
+                    "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
                     "Auto_Indice": indice_corrente,
                 }])
                 df_watchlist = pd.concat([df_watchlist, nuova], ignore_index=True)
