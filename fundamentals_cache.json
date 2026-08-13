@@ -442,12 +442,15 @@
         "last_updated": "2026-08-12T22:12:18.631825"
     },
     "COHR": {
-        "marketCap": 45953719990.281235,
+        "marketCap": 64019057160.187775,
         "debtToEquity": 31.093,
         "freeCashflow": -197631744,
         "operatingMargins": 0.13572,
         "returnOnEquity": 0.04718,
-        "last_updated": "2026-07-29T13:59:09.452792"
+        "netIncome": 49364000.0,
+        "revenueGrowth": 0.20546519445162126,
+        "operatingCashflow": 140342000,
+        "last_updated": "2026-08-13T22:13:06.484775"
     },
     "CLX": {
         "marketCap": 12789663347.136497,
@@ -1224,12 +1227,15 @@
         "last_updated": "2026-07-29T13:59:14.004707"
     },
     "MCHP": {
-        "marketCap": 40139177716.12198,
-        "debtToEquity": 87.715,
-        "freeCashflow": 1139912448,
-        "operatingMargins": 0.17068,
-        "returnOnEquity": 0.03405,
-        "last_updated": "2026-07-29T13:59:13.901811"
+        "marketCap": 42186346529.49481,
+        "debtToEquity": 83.688,
+        "freeCashflow": 1364762496,
+        "operatingMargins": 0.23958,
+        "returnOnEquity": 0.0719,
+        "netIncome": 230000000.0,
+        "revenueGrowth": 0.38047419804741983,
+        "operatingCashflow": 1198000000,
+        "last_updated": "2026-08-13T22:13:06.485608"
     },
     "MPWR": {
         "marketCap": 63040220150.494995,
@@ -1898,12 +1904,15 @@
         "last_updated": "2026-08-12T22:12:31.665165"
     },
     "WST": {
-        "marketCap": 23580454866.345825,
+        "marketCap": 24361274031.643738,
         "debtToEquity": 10.585,
         "freeCashflow": 277937504,
         "operatingMargins": 0.22469,
         "returnOnEquity": 0.19087,
-        "last_updated": "2026-07-29T13:59:18.141604"
+        "netIncome": 493700000.0,
+        "revenueGrowth": 0.1380300065231572,
+        "operatingCashflow": 662200000,
+        "last_updated": "2026-08-13T22:13:06.486411"
     },
     "WDC": {
         "marketCap": 156520157790.87277,
@@ -2566,12 +2575,15 @@
         "last_updated": "2026-07-29T22:31:27.458544"
     },
     "SAN.PA": {
-        "marketCap": 88377948056.798,
-        "debtToEquity": 27.372,
-        "freeCashflow": 16672499712,
-        "operatingMargins": 0.20002002,
-        "returnOnEquity": 0.06576,
-        "last_updated": "2026-07-30T12:52:55.617746"
+        "marketCap": 91568389594.55,
+        "debtToEquity": 33.89,
+        "freeCashflow": 6298999808,
+        "operatingMargins": 0.21033001,
+        "returnOnEquity": 0.05709,
+        "netIncome": 7813000000.0,
+        "revenueGrowth": 0.14578481602235677,
+        "operatingCashflow": 11838000128,
+        "last_updated": "2026-08-13T22:13:41.686968"
     },
     "CHRW": {
         "marketCap": 17317907114.808014,
@@ -2746,5 +2758,16 @@
         "revenueGrowth": 0.201686593960105,
         "operatingCashflow": 2238761984,
         "last_updated": "2026-08-12T22:12:26.193658"
+    },
+    "MBG.DE": {
+        "marketCap": 43501084333.439995,
+        "debtToEquity": 110.208,
+        "freeCashflow": -3902625024,
+        "operatingMargins": 0.06163,
+        "returnOnEquity": 0.055960003,
+        "netIncome": 5141000000.0,
+        "revenueGrowth": -0.03500481579581026,
+        "operatingCashflow": 13827000320,
+        "last_updated": "2026-08-13T22:13:33.544451"
     }
 }

@@ -1054,5 +1054,9 @@
     "MNST": {
         "status": "Active",
         "indice": "NASDAQ 100"
+    },
+    "MBG.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
     }
 }
