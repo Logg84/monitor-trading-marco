@@ -88,7 +88,7 @@ section[data-testid="stSidebar"] > div { width: 250px !important; }
 
 /* ---- barra ordinamento ---- */
 .sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin: 2px 0 6px 0; }
-div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
+div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
 
 /* ---- tabella screening ---- */
 .argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
@@ -319,11 +319,11 @@ with st.sidebar:
     min_market_cap = st.number_input("Market Cap Minima (Miliardi): ", value=default_cap, step=0.5) * 1e9
     soglia_drawdown = st.number_input("Soglia Minima di Drawdown dall'ATH (%) ", value=25.0, step=5.0)
     st.markdown("---")
-    soglia_poc_pct = st.number_input("Soglia Vicinanza POC / VWAP (%) ", value=2.0, step=0.5, help="Segnala (🎯 Alert) il titolo se il prezzo è entro questa % da un POC affidabile o da un VWAP.")
+    soglia_poc_pct = st.number_input("Soglia Vicinanza POC / VWAP (%) ", value=2.0, step=0.5, help="Segnala (🎯 Alert) il titolo se il prezzo è dentro una zona POC, oppure entro questa % da un POC o VWAP.")
     st.markdown("---")
     soglia_promo_pct = st.number_input(
         "Soglia promozione auto in watchlist (%) ", value=2.5, step=0.5,
-        help="Un titolo ENTRA da solo in watchlist (🤖) se il prezzo è entro questa % da POC o VWAP. Una volta dentro resta finché è in sconto e i suoi VWAP si rinfrescano a ogni run. I manuali non vengono mai toccati su Livelli/POC."
+        help="Un titolo ENTRA da solo in watchlist (🤖) se il prezzo è dentro una zona POC, oppure entro questa % da POC o VWAP. Una volta dentro resta finché è in sconto e i suoi VWAP si rinfrescano a ogni run. I manuali non vengono mai toccati su Livelli/POC."
     )
     st.markdown("---")
     st.caption("💡  Health Check (0-4):  valutazione assoluta della salute finanziaria (FCF, Crescita Ricavi, Utile Netto, D/E).")
@@ -441,7 +441,7 @@ if rep is not None:
     detail_html = '<div class="ar-tags">' + "".join(group_html) + '</div>' if group_html else ''
 
     if rep["in_zona"] == 0 and not group_html:
-        nota = (f"Nessun titolo dello screening toccava un POC o un VWAP entro ±{soglia_rep:g}%: "
+        nota = (f"Nessun titolo dello screening era dentro una zona POC o vicino a un VWAP (±{soglia_rep:g}%): "
                 f"<b>niente nuovi ingressi</b> e nessun VWAP da rinfrescare in questo giro.")
     elif not group_html:
         nota = f"<b>{rep['in_zona']}</b> titoli in zona, ma nessuno ha cambiato stato né VWAP rispetto a prima."
@@ -477,7 +477,7 @@ _HDR = {
     "Bottom Score (0-4)": ("Bottom", "Bottom Score (0-4) — segnali di inversione"),
     "Bottom Dettagli": ("Segnali", "Segnali tecnici attivi"),
     "POC più vicino": ("POC vicino", "POC operativo più vicino"),
-    "Distanza POC (%)": ("dPOC %", "Distanza % dal POC più vicino"),
+    "Distanza POC (%)": ("dPOC %", "📍 in zona se dentro area POC, altrimenti distanza % dal POC più vicino"),
     "VWAP vicino": ("VWAP vicino", "VWAP (3M/1Y/4Y) più vicino al prezzo"),
     "Distanza VWAP (%)": ("dVWAP %", "Distanza % dal VWAP più vicino"),
     "🎯 Alert": ("🎯 Alert", "Tocco POC / VWAP entro la soglia, con distanza"),
@@ -536,7 +536,11 @@ def _parse_pct(s):
 
 
 def arricchisci(df, soglia):
-    """Calcola lato pagina: VWAP vicino + distanza, distanza POC numerica, 🎯 Alert unificato."""
+    """Calcola lato pagina: VWAP vicino + distanza, distanza POC numerica, 🎯 Alert unificato.
+    
+    NUOVO: Zone POC - se il prezzo è dentro una zona (POC Low ≤ prezzo ≤ POC High),
+    distanza = 0 e alert = "🎯 IN ZONA POC". Altrimenti calcola distanza dal punto POC più vicino.
+    """
     if df.empty:
         for c in ["VWAP vicino", "_vwap_tf", "Distanza VWAP (%)", "_dist_poc_num", "🎯 Alert", "_alert_detail"]:
             df[c] = np.nan if c in ("VWAP vicino", "Distanza VWAP (%)", "_dist_poc_num") else ""
@@ -561,21 +565,64 @@ def arricchisci(df, soglia):
     df["_dist_poc_num"] = df["Distanza POC (%)"].apply(_parse_pct)
 
     def _alert(row):
-        poc_hit = str(row.get("🎯 ALERT POC", "")).strip() == "🎯 SU POC"
+        """NUOVO: controlla se il prezzo è dentro una zona POC, altrimenti usa la logica punto."""
+        P = _sf(row.get("Prezzo"))
+        
+        # Controlla se il prezzo è dentro una zona POC
+        in_zona = False
+        for k in (1, 2, 3):
+            poc_low = _sf(row.get(f"POC {k} Low"))
+            poc_high = _sf(row.get(f"POC {k} High"))
+            if poc_low > 0 and poc_high > 0 and P > 0:
+                if poc_low <= P <= poc_high:
+                    in_zona = True
+                    break
+        
+        poc_hit = in_zona or (str(row.get("🎯 ALERT POC", "")).strip() == "🎯 SU POC")
         dv = row["Distanza VWAP (%)"]
         vwap_hit = pd.notna(dv) and abs(dv) <= soglia
         dp = row["_dist_poc_num"]
+        
         if not poc_hit and not vwap_hit:
             return pd.Series({"🎯 Alert": "", "_alert_detail": ""})
+        
         parts = []
         if poc_hit:
-            parts.append(f"POC {dp:+.1f}%" if pd.notna(dp) else "POC")
+            if in_zona:
+                parts.append("POC 📍 in zona")
+            elif pd.notna(dp):
+                parts.append(f"POC {dp:+.1f}%")
+            else:
+                parts.append("POC")
+        
         if vwap_hit:
             parts.append(f"VWAP {dv:+.1f}%")
-        label = "🎯 POC+VWAP" if (poc_hit and vwap_hit) else ("🎯 SU POC" if poc_hit else "🎯 SU VWAP")
+        
+        if poc_hit and vwap_hit:
+            label = "🎯 POC+VWAP"
+        elif poc_hit:
+            label = "🎯 IN ZONA POC" if in_zona else "🎯 SU POC"
+        else:
+            label = "🎯 SU VWAP"
+        
         return pd.Series({"🎯 Alert": label, "_alert_detail": " · ".join(parts)})
 
     df[["🎯 Alert", "_alert_detail"]] = df.apply(_alert, axis=1)
+    
+    # Aggiorna la colonna "Distanza POC (%)" per mostrare "📍 in zona" se dentro zona
+    def _format_dist_poc(row):
+        P = _sf(row.get("Prezzo"))
+        for k in (1, 2, 3):
+            poc_low = _sf(row.get(f"POC {k} Low"))
+            poc_high = _sf(row.get(f"POC {k} High"))
+            if poc_low > 0 and poc_high > 0 and P > 0:
+                if poc_low <= P <= poc_high:
+                    return "📍 in zona"
+        # Altrimenti usa il valore numerico esistente
+        return row.get("Distanza POC (%)", "N/D")
+    
+    df["Distanza POC (%)"] = df.apply(_format_dist_poc, axis=1)
+    
     return df
 
 
@@ -629,6 +676,8 @@ def _alert_cell(val, row):
     detail = str(row.get("_alert_detail", "")).strip() if row is not None else ""
     if "POC+VWAP" in label:
         bg, fg = "rgba(167,139,250,.20)", "#d8b4fe"
+    elif "IN ZONA" in label:
+        bg, fg = "rgba(34,197,94,.20)", "#86efac"
     elif "SU POC" in label:
         bg, fg = "rgba(244,63,94,.20)", "#fda4af"
     else:
@@ -697,6 +746,10 @@ def _td(col, val, row=None):
             return ("r num muted", "", "—")
         return ("r num", "", f'{float(val):+.1f}%')
     if col == "Distanza POC (%)":
+        # NUOVO: se è "📍 in zona", mostra il badge verde
+        if str(val).strip() == "📍 in zona":
+            return ("r num", "background:rgba(34,197,94,.20);color:#86efac;font-weight:700", "📍 in zona")
+        # Altrimenti usa il valore numerico
         d = row.get("_dist_poc_num") if row is not None else np.nan
         if d is None or (isinstance(d, float) and pd.isna(d)):
             return ("r num muted", "", "N/D")
@@ -881,7 +934,7 @@ if has_data_to_show:
             st.info("💡 Nessun titolo in forte sconto trovato.")
 
     with t_poc:
-        st.subheader(f"Titoli con prezzo entro ±{soglia_poc_pct:.1f}% da un POC affidabile o da un VWAP")
+        st.subheader(f"Titoli con prezzo dentro una zona POC, oppure entro ±{soglia_poc_pct:.1f}% da un POC o VWAP")
         df_poc = df_total[df_total["🎯 Alert"].fillna("").astype(str).str.strip() != ""].copy()
         if not df_poc.empty:
             pcol, pasc = render_sort_bar("poc", "dPOC%")
