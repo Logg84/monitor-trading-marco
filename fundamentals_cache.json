@@ -2678,12 +2678,15 @@
         "last_updated": "2026-07-30T22:37:44.157885"
     },
     "IP": {
-        "marketCap": 21620179017.994537,
-        "debtToEquity": 67.022,
-        "freeCashflow": 1795124992,
-        "operatingMargins": 0.00983,
+        "marketCap": 21574678411.165485,
+        "debtToEquity": 68.509,
+        "freeCashflow": 1646499968,
+        "operatingMargins": 0.02298,
         "returnOnEquity": -0.16479,
-        "last_updated": "2026-07-31T22:35:08.375437"
+        "netIncome": -3516000000.0,
+        "revenueGrowth": -0.022468251383914034,
+        "operatingCashflow": 2647000064,
+        "last_updated": "2026-08-15T21:47:39.061694"
     },
     "MLM": {
         "marketCap": 31532504805.578613,
