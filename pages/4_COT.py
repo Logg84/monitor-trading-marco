@@ -35,7 +35,7 @@ CFTC_TO_FX = {
 CFTC_TO_COMM = {
     "WHEAT": "WHEAT", "CORN": "CORN", "OATS": "OATS", "SOYBEANS": "SOYBEANS",
     "SOYBEAN OIL": "SOYBEAN_OIL", "SOYBEAN MEAL": "SOYBEAN_MEAL",
-    "COTTON": "COTTON", "ORANGE JUICE": "OJ", "ROUGH_RICE": "ROUGH_RICE",
+    "COTTON": "COTTON", "ORANGE JUICE": "OJ", "ROUGH RICE": "ROUGH_RICE",
     "LIVE CATTLE": "LIVE_CATTLE", "LEAN HOGS": "LEAN_HOGS", "LUMBER": "LUMBER",
     "GOLD": "GOLD", "SILVER": "SILVER", "COPPER": "COPPER",
     "NATURAL GAS": "NG", "CRUDE OIL": "WTI", "BRENT CRUDE OIL": "BRENT",
@@ -129,12 +129,9 @@ DATA = carica_cot()
 
 
 # ================================================================
-# LETTURA ZIP CFTC ROBUSTA (nome foglio variabile tra gli anni)
+# LETTURA ZIP CFTC ROBUSTA (nomi fogli e nomi mercati variabili)
 # ================================================================
 def _leggi_sheet_cftc(inner: bytes) -> pd.DataFrame:
-    """Legge il foglio dati CFTC senza dipendere dal nome:
-    1) prova 'Annual'; 2) primo foglio; 3) cerca quello con Market_and_Exchange_Names."""
-    # 1) nome classico
     for eng in ("xlrd", None, "openpyxl"):
         try:
             df = pd.read_excel(io.BytesIO(inner), sheet_name="Annual", engine=eng)
@@ -142,7 +139,6 @@ def _leggi_sheet_cftc(inner: bytes) -> pd.DataFrame:
                 return df
         except Exception:
             pass
-    # 2) primo foglio
     for eng in ("xlrd", None, "openpyxl"):
         try:
             df = pd.read_excel(io.BytesIO(inner), sheet_name=0, engine=eng)
@@ -150,7 +146,6 @@ def _leggi_sheet_cftc(inner: bytes) -> pd.DataFrame:
                 return df
         except Exception:
             pass
-    # 3) scansione di tutti i fogli
     for eng in ("xlrd", None, "openpyxl"):
         try:
             sheets = pd.read_excel(io.BytesIO(inner), sheet_name=None, engine=eng)
@@ -170,9 +165,20 @@ def leggi_zip_bytes(content: bytes) -> pd.DataFrame:
     return _leggi_sheet_cftc(zf.read(nomi[0]))
 
 
+def _mask_mercato(df: pd.DataFrame, nome_cftc: str):
+    """Match esatto o per prefisso (il CFTC aggiunge la borsa al nome, es. 'GOLD - COMEX')."""
+    col = df["Market_and_Exchange_Names"].astype(str).str.upper().str.strip()
+    t = nome_cftc.upper().strip()
+    m = (col == t)
+    if not m.any():
+        m = col.str.startswith(t)
+    if nome_cftc == "CRUDE OIL":
+        m = m & ~col.str.contains("BRENT")
+    return m
+
+
 def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
-    mask = df["Market_and_Exchange_Names"].str.upper().str.strip() == nome_cftc.upper().strip()
-    rows = df[mask].copy()
+    rows = df[_mask_mercato(df, nome_cftc)].copy()
     rows["_rd"] = pd.to_datetime(rows["Report_Date_as_MM_DD_YYYY"], errors="coerce")
     return rows.dropna(subset=["_rd"]).sort_values("_rd")
 
@@ -299,7 +305,11 @@ with st.expander("📥 Aggiornamento manuale (download dal browser + upload)", e
                 df_new = df_new.drop_duplicates(subset=["Market_and_Exchange_Names", "Report_Date_as_MM_DD_YYYY"])
                 new_fx, new_comm = processa_dfs(df_new)
                 if not new_fx and not new_comm:
-                    raise RuntimeError("Nessun mercato riconosciuto nei zip caricati.")
+                    msg = "Nessun mercato riconosciuto nei zip caricati."
+                    if "Market_and_Exchange_Names" in df_new.columns:
+                        campioni = [str(x) for x in df_new["Market_and_Exchange_Names"].dropna().unique()][:8]
+                        msg += " Nomi trovati nel file: " + " | ".join(campioni)
+                    raise RuntimeError(msg)
                 old_fx = DATA.get("fx", {}) if DATA else {}
                 old_comm = DATA.get("comm", {}) if DATA else {}
                 fx, comm = merge_con_esistente(old_fx, old_comm, new_fx, new_comm)
