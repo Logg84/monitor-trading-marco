@@ -17,7 +17,6 @@ GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 WINDOW = 104
 MINW = 52
 
-# --- simboli yfinance (future front-month) per le materie prime CFTC ---
 YF_COMM = {
     "GOLD": "GC=F", "SILVER": "SI=F", "COPPER": "HG=F", "PLATINUM": "PL=F", "PALLADIUM": "PA=F",
     "WTI": "CL=F", "BRENT": "BZ=F", "RBOB": "RB=F", "HO": "HO=F", "NG": "NG=F",
@@ -27,7 +26,6 @@ YF_COMM = {
     "LIVE_CATTLE": "LE=F", "FEEDER_CATTLE": "GF=F", "LEAN_HOGS": "HE=F",
 }
 
-# --- mappe CFTC -> simboli (usate dal pulsante di aggiornamento manuale) ---
 CFTC_TO_FX = {
     "EURO FX": "EUR", "BRITISH POUND": "GBP", "JAPANESE YEN": "JPY",
     "AUSTRALIAN DOLLAR": "AUD", "CANADIAN DOLLAR": "CAD",
@@ -111,7 +109,6 @@ def carica_cot():
 
 @st.cache_data(ttl=43200)
 def prezzo_yf(sym):
-    """Serie daily del future front-month; None se assente/errore."""
     if not sym:
         return None
     try:
@@ -129,13 +126,64 @@ def prezzo_yf(sym):
 
 
 # ================================================================
-# AGGIORNAMENTO MANUALE COT (pulsante) — Opzione B
+# DOWNLOAD CFTC CON CASCATA MULTI-SORGENTE
+# Il CFTC dà 403 agli IP cloud: provo diretto, poi proxy, poi Wayback.
 # ================================================================
-def _leggi_anno_cftc(anno: int) -> pd.DataFrame:
+_UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
+
+
+def _scarica_zip_cftc(anno: int) -> bytes:
     url = f"https://www.cftc.gov/files/dea/history/fut_fin_xls_{anno}.zip"
-    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}, timeout=180)
-    r.raise_for_status()
-    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    tentativi = []
+
+    # 1) diretto CFTC
+    try:
+        r = requests.get(url, headers=_UA, timeout=180)
+        if r.status_code == 200 and r.content[:2] == b"PK":
+            return r.content
+        tentativi.append(f"diretto:{r.status_code}")
+    except Exception as e:
+        tentativi.append(f"diretto:{type(e).__name__}")
+
+    # 2) AllOrigins (fetch server-side, passa binari)
+    try:
+        r = requests.get("https://api.allorigins.win/raw?url=" + requests.utils.quote(url, safe=""), headers=_UA, timeout=180)
+        if r.status_code == 200 and r.content[:2] == b"PK":
+            return r.content
+        tentativi.append(f"allorigins:{r.status_code}")
+    except Exception as e:
+        tentativi.append(f"allorigins:{type(e).__name__}")
+
+    # 3) corsproxy.io
+    try:
+        r = requests.get("https://corsproxy.io/?url=" + requests.utils.quote(url, safe=""), headers=_UA, timeout=180)
+        if r.status_code == 200 and r.content[:2] == b"PK":
+            return r.content
+        tentativi.append(f"corsproxy:{r.status_code}")
+    except Exception as e:
+        tentativi.append(f"corsproxy:{type(e).__name__}")
+
+    # 4) Wayback Machine (ultimo snapshot disponibile)
+    try:
+        r = requests.get("https://archive.org/wayback/available", params={"url": url}, timeout=30)
+        snap = (r.json() or {}).get("archived_snapshots", {}).get("closest", {})
+        if snap.get("available") and snap.get("url"):
+            wurl = snap["url"].replace("http://", "https://", 1)
+            r2 = requests.get(wurl, headers=_UA, timeout=180)
+            if r2.status_code == 200 and r2.content[:2] == b"PK":
+                return r2.content
+            tentativi.append(f"wayback:{r2.status_code}")
+        else:
+            tentativi.append("wayback:nessuno-snapshot")
+    except Exception as e:
+        tentativi.append(f"wayback:{type(e).__name__}")
+
+    raise RuntimeError(f"zip {anno} non scaricabile [" + ", ".join(tentativi) + "]")
+
+
+def _leggi_anno_cftc(anno: int) -> pd.DataFrame:
+    content = _scarica_zip_cftc(anno)
+    zf = zipfile.ZipFile(io.BytesIO(content))
     nomi = [n for n in zf.namelist() if n.lower().endswith((".xls", ".xlsx"))]
     if not nomi:
         raise RuntimeError(f"Nessun file .xls dentro lo zip {anno}")
@@ -157,7 +205,7 @@ def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
 
 
 def aggiorna_cot_manuale() -> dict:
-    """Scarica CFTC (anno corrente + precedente), processa e committa cot_data.json su GitHub."""
+    """Scarica CFTC (anno corrente + precedente) via cascata, processa e committa cot_data.json."""
     anno = datetime.date.today().year
     dfs = []
     for y in (anno, anno - 1):
@@ -167,7 +215,7 @@ def aggiorna_cot_manuale() -> dict:
         except Exception as e:
             print(f"⚠️ Anno {y} fallito: {e}")
     if not dfs:
-        raise RuntimeError("Nessun anno scaricato dal CFTC (403/timeout). Riprova più tardi o build locale.")
+        raise RuntimeError("Nessuna sorgente ha funzionato (CFTC + proxy + Wayback). Usa build locale.")
     df = pd.concat(dfs, ignore_index=True)
     df = df.drop_duplicates(subset=["Market_and_Exchange_Names", "Report_Date_as_MM_DD_YYYY"])
 
@@ -239,7 +287,6 @@ def aggiorna_cot_manuale() -> dict:
         "comm_order": comm_order,
     }
 
-    # Commit su GitHub
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/cot_data.json"
     headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
     r = requests.get(url, headers=headers)
@@ -263,10 +310,9 @@ DATA = carica_cot()
 if not DATA:
     st.info("🛢️ **Nessun dato COT sul repo.** Usa il pulsante **🔄 Aggiorna dati COT** qui sotto, oppure lancia `cot_build.py` in locale e committa `cot_data.json` nella root del repo. Poi ricarica questa pagina.")
 
-# Pulsante aggiornamento manuale (sempre visibile, anche senza dati)
 if st.button("🔄 Aggiorna dati COT dal CFTC", type="primary",
-             help="Scarica gli ultimi report CFTC (anno corrente + precedente), li processa e committa cot_data.json su GitHub. Richiede circa 30-60 secondi."):
-    with st.spinner("Download CFTC + commit su GitHub in corso..."):
+             help="Scarica gli ultimi report CFTC (anno corrente + precedente) con cascata diretto/proxy/Wayback e committa cot_data.json su GitHub. Richiede circa 30-120 secondi."):
+    with st.spinner("Download CFTC (cascata multi-sorgente) + commit su GitHub..."):
         try:
             res = aggiorna_cot_manuale()
             st.cache_data.clear()
@@ -274,7 +320,7 @@ if st.button("🔄 Aggiorna dati COT dal CFTC", type="primary",
             st.rerun()
         except Exception as e:
             st.error(f"❌ Aggiornamento fallito: {e}")
-            st.info("💡 Se il CFTC rifiuta la richiesta (403), riprova tra qualche minuto oppure lancia `cot_build.py` in locale e committa il file.")
+            st.info("💡 Ultima ratio: lancia `cot_build.py` sul tuo PC (il CFTC non blocca le utenze residenziali) e committa `cot_data.json`.")
 
 if not DATA:
     st.stop()
@@ -329,8 +375,7 @@ def reversing(a, w=2):
 
 def comm_state(sym):
     """Stato COT di una commodity.
-    REGOLA HOT ALLARGATA: Producer estremo (pP<10 o pP>90) => hot anche senza Managed estremo.
-    Fa emergere i metalli sotto copertura estrema anche con Managed neutro."""
+    REGOLA HOT ALLARGATA: Producer estremo (pP<10 o pP>90) => hot anche senza Managed estremo."""
     arr = COMM.get(sym) or []
     if len(arr) < MINW:
         return {"key": "flat", "tone": "muted", "pP": 50, "pM": 50, "pS": 50, "dP": 0, "dM": 0, "revP": False}
