@@ -9,7 +9,6 @@ import requests
 import re
 import yfinance as yf
 from PIL import Image
-from groq import Groq
 import base64
 from nav import render_navbar, section_header
 
@@ -58,46 +57,25 @@ html, body, [class*="css"] {
   color: var(--txt-2);
 }
 
-.block-container {
-  padding: 1.5rem 1.5rem 2rem 1.5rem;
-  max-width: 100%;
-}
+.block-container { padding: 1.5rem 1.5rem 2rem 1.5rem; max-width: 100%; }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Inter', sans-serif;
-  color: var(--txt-1);
-  letter-spacing: -0.01em;
-}
+h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif; color: var(--txt-1); letter-spacing: -0.01em; }
 
 h3 {
-  font-size: 1.1rem !important;
-  font-weight: 700 !important;
-  color: var(--accent) !important;
-  text-transform: uppercase;
-  letter-spacing: 0.08em !important;
-  margin-top: 0.5rem !important;
+  font-size: 1.1rem !important; font-weight: 700 !important;
+  color: var(--accent) !important; text-transform: uppercase;
+  letter-spacing: 0.08em !important; margin-top: 0.5rem !important;
 }
 
-hr {
-  margin: 1.5rem 0 !important;
-  border-color: var(--border) !important;
-  border-top-width: 1px !important;
-}
+hr { margin: 1.5rem 0 !important; border-color: var(--border) !important; border-top-width: 1px !important; }
 
-/* === Badges Livelli === */
 .wl-badge {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 4px 11px;
-  border-radius: 7px;
-  display: inline-block;
-  border: 1px solid transparent;
-  white-space: nowrap;
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
+  padding: 4px 11px; border-radius: 7px; display: inline-block;
+  border: 1px solid transparent; white-space: nowrap;
   transition: transform .12s ease, box-shadow .15s ease;
 }
 .wl-badge:hover { transform: translateY(-1px); }
-
 .wl-badge.l1 { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.35); }
 .wl-badge.l2 { color: #86efac; background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
 .wl-badge.l3 { color: #fca5a5; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
@@ -105,193 +83,87 @@ hr {
 .wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #c4b5fd; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); }
 .wl-badge.empty { color: var(--txt-muted); background: transparent; border: 1px dashed var(--border-strong); }
 
-/* === Header righe tabella === */
 .wl-header {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--txt-muted);
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em; color: var(--txt-muted);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
 }
 
-/* === Pulsanti === */
 div[data-testid="stButton"] button {
-  border: 1px solid var(--border-strong);
-  background: var(--bg-panel);
-  color: var(--txt-2);
-  border-radius: 7px;
-  font-weight: 500;
-  transition: all 0.15s ease;
+  border: 1px solid var(--border-strong); background: var(--bg-panel); color: var(--txt-2);
+  border-radius: 7px; font-weight: 500; transition: all 0.15s ease;
 }
 div[data-testid="stButton"] button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--bg-hover);
-  transform: translateY(-1px);
+  border-color: var(--accent); color: var(--accent); background: var(--bg-hover); transform: translateY(-1px);
 }
 
-/* Ticker pulsante (prima colonna) */
 div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {
-  color: var(--txt-1);
-  font-family: 'IBM Plex Mono', monospace;
-  font-weight: 700;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding-left: 0;
-  font-size: 0.92rem;
+  color: var(--txt-1); font-family: 'IBM Plex Mono', monospace; font-weight: 700;
+  text-align: left; border: none; background: transparent; padding-left: 0; font-size: 0.92rem;
 }
 div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {
-  color: var(--accent);
-  background: transparent;
-  border: none;
+  color: var(--accent); background: transparent; border: none;
 }
 
-/* Pulsanti icona (📈 🔮 🖼️ ✏️ 🗑️) */
-div[data-testid="column"]:nth-of-type(12) div[data-testid="stButton"] button,
-div[data-testid="column"]:nth-of-type(13) div[data-testid="stButton"] button,
-div[data-testid="column"]:nth-of-type(14) div[data-testid="stButton"] button,
-div[data-testid="column"]:nth-of-type(15) div[data-testid="stButton"] button,
-div[data-testid="column"]:nth-of-type(16) div[data-testid="stButton"] button {
-  padding: 3px 0 !important;
-  font-size: 16px !important;
-  min-width: 32px;
-}
-
-/* === Upload zone === */
 div[data-testid="stFileUploaderDropzone"] {
-  border: 1px dashed var(--border-strong);
-  background: var(--bg-panel);
-  border-radius: 12px;
-  padding: 1.5rem !important;
+  border: 1px dashed var(--border-strong); background: var(--bg-panel);
+  border-radius: 12px; padding: 1.5rem !important;
   transition: border-color .15s ease, background .15s ease;
 }
-div[data-testid="stFileUploaderDropzone"]:hover {
-  border-color: var(--accent);
-  background: var(--bg-hover);
+div[data-testid="stFileUploaderDropzone"]:hover { border-color: var(--accent); background: var(--bg-hover); }
+
+div[data-testid="stInput"] input, div[data-testid="stNumberInput"] input {
+  background: var(--bg-panel); border: 1px solid var(--border); color: var(--txt-1);
+  font-family: 'IBM Plex Mono', monospace; border-radius: 7px;
+}
+div[data-testid="stInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
 }
 
-/* === Input / number === */
-div[data-testid="stInput"] input,
-div[data-testid="stNumberInput"] input {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--txt-1);
-  font-family: 'IBM Plex Mono', monospace;
-  border-radius: 7px;
-}
-div[data-testid="stInput"] input:focus,
-div[data-testid="stNumberInput"] input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
-}
-
-/* === Card pannello === */
 .wl-card {
   background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-panel-2) 100%);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 18px;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 20px -10px rgba(0,0,0,.5);
+  border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+  margin-bottom: 12px; box-shadow: 0 4px 20px -10px rgba(0,0,0,.5);
 }
 .wl-card-head {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 10px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
 }
 
-/* === Righe watchlist: hover === */
-div[data-testid="stHorizontalBlock"] {
-  border-bottom: 1px solid rgba(30,41,59,0.5);
-  padding: 6px 0;
-  transition: background .12s ease;
-}
-div[data-testid="stVerticalBlock"]:hover > div[data-testid="stHorizontalBlock"] {
-  background: var(--bg-hover);
-}
-
-/* === Prezzo attuale evidenziato === */
 .wl-price {
-  font-family: 'IBM Plex Mono', monospace;
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--txt-1);
-  padding: 3px 8px;
-  background: rgba(56,189,248,0.08);
-  border-radius: 6px;
-  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 0.95rem;
+  color: var(--txt-1); padding: 3px 8px; background: rgba(56,189,248,0.08);
+  border-radius: 6px; display: inline-block;
 }
 
-/* === Pill origine === */
 .wl-origin {
-  display: inline-block;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 2px 7px;
-  border-radius: 999px;
-  margin-left: 4px;
-  vertical-align: middle;
+  display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700;
+  letter-spacing: 0.05em; padding: 2px 7px; border-radius: 999px; margin-left: 4px; vertical-align: middle;
 }
 .wl-origin.auto { color: #67e8f9; background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.35); }
 .wl-origin.man { color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.30); }
 
-/* === Info box AI === */
 .wl-ai-box {
   background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-  border: 1px solid #4c1d95;
-  border-left: 4px solid var(--violet);
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin: 10px 0;
-  font-size: 12px;
-  color: #e0e7ff;
+  border: 1px solid #4c1d95; border-left: 4px solid var(--violet);
+  border-radius: 10px; padding: 12px 14px; margin: 10px 0; font-size: 12px; color: #e0e7ff;
 }
 .wl-ai-box b { color: #c4b5fd; }
 
-/* === Sezione grafico === */
 .wl-chart-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px;
 }
 .wl-chart-ticker {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--txt-1);
-  letter-spacing: -0.02em;
+  font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 800;
+  color: var(--txt-1); letter-spacing: -0.02em;
 }
 .wl-chart-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 9px;
-  color: var(--txt-muted);
-  text-transform: uppercase;
-  letter-spacing: .1em;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--txt-muted);
+  text-transform: uppercase; letter-spacing: .1em;
 }
 
-/* === Alert history === */
-div[data-testid="stDataFrame"] {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
+div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -300,18 +172,20 @@ section_header("Portafoglio monitorato", "Watchlist & Livelli")
 
 
 # ================================================================
-# CLIENT GROQ (sostituisce Gemini)
+# CLIENT GROQ — AUTONOMO (import interno, chiave in chiaro, nessun crash)
 # ================================================================
-# === CHIAVE GROQ in chiaro (scelta esplicita di Marco) + fallback secret ===
 _GROQ_KEY_FALLBACK = "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"
 
 @st.cache_resource
 def get_client():
+    try:
+        from groq import Groq
+    except Exception:
+        return None
     api_key = st.secrets.get("GROQ_API_KEY") or _GROQ_KEY_FALLBACK
-    if not api_key or not _HAS_GROQ:
+    if not api_key:
         return None
     return Groq(api_key=api_key)
-
 
 client = get_client()
 
@@ -339,7 +213,7 @@ Regole:
 
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     if client is None:
-        raise RuntimeError("Client Groq non inizializzato (manca il pacchetto groq in requirements.txt).")
+        raise RuntimeError("Client Groq non disponibile: aggiungi groq>=0.11.0 a requirements.txt.")
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     data_url = f"data:{mime_type};base64,{b64}"
 
@@ -382,49 +256,6 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     except json.JSONDecodeError as e:
         raise ValueError(f"JSON non parsabile dal modello: {e}. Risposta grezza: {text[:200]}")
 
-    defaults = {"ticker": "", "livello_1": 0, "livello_2": 0, "livello_3": 0,
-                "vwap_1": 0, "vwap_2": 0, "vwap_3": 0}
-    for k, v in defaults.items():
-        if k not in dati or dati[k] is None:
-            dati[k] = v
-    return dati
-
-def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
-    """Invia screenshot a Groq (llama-3.2-11b-vision-preview) e parsa JSON."""
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
-    data_url = f"data:{mime_type};base64,{b64}"
-
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": "Rispondi SOLO con JSON valido, senza testo esterno né blocchi markdown."},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": PROMPT_VISION},
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                ],
-            },
-        ],
-        temperature=0.1,
-        max_tokens=500,
-        response_format={"type": "json_object"},
-    )
-
-    text = response.choices[0].message.content or ""
-    # Strip markdown fences nel caso il modello le aggiunga comunque
-    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
-    text = re.sub(r"\s*```$", "", text)
-
-    if not text.strip():
-        raise ValueError("Risposta vuota dal modello vision.")
-
-    try:
-        dati = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON non parsabile dal modello: {e}. Risposta grezza: {text[:200]}")
-
-    # Normalizza: assicura tutte le chiavi
     defaults = {"ticker": "", "livello_1": 0, "livello_2": 0, "livello_3": 0,
                 "vwap_1": 0, "vwap_2": 0, "vwap_3": 0}
     for k, v in defaults.items():
@@ -613,17 +444,20 @@ with col_upload:
     )
     if uploaded_file is not None:
         st.image(uploaded_file, caption="Anteprima", use_container_width=True)
-        if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
-            with st.spinner("Analisi in corso (Groq llama-3.2-11b-vision)..."):
-                try:
-                    image_bytes = uploaded_file.getvalue()
-                    mime_type = uploaded_file.type or "image/png"
-                    dati = analizza_immagine(image_bytes, mime_type)
-                    st.session_state["ultima_analisi"] = dati
-                    st.success("✅ Analisi completata.")
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'analisi: {e}")
-                    st.info("💡 Verifica che il secret GROQ_API_KEY sia configurato e che il modello sia disponibile. I screenshot molto sfocati o senza ticker visibile possono dare ticker vuoto.")
+
+        if client is None:
+            st.warning("⚠️ **Analisi AI non disponibile.** Aggiungi `groq>=0.11.0` a `requirements.txt` e fai reboot. Il resto della pagina funziona normalmente.")
+        else:
+            if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
+                with st.spinner("Analisi in corso (Groq llama-3.2-11b-vision)..."):
+                    try:
+                        image_bytes = uploaded_file.getvalue()
+                        mime_type = uploaded_file.type or "image/png"
+                        dati = analizza_immagine(image_bytes, mime_type)
+                        st.session_state["ultima_analisi"] = dati
+                        st.success("✅ Analisi completata.")
+                    except Exception as e:
+                        st.error(f"❌ Errore durante l'analisi: {e}")
 
 with col_result:
     if "ultima_analisi" in st.session_state:
@@ -788,7 +622,7 @@ def determina_exchange(simbolo: str) -> str:
     return "nasdaq"
 
 @st.cache_data(ttl=300)
-def carica_prezzi_condivisi() -> dict:
+def carica_prezzi_condivisi():
     path = "prezzi_attuali.json"
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
@@ -889,16 +723,8 @@ else:
             nc6.text_input("Nota V3", value=str(r["Nota VWAP 3"] or ""), key=f"edit_nv3_{ticker_riga}_{_}", label_visibility="collapsed")
         else:
             c = st.columns(COLS)
-            # Ticker con pill origine
-            origine_badge = '<span class="wl-origin auto">🤖</span>' if origine_riga == "auto" else '<span class="wl-origin man">👤</span>'
-            c[0].markdown(
-                f'<button style="all:unset;cursor:pointer;color:#f8fafc;font-family:IBM Plex Mono,monospace;font-weight:700" '
-                f'onclick="document.querySelector(\'button[key=select_{ticker_riga}_{_}\']\').click()">'
-                f'{ticker_riga}{origine_badge}</button>',
-                unsafe_allow_html=True,
-            )
-            # Bottone invisibile per gestire il click
-            if c[0].button("sel", key=f"select_{ticker_riga}_{_}", type="secondary"):
+            prefisso_origine = "🤖 " if origine_riga == "auto" else ""
+            if c[0].button(prefisso_origine + ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
             c[1].markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
@@ -965,7 +791,7 @@ else:
             st.caption(f"💾 Spazio repo: {dim_mb:.0f} MB / ~1000 MB")
 
     # ================================================================
-    # GRAFICO TICKER SELEZIONATO (con card header)
+    # GRAFICO TICKER SELEZIONATO
     # ================================================================
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
         st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
@@ -979,7 +805,6 @@ else:
 
     TIMEFRAMES = {"4H": ("4h", 300), "1D": ("1day", 500), "1W": ("1week", 260), "1M": ("1month", 120)}
 
-    # Card header del grafico
     origine_selezionato = str(riga.get("Origine", "manuale")).strip().lower()
     origine_pill = '<span class="wl-origin auto">🤖 AUTO</span>' if origine_selezionato == "auto" else '<span class="wl-origin man">👤 MAN</span>'
     st.markdown(
