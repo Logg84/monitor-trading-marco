@@ -1,3 +1,4 @@
+# pages/4_COT.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -15,7 +16,6 @@ GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 WINDOW = 104
 MINW = 52
 
-# --- simboli yfinance (future front-month) per le materie prime CFTC ---
 YF_COMM = {
     "GOLD": "GC=F", "SILVER": "SI=F", "COPPER": "HG=F", "PLATINUM": "PL=F", "PALLADIUM": "PA=F",
     "WTI": "CL=F", "BRENT": "BZ=F", "RBOB": "RB=F", "HO": "HO=F", "NG": "NG=F",
@@ -84,7 +84,6 @@ def carica_cot():
 
 @st.cache_data(ttl=43200)
 def prezzo_yf(sym):
-    """Serie daily del future front-month; None se assente/errore."""
     if not sym:
         return None
     try:
@@ -155,18 +154,37 @@ def reversing(a, w=2):
     r = a[-w - 1:]; d = [r[i] - r[i - 1] for i in range(1, len(r))]
     return all(x > 0 for x in d) or all(x < 0 for x in d)
 
+
 def comm_state(sym):
+    """Classifica lo stato COT di una commodity.
+    
+    NUOVA REGOLA HOT (allargata):
+    - Producer estremo (pP<10 o pP>90) => hot (yellow), anche senza Managed estremo
+    - Questo fa emergere i metalli sotto copertura estrema anche quando
+      il Managed Money è neutro (es. GOLD, SILVER, COPPER spesso piatti su MM).
+    """
     arr = COMM.get(sym) or []
     if len(arr) < MINW:
         return {"key": "flat", "tone": "muted", "pP": 50, "pM": 50, "pS": 50, "dP": 0, "dM": 0, "revP": False}
     pA = series(arr, "prod"); mA = series(arr, "mm"); sA = series(arr, "swap")
     pP = percentile(pA, pA[-1]); pM = percentile(mA, mA[-1]); pS = percentile(sA, sA[-1])
     dP = deriv(pA); dM = deriv(mA); revP = reversing(pA)
-    if pP < 20 and pM > 65: key, tone = "bull", "green"
-    elif pP > 80 and pM < 35: key, tone = "bear", "red"
-    elif (pM > 85 or pM < 15) and not revP: key, tone = "watch", "yellow"
-    elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85: key, tone = "trend", "ice"
-    else: key, tone = "flat", "muted"
+
+    # Regole congiunte (precedenti, più forti)
+    if pP < 20 and pM > 65:
+        key, tone = "bull", "green"
+    elif pP > 80 and pM < 35:
+        key, tone = "bear", "red"
+    elif (pM > 85 or pM < 15) and not revP:
+        key, tone = "watch", "yellow"
+    elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
+        key, tone = "trend", "ice"
+    # NUOVO: Producer estremo anche senza Managed estremo => hot
+    elif (pP < 10 or pP > 90):
+        key, tone = "hot_producer", "yellow"
+    else:
+        key, tone = "flat", "muted"
+
     return {"key": key, "tone": tone, "pP": pP, "pM": pM, "pS": pS, "dP": dP, "dM": dM, "revP": revP}
 
 
@@ -303,7 +321,7 @@ with tab_cm:
                     f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#64748b;margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
                     unsafe_allow_html=True)
 
-        opts = {s: (COMM_NAME.get(s) or s) for s in mk}   # menu sempre completo (≥52 sett.), come nello standalone
+        opts = {s: (COMM_NAME.get(s) or s) for s in mk}
         if "cot_market" not in st.session_state or st.session_state["cot_market"] not in opts:
             st.session_state["cot_market"] = (visible[0] if visible else mk[0])
         sym = st.selectbox("Mercato", list(opts.keys()), format_func=lambda s: opts[s], label_visibility="collapsed")
@@ -383,6 +401,9 @@ with tab_cm:
                 vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>SPECULATORI A ESTREMO</b> · Managed {'max long' if pM>85 else 'max short'} ({pM:.0f}°) ma producer non inverte: trend maturo → <b>non inseguirlo, non invertirlo</b>. Watchlist.")
             elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
                 vcls, vtxt = "green", (f"<b style='color:#7dd3fc'>TREND SPECULATIVO IN CORSO</b> · Managed {'accumula long' if dM>0 else 'accumula short'} (Δ {dM:+.0f}) senza estremi: trend vivo → <b>non operare contro</b>.")
+            elif (pP < 10 or pP > 90):
+                # NUOVO: Producer estremo isolato (tipico dei metalli)
+                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° (copertura massima/minima storica) con Managed neutro ({pM:.0f}°). I commerciali stanno coprendo/decoprendo in modo anomalo → <b>monitora l'inversione della linea rossa</b> come segnale anticipatore.")
             else:
                 vcls, vtxt = "green", (f"<b>NESSUNA LETTURA DOMINANTE</b> · Producer {pP:.0f}° · Managed {pM:.0f}° · Swap {pS:.0f}°. Nessun trasferimento netto: stai fermo.")
             st.markdown(f'<div class="cot-readout {vcls}">{vtxt}</div>', unsafe_allow_html=True)
@@ -394,6 +415,11 @@ with tab_cm:
                            f'<span class="mono">Producer {pP:.0f}° vs Managed {pM:.0f}° · ΔProd {dP:+.0f} · ΔMM {dM:+.0f} · ΔSwap {dS:+.0f}</span>'
                            + (f'<span class="hint">Producer in inversione: segnale di contesto forte.</span>' if revP else '<span class="hint">Estremo ma Producer non ancora in inversione → sola watchlist.</span>')
                            + '<span class="hint">Conferma divergenza prezzo/volumi su TradingView.</span></div>')
+            elif (pP < 10 or pP > 90):
+                # Alert dedicato per Producer estremo isolato
+                als.append(f'<div class="cot-al yellow"><b>PRODUCER ESTREMO ({pP:.0f}°)</b>'
+                           f'<span class="mono">ΔProd {dP:+.0f} · Managed {pM:.0f}° (neutro) · Z-prod {zP:.2f}</span>'
+                           f'<span class="hint">Copertura commerciale a livello storico estremo. Attendi che la linea rossa inverta direzione per avere il timing.</span></div>')
             if abs(zP) > 2 or abs(zM) > 2:
                 als.append(f'<div class="cot-al yellow"><b>Z-score oltre ±2σ</b><span class="mono">Prod {zP:.2f} · MM {zM:.2f}</span><span class="hint">Attenzione al cambio di regime.</span></div>')
             if not als:
@@ -412,6 +438,7 @@ with tab_cm:
                 st.markdown(
                     "- **▲ RIALZISTA** — Producer ai minimi + Managed ai massimi = tensione; diventa long **solo quando il Producer inverte**.\n"
                     "- **▼ RIBASSISTA** — speculare: conferma quando il Producer riprende a coprire.\n"
+                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa è al limite storico: i commerciali stanno prendendo una posizione senza precedenti. Spesso **anticipa** il movimento; aspetta l'inversione della linea per entrare.\n"
                     "- **TREND VIVO** — Managed in trend *senza* estremi e Producer che accompagna → non operare contro.\n"
                     "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo (ora leggibile direttamente sull'asse destro).",
                     unsafe_allow_html=False)
