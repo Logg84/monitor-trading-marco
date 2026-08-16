@@ -1,1000 +1,901 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
-import json
 import os
-import html
-import requests
 import io
-import base64
 import datetime
-import numpy as np
 import time
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import traceback
-from data_engine import DataEngine, MAX_POC_DIST_PCT
+import json
+import requests
+import re
+import yfinance as yf
+from PIL import Image
+import base64
 from nav import render_navbar, section_header
-from metric_guide import render_metric_guide
-
-st.set_page_config(page_title="ARGO Screening", layout="wide", page_icon="🎛️")
-
-from watchlist_io import (
-    carica_watchlist_da_github,
-    commit_csv_su_github,
-    promuovi_auto_da_screener,
-    GITHUB_TOKEN,
-    GITHUB_REPO,
-)
 
 try:
-    from streamlit_autorefresh import st_autorefresh
-    _HAS_AUTOREFRESH = True
-except ImportError:
-    _HAS_AUTOREFRESH = False
+    from groq import Groq
+    _HAS_GROQ = True
+except Exception:
+    Groq = None
+    _HAS_GROQ = False
 
-if _HAS_AUTOREFRESH:
-    st_autorefresh(interval=600000, key="argo_screening_refresh")
+MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
+
+def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    simbolo = MAPPA_BORSA_EUROPEA.get(ticker, ticker)
+    try:
+        h = yf.Ticker(simbolo).history(period=period, interval=interval, auto_adjust=True)
+        return h.dropna(subset=["Close"]) if not h.empty else pd.DataFrame()
+    except Exception as e:
+        print(f"Errore storico yfinance per {simbolo}: {e}")
+        return pd.DataFrame()
+
+CSV_PATH = "watchlist.csv"
+MODEL_NAME = "llama-3.2-11b-vision-preview"
+
+st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.block-container { padding-top: 1.5rem; padding-bottom: 1rem; padding-left: 1.25rem; padding-right: 1.25rem; max-width: 100%; }
-h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spacing: -0.02em; }
-div[data-testid="stButton"] button { transition: all .15s ease; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-section[data-testid="stSidebar"] { width: 250px !important; min-width: 250px !important; }
-section[data-testid="stSidebar"] > div { width: 250px !important; }
+:root {
+  --bg-base: #0a0f1a;
+  --bg-panel: #0f172a;
+  --bg-panel-2: #111827;
+  --bg-hover: rgba(56, 189, 248, 0.08);
+  --border: #1e293b;
+  --border-strong: #334155;
+  --txt-1: #f8fafc;
+  --txt-2: #cbd5e1;
+  --txt-3: #94a3b8;
+  --txt-muted: #64748b;
+  --accent: #38bdf8;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --violet: #a78bfa;
+  --cyan: #06b6d4;
+}
 
-.argo-report {
-    position: relative; overflow: hidden;
-    background: linear-gradient(135deg, #0f172a 0%, #13203a 100%);
-    border: 1px solid #1e3a5f; border-left: 5px solid #38bdf8;
-    border-radius: 10px; padding: 16px 18px; margin: 4px 0 18px 0;
-    box-shadow: 0 8px 30px -18px rgba(56,189,248,.45);
+html, body, [class*="css"] {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-base);
+  color: var(--txt-2);
 }
-.argo-report::before {
-    content: ""; position: absolute; inset: 0;
-    background: radial-gradient(600px 120px at 0% 0%, rgba(56,189,248,.10), transparent 70%);
-    pointer-events: none;
-}
-.argo-report .ar-head { position: relative; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #38bdf8; margin-bottom: 12px; }
-.argo-report .ar-chips { position: relative; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.argo-report .ar-chip { background: #0b1220; border: 1px solid #243049; border-radius: 8px; padding: 7px 12px; min-width: 92px; text-align: left; transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease; }
-.argo-report .ar-chip:hover { transform: translateY(-2px); border-color: #38bdf8; box-shadow: 0 6px 18px -10px rgba(56,189,248,.6); }
-.argo-report .ar-num { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; }
-.argo-report .ar-lab { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7c8aa3; margin-top: 4px; }
-.argo-report .ar-note { position: relative; font-size: 12.5px; color: #cbd5e1; line-height: 1.5; }
-.argo-report .ar-note b { color: #f8fafc; }
-.argo-report .ar-add { color: #22c55e; }
-.argo-report .ar-upd { color: #60a5fa; }
-.argo-report .ar-vw { color: #38bdf8; }
-.argo-report .ar-rm { color: #f59e0b; }
-.argo-report .ar-tags { position: relative; margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; flex-direction: column; gap: 9px; }
-.argo-report .ar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.argo-report .ar-glabel { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-right: 2px; }
-.argo-report .ar-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent; background: #0b1220; cursor: default; transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease; }
-.argo-report .ar-tag:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 6px 16px -10px rgba(56,189,248,.7); }
-.argo-report .ar-tag.ar-add { color: #86efac; border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.10); }
-.argo-report .ar-tag.ar-add:hover { border-color: #22c55e; }
-.argo-report .ar-tag.ar-upd { color: #93c5fd; border-color: rgba(96,165,250,.45); background: rgba(96,165,250,.10); }
-.argo-report .ar-tag.ar-upd:hover { border-color: #60a5fa; }
-.argo-report .ar-tag.ar-vw { color: #67e8f9; border-color: rgba(56,189,248,.45); background: rgba(56,189,248,.10); }
-.argo-report .ar-tag.ar-vw:hover { border-color: #38bdf8; }
-.argo-report .ar-tag.ar-rm { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.10); }
-.argo-report .ar-tag.ar-rm:hover { border-color: #ef4444; }
-.argo-report .ar-tag.ar-tag-more { color: #7c8aa3; border-color: #243049; }
 
-/* ---- barra ordinamento ---- */
-.sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin: 2px 0 6px 0; }
-div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
+.block-container { padding: 1.5rem 1.5rem 2rem 1.5rem; max-width: 100%; }
 
-/* ---- tabella screening ---- */
-.argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
-.argo-tbl-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
-.argo-tbl-wrap::-webkit-scrollbar-track { background: transparent; }
-.argo-tbl-wrap::-webkit-scrollbar-thumb { background: #243049; border-radius: 8px; border: 2px solid #0a0f1a; }
-.argo-tbl-wrap::-webkit-scrollbar-thumb:hover { background: #334155; }
-.argo-tbl-wrap::-webkit-scrollbar-corner { background: #0a0f1a; }
-.argo-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-.argo-tbl thead th {
-    position: sticky; top: 0; z-index: 3; background: #0b1220; color: #7c8aa3;
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .06em;
-    text-transform: uppercase; padding: 11px 10px; text-align: left;
-    border-bottom: 1px solid #243049; white-space: nowrap;
+h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif; color: var(--txt-1); letter-spacing: -0.01em; }
+
+h3 {
+  font-size: 1.1rem !important; font-weight: 700 !important;
+  color: var(--accent) !important; text-transform: uppercase;
+  letter-spacing: 0.08em !important; margin-top: 0.5rem !important;
 }
-.argo-tbl thead th.r { text-align: right; }
-.argo-tbl thead th.c { text-align: center; }
-.argo-tbl tbody td {
-    padding: 9px 10px; border-bottom: 1px solid #141d2e; color: #cbd5e1;
-    vertical-align: middle; white-space: nowrap; transition: background .12s ease, color .12s ease;
+
+hr { margin: 1.5rem 0 !important; border-color: var(--border) !important; border-top-width: 1px !important; }
+
+.wl-badge {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
+  padding: 4px 11px; border-radius: 7px; display: inline-block;
+  border: 1px solid transparent; white-space: nowrap;
+  transition: transform .12s ease, box-shadow .15s ease;
 }
-.argo-tbl tbody tr:nth-child(even) td { background: rgba(255,255,255,.018); }
-.argo-tbl tbody tr:hover td { background: rgba(56,189,248,.14) !important; color: #f8fafc !important; }
-.argo-tbl thead th:first-child, .argo-tbl tbody td:first-child { position: sticky; left: 0; z-index: 2; }
-.argo-tbl thead th:first-child { z-index: 4; background: #0b1220; box-shadow: 2px 0 6px -2px rgba(0,0,0,.6); }
-.argo-tbl tbody td:first-child { background: #0a0f1a; box-shadow: 2px 0 6px -2px rgba(0,0,0,.5); }
-.argo-tbl tbody tr:nth-child(even) td:first-child { background: #0d1320; }
-.argo-tbl tbody tr:hover td:first-child { background: rgba(56,189,248,.14) !important; box-shadow: inset 3px 0 0 #38bdf8, 2px 0 6px -2px rgba(0,0,0,.5); }
-.argo-tbl td.r { text-align: right; }
-.argo-tbl td.c { text-align: center; }
-.argo-tbl td.num { font-family: 'IBM Plex Mono', monospace; }
-.argo-tbl td.tk { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #f1f5f9; }
-.argo-tbl td.idx { color: #7c8aa3; font-size: 11px; }
-.argo-tbl td.dd { color: #fca5a5; }
-.argo-tbl td.muted { color: #475569; }
-.argo-tbl td.det { max-width: 360px; white-space: normal; line-height: 1.35; color: #94a3b8; }
-.argo-tbl td.score { text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 700; }
-.argo-tbl .tf { font-size: 9px; color: #64748b; margin-left: 4px; font-family: 'IBM Plex Mono', monospace; }
-.argo-tbl .sub { display: block; font-size: 9.5px; color: #94a3b8; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; letter-spacing: .02em; }
-.argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
-.argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
-.argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
-.argo-tbl a.tklink { color: #7dd3fc; text-decoration: none; font-weight: 700; transition: color .12s ease; }
-.argo-tbl a.tklink:hover { color: #f8fafc; text-decoration: underline; }
+.wl-badge:hover { transform: translateY(-1px); }
+.wl-badge.l1 { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.35); }
+.wl-badge.l2 { color: #86efac; background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
+.wl-badge.l3 { color: #fca5a5; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
+.wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: #67e8f9; background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.35); }
+.wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #c4b5fd; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); }
+.wl-badge.empty { color: var(--txt-muted); background: transparent; border: 1px dashed var(--border-strong); }
+
+.wl-header {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em; color: var(--txt-muted);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+}
+
+div[data-testid="stButton"] button {
+  border: 1px solid var(--border-strong); background: var(--bg-panel); color: var(--txt-2);
+  border-radius: 7px; font-weight: 500; transition: all 0.15s ease;
+}
+div[data-testid="stButton"] button:hover {
+  border-color: var(--accent); color: var(--accent); background: var(--bg-hover); transform: translateY(-1px);
+}
+
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {
+  color: var(--txt-1); font-family: 'IBM Plex Mono', monospace; font-weight: 700;
+  text-align: left; border: none; background: transparent; padding-left: 0; font-size: 0.92rem;
+}
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {
+  color: var(--accent); background: transparent; border: none;
+}
+
+div[data-testid="stFileUploaderDropzone"] {
+  border: 1px dashed var(--border-strong); background: var(--bg-panel);
+  border-radius: 12px; padding: 1.5rem !important;
+  transition: border-color .15s ease, background .15s ease;
+}
+div[data-testid="stFileUploaderDropzone"]:hover { border-color: var(--accent); background: var(--bg-hover); }
+
+div[data-testid="stInput"] input, div[data-testid="stNumberInput"] input {
+  background: var(--bg-panel); border: 1px solid var(--border); color: var(--txt-1);
+  font-family: 'IBM Plex Mono', monospace; border-radius: 7px;
+}
+div[data-testid="stInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
+}
+
+.wl-card {
+  background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-panel-2) 100%);
+  border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+  margin-bottom: 12px; box-shadow: 0 4px 20px -10px rgba(0,0,0,.5);
+}
+.wl-card-head {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+}
+
+.wl-price {
+  font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 0.95rem;
+  color: var(--txt-1); padding: 3px 8px; background: rgba(56,189,248,0.08);
+  border-radius: 6px; display: inline-block;
+}
+
+.wl-origin {
+  display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700;
+  letter-spacing: 0.05em; padding: 2px 7px; border-radius: 999px; margin-left: 4px; vertical-align: middle;
+}
+.wl-origin.auto { color: #67e8f9; background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.35); }
+.wl-origin.man { color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.30); }
+
+.wl-ai-box {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  border: 1px solid #4c1d95; border-left: 4px solid var(--violet);
+  border-radius: 10px; padding: 12px 14px; margin: 10px 0; font-size: 12px; color: #e0e7ff;
+}
+.wl-ai-box b { color: #c4b5fd; }
+
+.wl-chart-head {
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px;
+}
+.wl-chart-ticker {
+  font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 800;
+  color: var(--txt-1); letter-spacing: -0.02em;
+}
+.wl-chart-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--txt-muted);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+
+div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-render_navbar("screening", hide_sidebar=False)
-section_header("Terminale operativo", "Screening & Titoli in Sconto")
-
-# ---------- LEGENDA HEALTH CHECK ----------
-with st.expander("ℹ️ Legenda Health Check", expanded=False):
-    st.markdown("""
-    **Health Check** – Valutazione assoluta della salute finanziaria (0-4):
-    - 🔹 **Free Cash Flow** TTM > 0 → l'azienda genera cassa operativa
-    - 🔹 **Crescita Ricavi** YoY (ultimo trimestre vs stesso trimestre anno prima) > 0 → fatturato in espansione
-    - 🔹 **Utile Netto** ultimo anno fiscale > 0 → redditività positiva
-    - 🔹 **Debito / Patrimonio Netto** < 1.5 → indebitamento contenuto
-
-    | Punteggio | Simbolo | Significato |
-    |-----------|---------|-------------|
-    | 4/4 | ✅ | Tutti i criteri superati – azienda solida |
-    | 2-3/4 | ⚠️ | Qualche debolezza – attenzione |
-    | 0-1/4 | ❌ | Criteri largamente non soddisfatti – fragile |
-
-    **Nota per i mercati europei**  
-    Le small cap europee possono mostrare fisiologicamente D/E più elevati o FCF negativo per investimenti.  
-    Un punteggio di 2‑3/4 ⚠️ in questi casi non è di per sé un segnale di debolezza: va letto nel contesto della capitalizzazione e del settore.
-    """)
-
-# ---------------------------------------------------------------
-# MOTORE
-# ---------------------------------------------------------------
-if "engine" not in st.session_state:
-    st.session_state["engine"] = DataEngine()
-engine = st.session_state["engine"]
-
-if "screener_database" not in st.session_state:
-    st.session_state["screener_database"] = engine.screener_database
-if "ultimi_spostamenti" not in st.session_state:
-    st.session_state["ultimi_spostamenti"] = []
-if "argo_prev_stato" not in st.session_state:
-    st.session_state["argo_prev_stato"] = None
-if "argo_prev_color" not in st.session_state:
-    st.session_state["argo_prev_color"] = None
-if "argo_state_changed" not in st.session_state:
-    st.session_state["argo_state_changed"] = False
-if "scan_timestamps" not in st.session_state:
-    st.session_state["scan_timestamps"] = {
-        "S&P 500": None, "NASDAQ 100": None, "DAX (Germania)": None,
-        "CAC 40 (Francia)": None, "FTSE MIB (Italia)": None
-    }
-if "debug_log" not in st.session_state:
-    st.session_state["debug_log"] = engine.debug_log
-if "ultimo_report_auto" not in st.session_state:
-    st.session_state["ultimo_report_auto"] = None
-if "screening_fatto_in_sessione" not in st.session_state:
-    st.session_state["screening_fatto_in_sessione"] = False
+render_navbar("watchlist", hide_sidebar=True)
+section_header("Portafoglio monitorato", "Watchlist & Livelli")
 
 
-def carica_database_da_github() -> dict | None:
+# ================================================================
+# CLIENT GROQ (opzionale: la pagina non crasha senza secret)
+# ================================================================
+@st.cache_resource
+def get_client():
+    api_key = st.secrets.get("GROQ_API_KEY")
+    if not api_key or not _HAS_GROQ:
+        return None
+    return Groq(api_key=api_key)
+
+
+client = get_client()
+
+
+PROMPT_VISION = """Sei un analista tecnico quantitativo. Analizza questo screenshot di un grafico finanziario.
+
+Estrai in formato JSON puro (senza markdown, senza backtick, senza testo esterno):
+{
+  "ticker": "string — simbolo dello strumento (es. AAPL, CPR.MI, GOLD)",
+  "livello_1": number,
+  "livello_2": number,
+  "livello_3": number,
+  "vwap_1": number,
+  "vwap_2": number,
+  "vwap_3": number
+}
+
+Regole:
+- "ticker": usa il simbolo esatto come appare sul grafico. Se non visibile, stringa vuota.
+- "livello_1/2/3": i 3 livelli di prezzo orizzontali più rilevanti (supporti/resistenze evidenti). 0 se non ne trovi 3.
+- "vwap_1/2/3": fino a 3 valori VWAP se etichettati o chiaramente leggibili. 0 se non visibili.
+- Tutti i prezzi in formato numerico (non stringhe).
+- Rispondi SOLO con l'oggetto JSON, nessun altro testo prima o dopo."""
+
+
+def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
+    if client is None:
+        raise RuntimeError("Client Groq non inizializzato (secret GROQ_API_KEY mancante).")
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64}"
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": "Rispondi SOLO con JSON valido, senza testo esterno né blocchi markdown."},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": PROMPT_VISION},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            },
+        ],
+        temperature=0.1,
+        max_tokens=500,
+        response_format={"type": "json_object"},
+    )
+
+    text = response.choices[0].message.content or ""
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+
+    if not text.strip():
+        raise ValueError("Risposta vuota dal modello vision.")
+
+    try:
+        dati = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON non parsabile dal modello: {e}. Risposta grezza: {text[:200]}")
+
+    defaults = {"ticker": "", "livello_1": 0, "livello_2": 0, "livello_3": 0,
+                "vwap_1": 0, "vwap_2": 0, "vwap_3": 0}
+    for k, v in defaults.items():
+        if k not in dati or dati[k] is None:
+            dati[k] = v
+    return dati
+
+
+COLONNE_ATTESE = [
+    "Ticker",
+    "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
+    "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
+    "Screenshot", "Origine",
+    "POC 1", "Nota POC 1", "POC 2", "Nota POC 2", "POC 3", "Nota POC 3",
+    "Auto_Indice",
+]
+
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO")
+_TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+
+def _is_text_col(col: str) -> bool:
+    return col.startswith("Nota") or col in _TEXT_COLS
+
+def commit_csv_su_github(df: pd.DataFrame):
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    r = requests.get(url, headers=headers)
+    sha = r.json().get("sha") if r.status_code == 200 else None
+    contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
+    payload = {"message": "Aggiorna watchlist.csv da app Streamlit", "content": contenuto_b64, "branch": "main"}
+    if sha:
+        payload["sha"] = sha
+    resp = requests.put(url, headers=headers, json=payload)
+    if resp.status_code not in (200, 201):
+        st.warning(f"Salvataggio su GitHub fallito: {resp.status_code} {resp.text[:200]}")
+
+def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione: str) -> str | None:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    nome_file = f"screenshots/{ticker}_{int(time.time())}.{estensione}"
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{nome_file}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    payload = {"message": f"Aggiungi screenshot {ticker}", "content": base64.b64encode(contenuto_bytes).decode(), "branch": "main"}
+    resp = requests.put(url, headers=headers, json=payload)
+    if resp.status_code in (200, 201):
+        return nome_file
+    st.warning(f"Salvataggio screenshot fallito: {resp.status_code} {resp.text[:200]}")
+    return None
+
+@st.cache_data(ttl=600)
+def dimensione_repo_kb() -> int | None:
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
     try:
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/argo_database.json"
+        r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
+        if r.status_code == 200:
+            return r.json().get("size")
+    except Exception:
+        pass
+    return None
+
+ALIAS_COLONNE = {
+    "ticker": "Ticker", "livello": "Livello 1",
+    "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
+    "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
+    "origine": "Origine",
+    "POC": "POC 1", "poc": "POC 1",
+    "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
+    "auto_indice": "Auto_Indice",
+}
+
+def _read_watchlist_github() -> pd.DataFrame | None:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
         headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-        r = requests.get(url, headers=headers, timeout=30)
+        r = requests.get(url, headers=headers)
         if r.status_code != 200:
             return None
         contenuto = base64.b64decode(r.json()["content"]).decode()
-        return json.loads(contenuto)
+        return pd.read_csv(io.StringIO(contenuto))
     except Exception as e:
-        print(f"Errore lettura argo_database.json da GitHub: {e}")
+        print(f"Errore lettura watchlist da GitHub: {e}")
         return None
 
-
-if not st.session_state["screening_fatto_in_sessione"]:
-    _db_gh = carica_database_da_github()
-    if _db_gh:
-        engine.screener_database.clear()
-        engine.screener_database.update(_db_gh)
-        st.session_state["screener_database"] = engine.screener_database
-        _ls = _db_gh.get("_last_scans", {}) or {}
-        for _idx in st.session_state["scan_timestamps"]:
-            if st.session_state["scan_timestamps"][_idx] is None and _idx in _ls:
-                try:
-                    st.session_state["scan_timestamps"][_idx] = datetime.datetime.fromisoformat(_ls[_idx])
-                except Exception:
-                    pass
-
-
-def genera_url_tradingview(ticker):
-    t = str(ticker).upper().strip()
-    if t.endswith('.DE'):
-        return f"https://www.tradingview.com/symbols/XETR-{t.replace('.DE', '')}/"
-    elif t.endswith('.MI'):
-        return f"https://www.tradingview.com/symbols/MIL-{t.replace('.MI', '')}/"
-    elif t.endswith('.PA'):
-        return f"https://www.tradingview.com/symbols/EPA-{t.replace('.PA', '')}/"
-    else:
-        return f"https://www.tradingview.com/symbols/{t}/"
-
-
-def pulisci_auto_zombie(indice: str, ticker_correnti_set: set):
-    df_wl = carica_watchlist_da_github()
-    if df_wl.empty:
-        return 0, []
-    tag = f"({indice})"
-    idx_da_togliere, rimossi_t = [], []
-    for idx, row in df_wl.iterrows():
-        origine = str(row.get("Origine", "")).strip().lower()
-        auto_idx = str(row.get("Auto_Indice", "")).strip()
-        nota_poc = str(row.get("Nota POC 1", "")) + str(row.get("Nota POC", ""))
-        is_mine = (auto_idx == indice) or (origine == "auto" and tag in nota_poc)
-        if origine == "auto" and is_mine:
-            tk = str(row["Ticker"]).strip().upper()
-            if tk not in ticker_correnti_set:
-                idx_da_togliere.append(idx); rimossi_t.append(tk)
-    if idx_da_togliere:
-        df_wl = df_wl.drop(idx_da_togliere)
-        commit_csv_su_github(df_wl)
-    return len(idx_da_togliere), rimossi_t
-
-
-macro_info = engine.ottieni_bussola_argo()
-argo_bussola = macro_info["bussola"]
-
-
-def check_state_change():
-    prev_stato = st.session_state.get("argo_prev_stato")
-    prev_color = st.session_state.get("argo_prev_color")
-    current_stato = argo_bussola["stato"]
-    current_color = argo_bussola["color"]
-    if prev_stato is not None and prev_stato != current_stato:
-        st.session_state["argo_state_changed"] = True
-        st.session_state["argo_old_stato"] = prev_stato
-        st.session_state["argo_old_color"] = prev_color
-        st.session_state["argo_new_stato"] = current_stato
-        st.session_state["argo_new_color"] = current_color
-    else:
-        st.session_state["argo_state_changed"] = False
-    st.session_state["argo_prev_stato"] = current_stato
-    st.session_state["argo_prev_color"] = current_color
-
-
-check_state_change()
-
-if st.session_state.get("argo_state_changed", False):
-    old_stato = st.session_state.get("argo_old_stato", "N/D")
-    new_stato = st.session_state.get("argo_new_stato", "N/D")
-    old_color = st.session_state.get("argo_old_color", "slate")
-    new_color = st.session_state.get("argo_new_color", "slate")
-    color_map_hex = {"emerald": "#10b981", "rose": "#f43f5e", "amber": "#f59e0b", "indigo": "#6366f1", "orange": "#f97316", "slate": "#64748b"}
-    st.markdown(f"""
-    <div class="state-change-banner" style="border-left-color: {color_map_hex.get(new_color, '#fbbf24')};">
-        <strong>⚠️ CAMBIO REGIME RILEVATO!</strong> <br>
-        <span style="color: {color_map_hex.get(old_color, '#94a3b8')};"><b>{old_stato}</b></span>
-        ➜
-        <span style="color: {color_map_hex.get(new_color, '#fbbf24')};"><b>{new_stato}</b></span>
-    </div>
-    """, unsafe_allow_html=True)
-
-color_map = {"emerald": "#10b981", "rose": "#f43f5e", "amber": "#f59e0b", "indigo": "#6366f1", "orange": "#f97316", "slate": "#64748b"}
-st.markdown(f"""
-<div style="background-color: #1e293b; border-left: 5px solid {color_map[argo_bussola['color']]}; padding: 6px 12px; border-radius: 6px; margin-bottom: 15px; margin-top: 5px;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <span style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #94a3b8;">Direttiva Tattica</span>
-            <h5 style="margin: 0; color: #f8fafc; font-weight: 800; font-size: 1.1rem;">{argo_bussola['stato']}</h5>
-            <p style="margin: 0; font-size: 11px; color: #cbd5e1; font-weight: 500;">{argo_bussola['desc']}</p>
-        </div>
-        <div style="background-color: #0f172a; border: 1px solid #334155; padding: 4px 10px; border-radius: 4px; text-align: center;">
-            <span style="font-size: 8px; font-weight: bold; color: #64748b; text-transform: uppercase;">BIAS</span>
-            <h4 style="margin: 0; color: {color_map[argo_bussola['color']]}; font-weight: 900; font-size: 1.1rem;">{argo_bussola['bias']}</h4>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------------------
-# SIDEBAR
-# ---------------------------------------------------------------
-listino_opzioni = ["🌍 TUTTI GLI INDICI INSIEME", "S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
-
-with st.sidebar:
-    st.header("⚙️ Configurazione Metodo REA")
-    indice_scelto = st.selectbox("Seleziona l'Indice da Scansionare:", listino_opzioni)
-    st.markdown("---")
-    default_cap = 10.0 if indice_scelto in ["S&P 500", "NASDAQ 100", "🌍 TUTTI GLI INDICI INSIEME"] else 2.5
-    min_market_cap = st.number_input("Market Cap Minima (Miliardi): ", value=default_cap, step=0.5) * 1e9
-    soglia_drawdown = st.number_input("Soglia Minima di Drawdown dall'ATH (%) ", value=25.0, step=5.0)
-    st.markdown("---")
-    soglia_poc_pct = st.number_input("Soglia Vicinanza POC / VWAP (%) ", value=2.0, step=0.5, help="Segnala (🎯 Alert) il titolo se il prezzo è dentro una zona POC, oppure entro questa % da un POC o VWAP.")
-    st.markdown("---")
-    soglia_promo_pct = st.number_input(
-        "Soglia promozione auto in watchlist (%) ", value=2.5, step=0.5,
-        help="Un titolo ENTRA da solo in watchlist (🤖) se il prezzo è dentro una zona POC, oppure entro questa % da POC o VWAP. Una volta dentro resta finché è in sconto e i suoi VWAP si rinfrescano a ogni run. I manuali non vengono mai toccati su Livelli/POC."
-    )
-    st.markdown("---")
-    st.caption("💡  Health Check (0-4):  valutazione assoluta della salute finanziaria (FCF, Crescita Ricavi, Utile Netto, D/E).")
-    st.caption("📉  Bottom Score (0-4):  segnali di inversione (Decelerazione ROC, MACD, POC, Volume).")
-    st.caption("🧹  POC operativi:  nel grafico vedi solo i POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
-    st.caption("🤖  Automazione:  i titoli in zona entrano da soli; i VWAP si rinfrescano sempre; escono solo se non più in sconto.")
-    st.caption("⏰  Screening automatico:  1 volta/giorno alle 21:30 UTC. AVVIA = override manuale.")
-    st.caption("⚖️  Operazione Potenziale:  lettura automatica non vincolante. Decisione e rischio sono interamente a carico dell'utente.")
-    st.caption("🖱️  Clicca su un ticker in tabella per aprire l'analisi di decelerazione del titolo.")
-
-    st.markdown("---")
-    st.subheader("🕒 Stato Scansioni")
-    for idx_name, ts in st.session_state["scan_timestamps"].items():
-        if ts is None:
-            st.caption(f"❌ {idx_name}: Mai scansionato")
+def carica_watchlist() -> pd.DataFrame:
+    df = _read_watchlist_github()
+    if df is None or df.empty:
+        if os.path.exists(CSV_PATH):
+            try:
+                df = pd.read_csv(CSV_PATH)
+            except Exception:
+                df = pd.DataFrame(columns=COLONNE_ATTESE)
         else:
-            delta = (datetime.datetime.now() - ts).total_seconds() / 60
-            if delta < 60:
-                st.caption(f"✅ {idx_name}: {int(delta)} minuti fa")
-            else:
-                st.caption(f"✅ {idx_name}: {ts.strftime('%H:%M %d/%m')}")
-
-    st.markdown("---")
-    if st.button("🚀 AVVIA SCREENING QUALITY (v2)", type="primary", use_container_width=True):
-        engine.debug_log = []
-        st.session_state["debug_log"] = []
-        st.session_state["ultimi_spostamenti"] = []
-        st.session_state["ultimo_report_auto"] = None
-        total_spostamenti, total_count = [], 0
-        tot_agg, tot_upd, tot_vw, tot_zomb, tot_in_zona = 0, 0, 0, 0, 0
-        tot_agg_t, tot_upd_t, tot_vw_t, tot_zomb_t = [], [], [], []
-
-        if indice_scelto == "🌍 TUTTI GLI INDICI INSIEME":
-            indices_to_scan = ["S&P 500", "NASDAQ 100", "DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
-        else:
-            indices_to_scan = [indice_scelto]
-
-        for idx_name in indices_to_scan:
-            with st.spinner(f"Scansione in corso per {idx_name}..."):
-                result_list, spost = engine.perform_screening(idx_name, min_market_cap, soglia_drawdown, soglia_poc_pct)
-                if result_list:
-                    total_spostamenti.extend(spost); total_count += len(result_list)
-                    st.session_state[f"scan_count_{idx_name}"] = len(result_list)
-                else:
-                    st.session_state[f"scan_count_{idx_name}"] = 0
-                st.session_state["scan_timestamps"][idx_name] = datetime.datetime.now()
-                st.session_state[f"has_scanned_{idx_name}"] = True
-
-                df_scr = pd.DataFrame(result_list) if result_list else pd.DataFrame()
-                stats = promuovi_auto_da_screener(df_scr, idx_name, soglia_trigger_pct=soglia_promo_pct)
-                tot_agg += stats.get("aggiunti", 0); tot_upd += stats.get("aggiornati", 0)
-                tot_vw += stats.get("vwappati", 0); tot_in_zona += stats.get("in_zona", 0)
-                tot_agg_t += stats.get("aggiunti_tickers", []); tot_upd_t += stats.get("aggiornati_tickers", [])
-                tot_vw_t += stats.get("vwappati_tickers", [])
-                ticker_correnti = set(str(t).strip().upper() for t in df_scr["Ticker"]) if (not df_scr.empty and "Ticker" in df_scr.columns) else set()
-                zcount, zlist = pulisci_auto_zombie(idx_name, ticker_correnti)
-                tot_zomb += zcount; tot_zomb_t += zlist
-
-        st.session_state["ultimi_spostamenti"] = total_spostamenti
-        st.session_state["scan_count_all"] = total_count
-        st.session_state["ultimo_report_auto"] = {
-            "aggiunti": tot_agg, "aggiornati": tot_upd, "vwappati": tot_vw,
-            "rimossi": tot_zomb, "in_zona": tot_in_zona, "soglia": soglia_promo_pct,
-            "aggiunti_tickers": tot_agg_t, "aggiornati_tickers": tot_upd_t,
-            "vwappati_tickers": tot_vw_t, "rimossi_tickers": tot_zomb_t,
-        }
-        st.session_state["screening_fatto_in_sessione"] = True
-        st.success(f"✅ Scansione completata! Trovati {total_count} titoli in totale su {len(indices_to_scan)} indici.")
-        st.rerun()
-
-    st.markdown("---")
-    st.subheader("🔍 Debug Log (ultimi 50 eventi)")
-    _live_log = engine.debug_log
-    if _live_log:
-        for entry in _live_log[-50:]:
-            level = entry["level"]
-            color = {"info": "#60a5fa", "success": "#22c55e", "error": "#ef4444", "warning": "#eab308"}.get(level, "#94a3b8")
-            st.markdown(f"<div style='font-size:11px; color:{color};'>[{entry['time']}] {entry['msg']}</div>", unsafe_allow_html=True)
-    else:
-        st.caption("Nessun evento di debug registrato.")
-
-# ---------------------------------------------------------------
-# PANNELLO AUTOMAZIONE
-# ---------------------------------------------------------------
-rep = st.session_state.get("ultimo_report_auto")
-if rep is not None:
-    soglia_rep = rep.get("soglia", 2.5)
-    chips = (
-        f'<div class="ar-chip"><div class="ar-num ar-add">{rep["aggiunti"]}</div><div class="ar-lab">➕ Aggiunti </div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Auto aggiornati</div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-vw">{rep["vwappati"]}</div><div class="ar-lab">🔃 VWAP rinfrescati</div></div>'
-        f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🗑️ Usciti (no sconto)</div></div>'
-        f'<div class="ar-chip"><div class="ar-num" style="color:#e2e8f0">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
-    )
-
-    def _pills(names, cls, maxn=8):
-        if not names:
-            return ""
-        names = list(dict.fromkeys(str(n) for n in names))
-        shown = names[:maxn]; extra = len(names) - len(shown)
-        inner = "".join(f'<span class="ar-tag {cls}">{html.escape(n)}</span>' for n in shown)
-        if extra > 0:
-            inner += f'<span class="ar-tag ar-tag-more">+{extra}</span>'
-        return inner
-
-    groups = [
-        (rep.get("aggiunti_tickers"), "ar-add", "➕ Entrati"),
-        (rep.get("aggiornati_tickers"), "ar-upd", "🔄 Aggiornati"),
-        (rep.get("vwappati_tickers"), "ar-vw", "🔃 VWAP rinfrescati"),
-        (rep.get("rimossi_tickers"), "ar-rm", "🗑️ Usciti"),
-    ]
-    group_html = []
-    for names, cls, label in groups:
-        pills = _pills(names, cls)
-        if pills:
-            group_html.append(f'<div class="ar-group"><span class="ar-glabel {cls}">{label}</span>{pills}</div>')
-    detail_html = '<div class="ar-tags">' + "".join(group_html) + '</div>' if group_html else ''
-
-    if rep["in_zona"] == 0 and not group_html:
-        nota = (f"Nessun titolo dello screening era dentro una zona POC o vicino a un VWAP (±{soglia_rep:g}%): "
-                f"<b>niente nuovi ingressi</b> e nessun VWAP da rinfrescare in questo giro.")
-    elif not group_html:
-        nota = f"<b>{rep['in_zona']}</b> titoli in zona, ma nessuno ha cambiato stato né VWAP rispetto a prima."
-    else:
-        parti = []
-        if rep["aggiunti"]:
-            parti.append(f"<span class='ar-add'><b>{rep['aggiunti']}</b> nuovi 🤖</span>")
-        if rep["aggiornati"]:
-            parti.append(f"<span class='ar-upd'><b>{rep['aggiornati']}</b> auto aggiornati</span>")
-        if rep["vwappati"]:
-            parti.append(f"<span class='ar-vw'><b>{rep['vwappati']}</b> manuali con VWAP rinfrescati</span>")
-        nota = f"Esito: {' · '.join(parti)}." if parti else "Nessun cambiamento di stato in questo giro."
-    extra = f" <span class='ar-rm'>🗑️ {rep['rimossi']}</span> auto rimossi perché non più in sconto." if rep["rimossi"] else ""
-
-    st.markdown(
-        '<div class="argo-report"><div class="ar-head">🤖 Automazione watchlist — esito dell\'ultimo screening</div>'
-        '<div class="ar-chips">' + chips + '</div><div class="ar-note">' + nota + extra + '</div>'
-        + detail_html + '</div>',
-        unsafe_allow_html=True,
-    )
-
-render_metric_guide()
-
-# ---------------------------------------------------------------
-# ARRICCHIMENTO + RENDERER TABELLA
-# ---------------------------------------------------------------
-_HDR = {
-    "Ticker": ("Ticker", "Clicca per aprire l'analisi di decelerazione"),
-    "Indice": ("Indice", "Indice di appartenenza"),
-    "Prezzo": ("Prezzo", "Prezzo attuale"),
-    "Drawdown (%)": ("DD %", "Drawdown dall'ATH (%)"),
-    "Health": ("Health", "Health Check (0-4) — salute finanziaria assoluta"),
-    "Bottom Score (0-4)": ("Bottom", "Bottom Score (0-4) — segnali di inversione"),
-    "Bottom Dettagli": ("Segnali", "Segnali tecnici attivi"),
-    "POC più vicino": ("POC vicino", "POC operativo più vicino"),
-    "Distanza POC (%)": ("dPOC %", "📍 in zona se dentro area POC, altrimenti distanza % dal POC più vicino"),
-    "VWAP vicino": ("VWAP vicino", "VWAP (3M/1Y/4Y) più vicino al prezzo"),
-    "Distanza VWAP (%)": ("dVWAP %", "Distanza % dal VWAP più vicino"),
-    "🎯 Alert": ("🎯 Alert", "Tocco POC / VWAP entro la soglia, con distanza"),
-    "Market Cap (B)": ("MCap", "Capitalizzazione (miliardi)"),
-    "Entry Mode": ("Operazione Potenziale", "Lettura automatica non vincolante del metodo REA: decisione e rischio interamente a carico dell'utente"),
-    "Stato": ("Stato", "Stato del titolo"),
-    "Grafico TW": ("TW", "Apri su TradingView"),
-}
-_RIGHT = {"Prezzo", "Drawdown (%)", "Market Cap (B)", "Distanza POC (%)", "VWAP vicino", "Distanza VWAP (%)"}
-_CENTER = {"Health", "Bottom Score (0-4)", "🎯 Alert", "Grafico TW", "Stato"}
-
-_CHIPS = ["Ticker", "Prezzo", "DD%", "Health", "Bottom", "MCap", "dPOC%", "dVWAP%"]
-_CHIP2COL = {
-    "Ticker": "Ticker", "Prezzo": "Prezzo", "DD%": "Drawdown (%)",
-    "Health": "Health_Score", "Bottom": "Bottom Score (0-4)",
-    "MCap": "Market Cap (B)", "dPOC%": "_dist_poc_num", "dVWAP%": "Distanza VWAP (%)",
-}
-_CHIP_DIR = {
-    "Ticker": "asc", "Prezzo": "desc", "DD%": "asc", "Health": "desc",
-    "Bottom": "desc", "MCap": "desc", "dPOC%": "asc", "dVWAP%": "asc",
-}
-
-
-def _sf(v):
-    try:
-        f = float(v)
-        return np.nan if pd.isna(f) else f
-    except (TypeError, ValueError):
-        return np.nan
-
-
-def _esc(v):
-    return html.escape("" if v is None else str(v))
-
-
-def _isna(v):
-    if v is None:
-        return True
-    try:
-        if isinstance(v, float) and pd.isna(v):
-            return True
-    except Exception:
-        pass
-    return str(v).strip().lower() in ("", "nan", "none")
-
-
-def _parse_pct(s):
-    s = str(s).strip()
-    if s in ("", "nan", "None", "N/D"):
-        return np.nan
-    try:
-        return float(s.replace("%", "").replace("+", ""))
-    except Exception:
-        return np.nan
-
-
-def arricchisci(df, soglia):
+            df = pd.DataFrame(columns=COLONNE_ATTESE)
     if df.empty:
-        for c in ["VWAP vicino", "_vwap_tf", "Distanza VWAP (%)", "_dist_poc_num", "🎯 Alert", "_alert_detail"]:
-            df[c] = np.nan if c in ("VWAP vicino", "Distanza VWAP (%)", "_dist_poc_num") else ""
+        df = pd.DataFrame(columns=COLONNE_ATTESE)
+    df = df.rename(columns=ALIAS_COLONNE)
+    for col in COLONNE_ATTESE:
+        if col not in df.columns:
+            df[col] = "" if _is_text_col(col) else 0
+    df = df[COLONNE_ATTESE]
+    for col in COLONNE_ATTESE:
+        if _is_text_col(col):
+            df[col] = df[col].fillna("").astype(str).replace("nan", "")
+    df["Origine"] = df["Origine"].replace("", "manuale")
+    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
+    return df
+
+def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
+    df = carica_watchlist()
+    vecchio_ticker = vecchio_ticker.strip().upper()
+    nuovo_ticker = nuovo_ticker.strip().upper()
+    if not nuovo_ticker or vecchio_ticker == nuovo_ticker:
         return df
+    idx = df[df["Ticker"].str.upper() == vecchio_ticker].index
+    if len(idx) == 0:
+        return df
+    df.at[idx[0], "Ticker"] = nuovo_ticker
+    df.to_csv(CSV_PATH, index=False)
+    commit_csv_su_github(df)
+    return df
 
-    def _vwap_nearest(row):
-        P = _sf(row.get("Prezzo"))
-        cands = []
-        for tf, key in (("3M", "VWAP 3M"), ("1Y", "VWAP 1Y"), ("4Y", "VWAP 4Y")):
-            v = _sf(row.get(key))
-            if v > 0 and P > 0:
-                d = (P - v) / v * 100
-                cands.append((abs(d), d, v, tf))
-        if not cands:
-            return pd.Series({"VWAP vicino": 0.0, "_vwap_tf": "", "Distanza VWAP (%)": np.nan})
-        cands.sort(key=lambda x: x[0])
-        _, d, v, tf = cands[0]
-        return pd.Series({"VWAP vicino": round(v, 2), "_vwap_tf": tf, "Distanza VWAP (%)": round(d, 1)})
-
-    df = df.copy()
-    df[["VWAP vicino", "_vwap_tf", "Distanza VWAP (%)"]] = df.apply(_vwap_nearest, axis=1)
-    df["_dist_poc_num"] = df["Distanza POC (%)"].apply(_parse_pct)
-
-    def _alert(row):
-        P = _sf(row.get("Prezzo"))
-        in_zona = False
-        for k in (1, 2, 3):
-            poc_low = _sf(row.get(f"POC {k} Low"))
-            poc_high = _sf(row.get(f"POC {k} High"))
-            if poc_low > 0 and poc_high > 0 and P > 0:
-                if poc_low <= P <= poc_high:
-                    in_zona = True
-                    break
-        poc_hit = in_zona or (str(row.get("🎯 ALERT POC", "")).strip() == "🎯 SU POC")
-        dv = row["Distanza VWAP (%)"]
-        vwap_hit = pd.notna(dv) and abs(dv) <= soglia
-        dp = row["_dist_poc_num"]
-        if not poc_hit and not vwap_hit:
-            return pd.Series({"🎯 Alert": "", "_alert_detail": ""})
-        parts = []
-        if poc_hit:
-            if in_zona:
-                parts.append("POC 📍 in zona")
-            elif pd.notna(dp):
-                parts.append(f"POC {dp:+.1f}%")
-            else:
-                parts.append("POC")
-        if vwap_hit:
-            parts.append(f"VWAP {dv:+.1f}%")
-        if poc_hit and vwap_hit:
-            label = "🎯 POC+VWAP"
-        elif poc_hit:
-            label = "🎯 IN ZONA POC" if in_zona else "🎯 SU POC"
-        else:
-            label = "🎯 SU VWAP"
-        return pd.Series({"🎯 Alert": label, "_alert_detail": " · ".join(parts)})
-
-    df[["🎯 Alert", "_alert_detail"]] = df.apply(_alert, axis=1)
-
-    def _format_dist_poc(row):
-        P = _sf(row.get("Prezzo"))
-        for k in (1, 2, 3):
-            poc_low = _sf(row.get(f"POC {k} Low"))
-            poc_high = _sf(row.get(f"POC {k} High"))
-            if poc_low > 0 and poc_high > 0 and P > 0:
-                if poc_low <= P <= poc_high:
-                    return "📍 in zona"
-        return row.get("Distanza POC (%)", "N/D")
-
-    df["Distanza POC (%)"] = df.apply(_format_dist_poc, axis=1)
+def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
+    df = carica_watchlist()
+    ticker = ticker.strip().upper()
+    if ticker in df["Ticker"].str.upper().values:
+        idx = df[df["Ticker"].str.upper() == ticker].index[0]
+        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot", "Origine"]:
+            df[col] = df[col].astype(object)
+        df.at[idx, "Livello 1"] = l1; df.at[idx, "Nota 1"] = n1
+        df.at[idx, "Livello 2"] = l2; df.at[idx, "Nota 2"] = n2
+        df.at[idx, "Livello 3"] = l3; df.at[idx, "Nota 3"] = n3
+        df.at[idx, "VWAP 1"] = v1; df.at[idx, "Nota VWAP 1"] = nv1
+        df.at[idx, "VWAP 2"] = v2; df.at[idx, "Nota VWAP 2"] = nv2
+        df.at[idx, "VWAP 3"] = v3; df.at[idx, "Nota VWAP 3"] = nv3
+        df.at[idx, "Origine"] = "manuale"
+        if screenshot_path:
+            df.at[idx, "Screenshot"] = screenshot_path
+    else:
+        nuova_riga = pd.DataFrame([{
+            "Ticker": ticker,
+            "Livello 1": l1, "Nota 1": n1, "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
+            "VWAP 1": v1, "Nota VWAP 1": nv1, "VWAP 2": v2, "Nota VWAP 2": nv2, "VWAP 3": v3, "Nota VWAP 3": nv3,
+            "Screenshot": screenshot_path or "", "Origine": "manuale",
+            "POC 1": 0, "Nota POC 1": "", "POC 2": 0, "Nota POC 2": "", "POC 3": 0, "Nota POC 3": "",
+            "Auto_Indice": "",
+        }])
+        df = pd.concat([df, nuova_riga], ignore_index=True)
+    df.to_csv(CSV_PATH, index=False)
+    commit_csv_su_github(df)
     return df
 
 
-def _fmt2(v):
-    if _isna(v):
-        return "—"
-    try:
-        return f"{float(v):.2f}"
-    except Exception:
-        return _esc(v)
+# ================================================================
+# HEADER + SEZIONE UPLOAD / ANALISI
+# ================================================================
+st.markdown(
+    '<div class="wl-card">'
+    '<div class="wl-card-head">🤖 Automazione watchlist</div>'
+    '<div style="font-size:12.5px;line-height:1.55;color:#cbd5e1">'
+    'I titoli dello <b>screener</b> che toccano un POC o un VWAP entrano <b>da soli</b> nella watchlist '
+    'con origine <span class="wl-origin auto">🤖 AUTO</span> e vengono rimossi quando escono dalla zona. '
+    'I titoli che inserisci o modifichi a mano qui hanno origine <span class="wl-origin man">👤 MAN</span> '
+    'e <b>non vengono mai toccati</b> dall\'automazione.'
+    '</div></div>',
+    unsafe_allow_html=True,
+)
 
+col_upload, col_result = st.columns([1, 1], gap="large")
 
-def _score_bg(col, v):
-    if col.startswith("Bottom"):
-        if v >= 4: return "background:#065f46;color:#a7f3d0"
-        if v >= 3: return "background:#143524;color:#86efac"
-        if v >= 2: return "background:#3a2408;color:#fde68a"
-        return "background:#3a1414;color:#fca5a5"
-    if v >= 3: return "background:#065f46;color:#a7f3d0"
-    if v >= 2: return "background:#143524;color:#86efac"
-    return "background:#3a1414;color:#fca5a5"
+with col_upload:
+    st.markdown('<div class="wl-card-head">📸 Upload screenshot</div>', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader(
+        "Carica screenshot del grafico (TradingView, broker, ecc.)",
+        type=["png", "jpg", "jpeg", "webp"],
+        label_visibility="collapsed",
+    )
+    if uploaded_file is not None:
+        st.image(uploaded_file, caption="Anteprima", use_container_width=True)
 
-
-def _pill(text, bg, fg):
-    return f'<span class="pill" style="background:{bg};color:{fg}">{html.escape(str(text))}</span>'
-
-
-def _entry_cell(v):
-    s = str(v)
-    if s.startswith("🚀"): return _pill(s, "rgba(34,197,94,.16)", "#86efac")
-    if s.startswith("⏳"): return _pill(s, "rgba(245,158,11,.16)", "#fcd34d")
-    if s.startswith("⛔"): return _pill(s, "rgba(239,68,68,.16)", "#fca5a5")
-    if s.startswith("📈"): return _pill(s, "rgba(96,165,250,.16)", "#93c5fd")
-    return _pill(s, "rgba(148,163,184,.12)", "#cbd5e1")
-
-
-def _stato_cell(v):
-    s = str(v).strip()
-    if s == "Active": return _pill(s, "rgba(34,197,94,.16)", "#86efac")
-    if s == "Ripartito": return _pill(s, "rgba(245,158,11,.16)", "#fcd34d")
-    if s == "Nuovo": return _pill(s, "rgba(96,165,250,.16)", "#93c5fd")
-    return _pill(s or "—", "rgba(148,163,184,.12)", "#94a3b8")
-
-
-def _alert_cell(val, row):
-    label = str(val).strip()
-    if not label:
-        return '<span class="muted">—</span>'
-    detail = str(row.get("_alert_detail", "")).strip() if row is not None else ""
-    if "POC+VWAP" in label:
-        bg, fg = "rgba(167,139,250,.20)", "#d8b4fe"
-    elif "IN ZONA" in label:
-        bg, fg = "rgba(34,197,94,.20)", "#86efac"
-    elif "SU POC" in label:
-        bg, fg = "rgba(244,63,94,.20)", "#fda4af"
-    else:
-        bg, fg = "rgba(0,180,216,.20)", "#67e8f9"
-    inner = _pill(label, bg, fg)
-    if detail:
-        inner += f'<span class="sub">{html.escape(detail)}</span>'
-    return inner
-
-
-def _health_style(score):
-    if score == 4:
-        return "background:#065f46; color:#a7f3d0"
-    elif score >= 2:
-        return "background:#78350f; color:#fde68a"
-    else:
-        return "background:#7f1d1d; color:#fca5a5"
-
-
-def _td(col, val, row=None):
-    na = _isna(val)
-    raw = "" if na else str(val).strip()
-    if col == "Ticker":
-        if raw:
-            inner = f'<a class="tklink" href="?ticker={html.escape(raw, quote=True)}" title="Apri analisi decelerazione">{html.escape(raw)}</a>'
+        if client is None:
+            st.warning("⚠️ **Analisi AI non disponibile.** Configura il secret `GROQ_API_KEY` su Streamlit Cloud (Manage app → Settings → Secrets) e verifica che `requirements.txt` contenga `groq`. Il resto della pagina funziona normalmente.")
         else:
-            inner = "—"
-        return ("tk", "", inner)
-    if col == "Indice":
-        return ("idx", "", html.escape(raw))
-    if col == "Grafico TW":
-        url = "" if na else str(val)
-        inner = f'<a class="tw" href="{html.escape(url, quote=True)}" target="_blank" rel="noopener">📈</a>' if url else "—"
-        return ("c", "", inner)
-    if col == "Health":
-        score = row.get("Health_Score") if row is not None else None
-        if score is None or pd.isna(score):
-            return ("score", "", "—")
-        try:
-            score_int = int(score)
-        except (ValueError, TypeError):
-            return ("score", "", str(val))
-        disp = str(val).strip()
-        return ("score", _health_style(score_int), disp)
-    if col == "Bottom Score (0-4)":
-        try:
-            v = float(val)
-        except Exception:
-            v = None
-        if v is None or pd.isna(v):
-            return ("score", "", "—")
-        disp = str(int(v)) if float(v).is_integer() else f"{float(v):.1f}"
-        return ("score", _score_bg(col, v), disp)
-    if col == "Bottom Dettagli":
-        return ("det", "", html.escape(raw) or "—")
-    if col == "Entry Mode":
-        return ("", "", _entry_cell(val))
-    if col == "Stato":
-        return ("c", "", _stato_cell(val))
-    if col == "🎯 Alert":
-        return ("c", "", _alert_cell(val, row))
-    if col == "VWAP vicino":
-        tf = str(row.get("_vwap_tf", "")).strip() if row is not None else ""
-        if na or float(val or 0) == 0:
-            return ("r num muted", "", "—")
-        return ("r num", "", f'{float(val):.2f}<span class="tf">{html.escape(tf)}</span>')
-    if col == "Distanza VWAP (%)":
-        if na:
-            return ("r num muted", "", "—")
-        return ("r num", "", f'{float(val):+.1f}%')
-    if col == "Distanza POC (%)":
-        if str(val).strip() == "📍 in zona":
-            return ("r num", "background:rgba(34,197,94,.20);color:#86efac;font-weight:700", "📍 in zona")
-        d = row.get("_dist_poc_num") if row is not None else np.nan
-        if d is None or (isinstance(d, float) and pd.isna(d)):
-            return ("r num muted", "", "N/D")
-        return ("r num", "", f'{float(d):+.1f}%')
-    if col == "Prezzo":
-        return ("r num", "", _fmt2(val))
-    if col == "Market Cap (B)":
-        return ("r num", "", _fmt2(val))
-    if col == "Drawdown (%)":
-        return ("r num dd", "", _fmt2(val))
-    if col == "POC più vicino":
-        if raw in ("", "nan", "None"):
-            return ("num muted", "", "—")
-        if raw == "N/D":
-            return ("num muted", "", "N/D")
-        return ("num", "", html.escape(raw))
-    return ("", "", html.escape(raw) or "—")
-
-
-def _th_class(col):
-    if col in _RIGHT: return "r"
-    if col in _CENTER: return "c"
-    return ""
-
-
-def _screening_table_html(df, columns):
-    head = "".join(
-        f'<th class="{_th_class(c)}" title="{html.escape(_HDR.get(c, (c, c))[1], quote=True)}">'
-        f'{html.escape(_HDR.get(c, (c, c))[0])}</th>' for c in columns)
-    rows = []
-    for _, r in df.iterrows():
-        cells = []
-        for c in columns:
-            cls, style, inner = _td(c, r.get(c), r)
-            st_attr = f' style="{style}"' if style else ""
-            cells.append(f'<td class="{cls}"{st_attr}>{inner}</td>')
-        rows.append("<tr>" + "".join(cells) + "</tr>")
-    return (f'<div class="argo-tbl-wrap"><table class="argo-tbl"><thead><tr>{head}</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table></div>')
-
-
-def render_sort_bar(key, default_chip):
-    cur_chip = st.session_state.get(f"{key}_chip", default_chip)
-    cur_dir = st.session_state.get(f"{key}_dir", _CHIP_DIR[default_chip])
-    st.markdown('<div class="sk-cap">↕️ Ordina per</div>', unsafe_allow_html=True)
-    cols = st.columns(len(_CHIPS))
-    for c, chip in zip(cols, _CHIPS):
-        active = (chip == cur_chip)
-        arrow = "▲ " if (active and cur_dir == "asc") else ("▼ " if (active and cur_dir == "desc") else "")
-        if c.button(arrow + chip, key=f"{key}_s_{chip}", type="primary" if active else "secondary", use_container_width=True):
-            nd = _CHIP_DIR[chip] if not active else ("asc" if cur_dir == "desc" else "desc")
-            st.session_state[f"{key}_chip"] = chip
-            st.session_state[f"{key}_dir"] = nd
-            st.rerun()
-    return _CHIP2COL[cur_chip], (cur_dir == "asc")
-
-
-def _apply_sort(df, col, asc):
-    if df.empty or col not in df.columns:
-        return df
-    return df.sort_values(by=col, ascending=asc, na_position="last", kind="mergesort")
-
-
-# ---------------------------------------------------------------
-# GRAFICO DECELERAZIONE
-# ---------------------------------------------------------------
-def grafico_decelerazione(hist, ticker):
-    if hist is None or len(hist) < 30:
-        return None
-    hist_full = hist.copy()
-    df = hist.tail(250).copy()
-    roc = df['Close'].pct_change(periods=20) * 100
-    roc_smoothed = roc.rolling(5, min_periods=1).mean()
-    roc_rising = roc_smoothed.diff() > 0
-    pocs = engine.get_pocs_from_hist(hist_full)
-    price_now = float(df['Close'].dropna().values[-1])
-    for p in pocs:
-        p["poc_price"] = float(p["poc_price"]); p["weight_norm"] = float(p.get("weight_norm", 5.0))
-        p["dist_pct"] = round((price_now - p["poc_price"]) / p["poc_price"] * 100, 2)
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.65, 0.35], vertical_spacing=0.06,
-        subplot_titles=(f"{ticker} — Prezzo & POC operativi (≤{MAX_POC_DIST_PCT:.0f}% dal prezzo)",
-                        "🌡️ Velocità di Discesa (ROC smoothed) — verde = decelerazione in corso"))
-    fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name='Prezzo', line=dict(color='#e2e8f0', width=2.5), hovertemplate='<b>%{x|%d %b %Y}</b><br>Prezzo: %{y:.2f}<extra></extra>'), row=1, col=1)
-    for i in range(1, len(df)):
-        color = 'rgba(34,197,94,0.12)' if roc_rising.iloc[i] else 'rgba(239,68,68,0.10)'
-        fig.add_vrect(x0=df.index[i-1], x1=df.index[i], fillcolor=color, opacity=1, layer="below", line_width=0, row=1, col=1)
-    for p in pocs:
-        if abs(p["dist_pct"]) > MAX_POC_DIST_PCT:
-            continue
-        wn = float(p.get("weight_norm", 5.0)); poc_price = float(p["poc_price"])
-        if wn >= 8: lcolor, lwidth, dash = '#ef4444', 2.5, 'solid'
-        elif wn >= 5: lcolor, lwidth, dash = '#f97316', 1.8, 'dash'
-        else: lcolor, lwidth, dash = '#64748b', 1.0, 'dot'
-        importance_label = "🔴 STRUTTURALE" if wn >= 8 else ("🟠 MEDIO" if wn >= 5 else "⚫ MINORE")
-        fig.add_hline(y=poc_price, line=dict(color=lcolor, width=lwidth, dash=dash), opacity=0.85, annotation_text=f"POC {p['anchor_year']} | {poc_price:.2f} | {importance_label} (peso {wn:.0f}/10)", annotation_position="top right", annotation_font=dict(size=9, color=lcolor), row=1, col=1)
-    for i in range(1, len(roc_smoothed)):
-        if (not pd.isna(roc_smoothed.iloc[i]) and not pd.isna(roc_smoothed.iloc[i-1]) and roc_smoothed.iloc[i-1] < 0 and roc_smoothed.iloc[i] >= 0):
-            fig.add_trace(go.Scatter(x=[df.index[i]], y=[df['Close'].iloc[i]], mode='markers+text', marker=dict(symbol='triangle-up', size=14, color='#22c55e', line=dict(color='white', width=1)), text=["↑ ROC+"], textposition="top center", textfont=dict(size=9, color='#22c55e'), name='Segnale ROC+', showlegend=False, hovertemplate=f'<b>Crossover ROC positivo</b><br>{df.index[i].strftime("%d %b %Y")}<extra></extra>'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=roc_smoothed.index, y=roc_smoothed, mode='lines', name='Velocità discesa', line=dict(color='#a78bfa', width=2), fill='tozeroy', fillcolor='rgba(167,139,250,0.15)', hovertemplate='<b>%{x|%d %b %Y}</b><br>Velocità: %{y:.1f}%<extra></extra>'), row=2, col=1)
-    fig.add_hline(y=0, line_dash="solid", line_color="#475569", opacity=0.8, row=2, col=1)
-    fig.add_hrect(y0=-5, y1=5, fillcolor="rgba(250,204,21,0.08)", line=dict(color="rgba(250,204,21,0.3)", width=1, dash="dot"), annotation_text="⚡ Zona inversione (±5%)", annotation_position="top right", annotation_font=dict(size=9, color="#fbbf24"), row=2, col=1)
-    fig.update_layout(template="plotly_dark", height=620, margin=dict(l=0, r=0, t=45, b=0), hovermode='x unified', showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,1)')
-    fig.update_yaxes(title_text="Prezzo", row=1, col=1, color='#94a3b8', gridcolor='#1e222d')
-    fig.update_yaxes(title_text="Velocità (%)", row=2, col=1, color='#94a3b8', gridcolor='#1e222d', zeroline=False)
-    fig.update_xaxes(gridcolor='#1e222d', row=1, col=1)
-    fig.update_xaxes(title_text="Data", gridcolor='#1e222d', row=2, col=1)
-    return fig
-
-
-def interpreta_bottom_score(score, dettagli):
-    if score >= 4:
-        return {"semaforo": "🟢", "titolo": "FORTE INVERSIONE", "colore": "#22c55e", "operazione": "✅ Pronto per l'ingresso. Il titolo è tecnicamente pronto a ripartire. Valutare l'acquisto con stop loss sotto il POC."}
-    elif score == 3:
-        return {"semaforo": "🟡", "titolo": "SEGNALI INIZIALI", "colore": "#eab308", "operazione": "🔍 Monitoraggio. La decelerazione è iniziata, ma manca ancora la conferma del volume o del POC."}
-    elif score == 2:
-        return {"semaforo": "🟡", "titolo": "ESAURIMENTO VENDITA", "colore": "#eab308", "operazione": "⏳ Pazienza. La discesa sta rallentando, ma non ci sono ancora segnali di acquisto attivi."}
-    else:
-        return {"semaforo": "🔴", "titolo": "NESSUNA INVERSIONE", "colore": "#ef4444", "operazione": "🚫 Non entrare. Il titolo non mostra ancora segnali di inversione. La discesa potrebbe continuare."}
-
-
-# ---------------------------------------------------------------
-# CORPO: LISTA TITOLI SCREENING
-# ---------------------------------------------------------------
-st.subheader("📋 Lista Titoli Screening")
-st.caption("⚖️ **Operazione Potenziale** è una lettura automatica del metodo REA, non un consiglio d'investimento: ogni decisione operativa e il relativo rischio sono interamente a carico dell'utente.")
-is_all_selected = (indice_scelto == "🌍 TUTTI GLI INDICI INSIEME")
-
-if is_all_selected:
-    saved_data = []
-    for k, v in st.session_state["screener_database"].items():
-        if k != "🌍 TUTTI GLI INDICI INSIEME" and isinstance(v, list):
-            for item in v:
-                if "Indice" not in item or item["Indice"] == "🌍 TUTTI GLI INDICI INSIEME":
-                    item["Indice"] = k
-            saved_data.extend(v)
-    conteggio = st.session_state.get("scan_count_all", None)
-else:
-    saved_data = st.session_state["screener_database"].get(indice_scelto, [])
-    conteggio = st.session_state.get(f"scan_count_{indice_scelto}", None)
-
-if conteggio is not None:
-    st.success(f"Analisi completata su **{conteggio}** titoli.")
-elif saved_data and not is_all_selected:
-    st.info(f"📂 Dati del run automatico (o ultimo screening) su **{indice_scelto}**.")
-elif saved_data and is_all_selected:
-    st.info("🌍 Vista Globale Attiva: Fusione di tutti i mercati.")
-
-if st.session_state.get("ultimi_spostamenti"):
-    with st.expander("🔔 RILEVATI SPOSTAMENTI DI REGIME!", expanded=True):
-        for msg in st.session_state["ultimi_spostamenti"]:
-            st.markdown(f"- {msg}")
-
-ordine_colonne = [
-    "Ticker", "Indice", "Prezzo", "Drawdown (%)",
-    "Health", "Bottom Score (0-4)", "Bottom Dettagli",
-    "POC più vicino", "Distanza POC (%)", "VWAP vicino", "Distanza VWAP (%)",
-    "🎯 Alert", "Market Cap (B)", "Entry Mode", "Stato"
-]
-
-has_data_to_show = (isinstance(saved_data, list) and len(saved_data) > 0)
-
-if has_data_to_show:
-    df_total = pd.DataFrame(saved_data)
-    for col in ordine_colonne:
-        if col not in df_total.columns:
-            df_total[col] = "N/D"
-    if "Grafico TW" not in df_total.columns:
-        df_total["Grafico TW"] = df_total["Ticker"].apply(genera_url_tradingview)
-    df_total = arricchisci(df_total, soglia_poc_pct)
-
-    t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Health)", "🎯 ALERT POC / VWAP"])
-
-    with t_sconto:
-        st.subheader("Titoli in forte sconto")
-        df_attivi = df_total[df_total["Stato"] == "Active"].copy()
-        if not df_attivi.empty:
-            scol, sasc = render_sort_bar("sconto", "Bottom")
-            df_attivi = _apply_sort(df_attivi, scol, sasc)
-            st.markdown(_screening_table_html(df_attivi, ordine_colonne + ["Grafico TW"]), unsafe_allow_html=True)
-        else:
-            st.info("💡 Nessun titolo in forte sconto trovato.")
-
-    with t_poc:
-        st.subheader(f"Titoli con prezzo dentro una zona POC, oppure entro ±{soglia_poc_pct:.1f}% da un POC o VWAP")
-        df_poc = df_total[df_total["🎯 Alert"].fillna("").astype(str).str.strip() != ""].copy()
-        if not df_poc.empty:
-            pcol, pasc = render_sort_bar("poc", "dPOC%")
-            df_poc = _apply_sort(df_poc, pcol, pasc)
-            st.markdown(_screening_table_html(df_poc, ordine_colonne + ["Grafico TW"]), unsafe_allow_html=True)
-        else:
-            st.info("💡 Nessun titolo attualmente in zona POC / VWAP.")
-
-    st.markdown("---")
-
-    # ---------------------------------------------------------------
-    # ANALISI DECELERAZIONE A SCOMPARSA (click sul ticker in tabella)
-    # ---------------------------------------------------------------
-    _sel_tk = str(st.query_params.get("ticker", "") or "").strip().upper()
-    ticker_set = set(str(t).strip().upper() for t in df_total["Ticker"].unique())
-
-    if _sel_tk and _sel_tk in ticker_set:
-        st.markdown('<div style="margin:2px 0 6px"><a href="?" style="color:#fca5a5;font-size:11px;text-decoration:none">✖ chiudi analisi</a></div>', unsafe_allow_html=True)
-        with st.expander(f"📉 Analisi di Decelerazione — {_sel_tk}", expanded=True):
-            @st.cache_data(ttl=600)
-            def get_hist_for_ticker(ticker):
-                try:
-                    hist = yf.download(ticker, period="10y", interval="1d", progress=False)
-                    if hist.empty:
-                        return None
-                    if isinstance(hist.columns, pd.MultiIndex):
-                        hist.columns = hist.columns.droplevel(-1)
-                    return hist
-                except Exception:
-                    return None
-
-            hist = get_hist_for_ticker(_sel_tk)
-            if hist is not None and not hist.empty:
-                fig_decel = grafico_decelerazione(hist, _sel_tk)
-                if fig_decel:
-                    st.plotly_chart(fig_decel, use_container_width=True)
-                    row = df_total[df_total["Ticker"].str.upper() == _sel_tk].iloc[0]
-                    raw_bs = row.get('Bottom Score (0-4)', 0)
+            if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
+                with st.spinner("Analisi in corso (Groq llama-3.2-11b-vision)..."):
                     try:
-                        bottom_score = int(float(str(raw_bs)))
-                    except (ValueError, TypeError):
-                        bottom_score = 0
-                    bottom_dettagli = str(row.get('Bottom Dettagli', 'Nessun segnale'))
-                    dd_val = row.get('Drawdown (%)', 'N/D')
-                    health_val = row.get('Health', 'N/D')
-                    interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
-                    score_pct = min(int((bottom_score / 4) * 100), 100)
-                    thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
-                    bar_segments = []
-                    for thr, col, lbl in thresholds:
-                        filled = score_pct >= thr
-                        bg = col if filled else '#1e293b'; bord = col if filled else '#334155'; tcol = col if filled else '#94a3b8'
-                        bar_segments.append('<div style="flex:1;text-align:center;"><div style="height:12px;background:' + bg + ';border-radius:3px;border:1px solid ' + bord + ';margin:0 2px;"></div><div style="font-size:9px;color:' + tcol + ';margin-top:3px;line-height:1.2;">' + lbl + '</div></div>')
-                    bar_html = ''.join(bar_segments)
-                    col_border = interpretazione['colore']; semaforo = interpretazione['semaforo']; titolo = interpretazione['titolo']; operazione = interpretazione['operazione']; score_color = interpretazione['colore']
-                    card_html = ('<div style="background-color:#0f172a;border-left:5px solid ' + col_border + ';padding:14px 16px;border-radius:8px;margin-top:10px;">'
-                        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div style="font-size:26px;">' + semaforo + '</div>'
-                        '<div style="flex:1;"><div style="font-size:15px;font-weight:700;color:' + score_color + ';">' + titolo + '</div>'
-                        '<div style="font-size:12px;color:#f8fafc;margin-top:2px;">' + operazione + '</div></div>'
-                        '<div style="background:#1e293b;padding:6px 14px;border-radius:10px;text-align:center;min-width:72px;"><div style="color:#94a3b8;font-size:10px;text-transform:uppercase;">Score</div>'
-                        '<div style="color:' + score_color + ';font-weight:800;font-size:22px;line-height:1.1;">' + str(bottom_score) + '<span style="font-size:13px;color:#64748b;">/4</span></div></div></div></div>'
-                        '<div style="margin-bottom:6px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
-                        '<div style="display:flex;gap:0;">' + bar_html + '</div></div>'
-                        '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + bottom_dettagli + '</div>'
-                        '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
-                    st.markdown(card_html, unsafe_allow_html=True)
-                    legenda_html = ('<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:11px;color:#94a3b8;">'
-                        '<b style="color:#e2e8f0;">📖 Come leggere i pannelli:</b><br>'
-                        '<b style="color:#e2e8f0;">① Prezzo &amp; POC</b> — Sfondo verde = la discesa sta rallentando; rosso = la discesa prosegue. Il triangolo ▲ verde segna il crossover della velocità. Sono tracciate SOLO le linee POC operative (entro il ' + f'{MAX_POC_DIST_PCT:.0f}% dal prezzo): i relitti storici sono esclusi. Linee POC: <span style="color:#ef4444;">■ rosso = strutturale</span>, <span style="color:#f97316;">■ arancio = medio</span>, <span style="color:#64748b;">■ grigio = minore</span>.<br>'
-                        '<b style="color:#e2e8f0;">② Velocità di Discesa</b> — Quando la linea viola sale sopra lo zero ed esce dalla zona gialla ⚡, la decelerazione è confermata.</div>')
-                    st.markdown(legenda_html, unsafe_allow_html=True)
-                else:
-                    st.warning("Dati insufficienti per generare il grafico.")
-            else:
-                st.warning(f"Impossibile scaricare i dati storici per {_sel_tk}.")
+                        image_bytes = uploaded_file.getvalue()
+                        mime_type = uploaded_file.type or "image/png"
+                        dati = analizza_immagine(image_bytes, mime_type)
+                        st.session_state["ultima_analisi"] = dati
+                        st.success("✅ Analisi completata.")
+                    except Exception as e:
+                        st.error(f"❌ Errore durante l'analisi: {e}")
+
+with col_result:
+    if "ultima_analisi" in st.session_state:
+        dati = st.session_state["ultima_analisi"]
+        st.markdown('<div class="wl-card-head">🧩 Dati estratti (verifica e salva)</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            '<div class="wl-ai-box"><b>🧠 Lettura AI</b> — il modello ha interpretato lo screenshot. '
+            'Verifica ogni valore prima di salvare: la lettura può contenere errori, soprattutto su '
+            'VWAP non etichettati o livelli secondari.</div>',
+            unsafe_allow_html=True,
+        )
+
+        ticker_edit = st.text_input("Ticker", value=dati.get("ticker", ""))
+        col_l, col_v = st.columns(2)
+        with col_l:
+            st.markdown("**Livelli**")
+            l1_edit = st.number_input("Livello 1", value=float(dati.get("livello_1", 0) or 0))
+            l2_edit = st.number_input("Livello 2", value=float(dati.get("livello_2", 0) or 0))
+            l3_edit = st.number_input("Livello 3", value=float(dati.get("livello_3", 0) or 0))
+        with col_v:
+            st.markdown("**VWAP**")
+            v1_edit = st.number_input("VWAP 1", value=float(dati.get("vwap_1", 0) or 0))
+            v2_edit = st.number_input("VWAP 2", value=float(dati.get("vwap_2", 0) or 0))
+            v3_edit = st.number_input("VWAP 3", value=float(dati.get("vwap_3", 0) or 0))
+        n1_edit = st.text_input("Nota Livello 1", value="", placeholder="es. supporto storico")
+        n2_edit = st.text_input("Nota Livello 2", value="", placeholder="es. media mobile 200")
+        n3_edit = st.text_input("Nota Livello 3", value="", placeholder="es. resistenza ATH")
+        nv1_edit = st.text_input("Nota VWAP 1", value="")
+        nv2_edit = st.text_input("Nota VWAP 2", value="")
+        nv3_edit = st.text_input("Nota VWAP 3", value="")
+
+        c_save, c_reset = st.columns([3, 1])
+        with c_save:
+            if st.button("💾 Salva in watchlist", type="primary", use_container_width=True):
+                screenshot_path = None
+                if uploaded_file is not None:
+                    estensione = (uploaded_file.type or "image/png").split("/")[-1]
+                    if estensione == "jpeg":
+                        estensione = "jpg"
+                    screenshot_path = carica_screenshot_su_github(
+                        ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
+                    )
+                salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit,
+                           n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
+                del st.session_state["ultima_analisi"]
+                st.rerun()
+        with c_reset:
+            if st.button("🔄", use_container_width=True, help="Scarta e ricomincia"):
+                del st.session_state["ultima_analisi"]
+                st.rerun()
     else:
-        st.caption("🖱️ Clicca su un **ticker** in tabella per aprire qui l'analisi di decelerazione del titolo scelto.")
+        st.markdown(
+            '<div class="wl-card" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:#64748b;text-align:center">'
+            '<div><div style="font-size:36px;opacity:.5">📸</div>'
+            '<div style="font-size:12px;margin-top:8px">Carica uno screenshot a sinistra<br>per estrarre ticker, livelli e VWAP</div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+
+
+# ================================================================
+# INSERIMENTO MANUALE
+# ================================================================
+with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
+    with st.form("form_inserimento_manuale"):
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            m_ticker = st.text_input("Ticker (es. AAPL, CPR.MI)").strip().upper()
+            m_l1 = st.number_input("Livello 1", value=0.0)
+            m_l2 = st.number_input("Livello 2", value=0.0)
+            m_l3 = st.number_input("Livello 3", value=0.0)
+        with col_m2:
+            m_n1 = st.text_input("Nota L1")
+            m_n2 = st.text_input("Nota L2")
+            m_n3 = st.text_input("Nota L3")
+        with col_m3:
+            st.markdown("**VWAP**")
+            m_v1 = st.number_input("VWAP 1", value=0.0)
+            m_v2 = st.number_input("VWAP 2", value=0.0)
+            m_v3 = st.number_input("VWAP 3", value=0.0)
+            m_nv1 = st.text_input("Nota V1")
+            m_nv2 = st.text_input("Nota V2")
+            m_nv3 = st.text_input("Nota V3")
+        m_submit = st.form_submit_button("💾 Salva Ticker Manuale", use_container_width=True)
+    if m_submit:
+        if not m_ticker:
+            st.error("Il Ticker è obbligatorio.")
+        else:
+            df_check = carica_watchlist()
+            if m_ticker in df_check["Ticker"].values:
+                st.warning(f"Il ticker {m_ticker} esiste già. Modificalo direttamente dalla tabella.")
+            else:
+                salva_riga(m_ticker, m_l1, m_l2, m_l3, m_v1, m_v2, m_v3, m_n1, m_n2, m_n3, m_nv1, m_nv2, m_nv3)
+                st.success(f"Ticker {m_ticker} aggiunto correttamente.")
+                st.rerun()
+
+st.divider()
+
+# ================================================================
+# WATCHLIST TABELLA
+# ================================================================
+st.markdown('<div class="wl-card-head">📋 Watchlist salvata</div>', unsafe_allow_html=True)
+df = carica_watchlist()
+
+TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
+CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
+_ULTIME_CHIAMATE_API = []
+
+def rispetta_rate_limit():
+    ora = time.time()
+    while _ULTIME_CHIAMATE_API and ora - _ULTIME_CHIAMATE_API[0] > 60:
+        _ULTIME_CHIAMATE_API.pop(0)
+    if len(_ULTIME_CHIAMATE_API) >= 7:
+        attesa = 60 - (ora - _ULTIME_CHIAMATE_API[0]) + 1
+        if attesa > 0:
+            time.sleep(attesa)
+        while _ULTIME_CHIAMATE_API and time.time() - _ULTIME_CHIAMATE_API[0] > 60:
+            _ULTIME_CHIAMATE_API.pop(0)
+    _ULTIME_CHIAMATE_API.append(time.time())
+
+def mappa_ticker_twelvedata(ticker: str) -> str:
+    t = ticker.strip().upper()
+    for base in CRYPTO_NOTE:
+        if t == f"{base}USD":
+            return f"{base}/USD"
+    if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
+        return f"{t[:3]}/{t[3:]}"
+    return t
+
+_ULTIMO_ERRORE_TD = None
+
+@st.cache_data(ttl=1800)
+def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.DataFrame:
+    global _ULTIMO_ERRORE_TD
+    if not TD_API_KEY:
+        return pd.DataFrame()
+    try:
+        rispetta_rate_limit()
+        r = requests.get("https://api.twelvedata.com/time_series",
+            params={"symbol": simbolo, "interval": interval, "outputsize": outputsize, "apikey": TD_API_KEY, "order": "ASC"})
+        dati = r.json()
+        if dati.get("status") == "error" or "values" not in dati:
+            _ULTIMO_ERRORE_TD = dati.get("message", str(dati))
+            print(f"Twelve Data errore per {simbolo}: {_ULTIMO_ERRORE_TD}")
+            return pd.DataFrame()
+        _ULTIMO_ERRORE_TD = None
+        df = pd.DataFrame(dati["values"])
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.set_index("datetime").sort_index()
+        for col in ("open", "high", "low", "close", "volume"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"})
+        return df.dropna(subset=["Close"])
+    except Exception as e:
+        _ULTIMO_ERRORE_TD = str(e)
+        print(f"Errore Twelve Data per {simbolo}: {e}")
+        return pd.DataFrame()
+
+def determina_exchange(simbolo: str) -> str:
+    return "nasdaq"
+
+@st.cache_data(ttl=300)
+def carica_prezzi_condivisi():
+    path = "prezzi_attuali.json"
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
+            if r.status_code == 200:
+                contenuto = base64.b64decode(r.json()["content"]).decode()
+                dati = json.loads(contenuto)
+                return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+        except Exception:
+            pass
+    if os.path.exists(path):
+        with open(path) as f:
+            dati = json.load(f)
+            return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+    return {}, ""
+
+def elimina_riga(ticker: str):
+    df = carica_watchlist()
+    df = df[df["Ticker"] != ticker]
+    df.to_csv(CSV_PATH, index=False)
+    commit_csv_su_github(df)
+
+if df.empty or "Ticker" not in df.columns:
+    st.info("Nessun dato salvato ancora.")
 else:
-    st.info(f"📊 Nessun dato disponibile per '{indice_scelto}'. Il run automatico delle 21:30 UTC popola questa tabella; premi 'AVVIA SCREENING QUALITY (v2)' per un giro manuale immediato.")
+    ricerca = st.text_input("Cerca ticker", placeholder="🔍 Cerca ticker...", label_visibility="collapsed")
+    df_visualizzata = df[df["Ticker"].str.contains(ricerca.strip(), case=False, na=False)] if ricerca else df
+    if not df_visualizzata.empty:
+        df_visualizzata = df_visualizzata.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
+
+    COLS = [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.3, 0.3, 0.3, 0.3]
+    cols = st.columns(COLS)
+    etichette = list(zip(cols[:11], ("Ticker", "L1", "L2", "L3", "V1", "V2", "V3", "POC1", "POC2", "POC3", "Prezzo")))
+    for col, label in etichette:
+        col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
+    for col in cols[11:]:
+        col.markdown('<div class="wl-header">&nbsp;</div>', unsafe_allow_html=True)
+
+    if df_visualizzata.empty:
+        st.caption("Nessun ticker corrisponde alla ricerca.")
+
+    def badge(valore, classe, nota=""):
+        if pd.isna(valore) or valore == 0:
+            return f'<span class="wl-badge empty">—</span>'
+        title = f' title="{nota}"' if nota else ""
+        icona = " 📝" if nota else ""
+        return f'<span class="wl-badge {classe}"{title}>{valore:g}{icona}</span>'
+
+    if "editing_ticker" not in st.session_state:
+        st.session_state["editing_ticker"] = None
+
+    prezzi_condivisi, prezzi_aggiornati_il = carica_prezzi_condivisi()
+    if prezzi_aggiornati_il:
+        st.caption(f"💹 Prezzi aggiornati da ultimo controllo alert: {prezzi_aggiornati_il}")
+
+    for _, r in df_visualizzata.iterrows():
+        ticker_riga = r["Ticker"]
+        origine_riga = str(r.get("Origine", "manuale")).strip().lower()
+
+        if st.session_state["editing_ticker"] == ticker_riga:
+            c = st.columns(COLS)
+            nuovo_nome_ticker = c[0].text_input("Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl1 = c[1].number_input("L1", value=float(r["Livello 1"]), key=f"edit_l1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl2 = c[2].number_input("L2", value=float(r["Livello 2"]), key=f"edit_l2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nl3 = c[3].number_input("L3", value=float(r["Livello 3"]), key=f"edit_l3_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv1 = c[4].number_input("V1", value=float(r["VWAP 1"]), key=f"edit_v1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv2 = c[5].number_input("V2", value=float(r["VWAP 2"]), key=f"edit_v2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nv3 = c[6].number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
+            c[7].markdown(badge(r["POC 1"], "p1"), unsafe_allow_html=True)
+            c[8].markdown(badge(r["POC 2"], "p2"), unsafe_allow_html=True)
+            c[9].markdown(badge(r["POC 3"], "p3"), unsafe_allow_html=True)
+            c[10].write("")
+            if c[11].button("💾", key=f"save_{ticker_riga}_{_}"):
+                nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}_{_}", r["Nota 1"])
+                nota_2 = st.session_state.get(f"edit_n2_{ticker_riga}_{_}", r["Nota 2"])
+                nota_3 = st.session_state.get(f"edit_n3_{ticker_riga}_{_}", r["Nota 3"])
+                nota_v1 = st.session_state.get(f"edit_nv1_{ticker_riga}_{_}", r["Nota VWAP 1"])
+                nota_v2 = st.session_state.get(f"edit_nv2_{ticker_riga}_{_}", r["Nota VWAP 2"])
+                nota_v3 = st.session_state.get(f"edit_nv3_{ticker_riga}_{_}", r["Nota VWAP 3"])
+                ticker_finale = ticker_riga
+                if nuovo_nome_ticker.strip().upper() != ticker_riga.strip().upper():
+                    rinomina_ticker(ticker_riga, nuovo_nome_ticker)
+                    ticker_finale = nuovo_nome_ticker.strip().upper()
+                salva_riga(ticker_finale, nl1, nl2, nl3, nv1, nv2, nv3, nota_1, nota_2, nota_3, nota_v1, nota_v2, nota_v3)
+                st.session_state["editing_ticker"] = None
+                st.rerun()
+            if c[12].button("✖", key=f"cancel_{ticker_riga}_{_}"):
+                st.session_state["editing_ticker"] = None
+                st.rerun()
+            for cc in (c[13], c[14], c[15]):
+                cc.write("")
+            _, nc1, nc2, nc3, nc4, nc5, nc6, _ = st.columns([2, 1, 1, 1, 1, 1, 1, 2.7])
+            nc1.text_input("Nota L1", value=str(r["Nota 1"] or ""), key=f"edit_n1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc2.text_input("Nota L2", value=str(r["Nota 2"] or ""), key=f"edit_n2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc3.text_input("Nota L3", value=str(r["Nota 3"] or ""), key=f"edit_n3_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc4.text_input("Nota V1", value=str(r["Nota VWAP 1"] or ""), key=f"edit_nv1_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc5.text_input("Nota V2", value=str(r["Nota VWAP 2"] or ""), key=f"edit_nv2_{ticker_riga}_{_}", label_visibility="collapsed")
+            nc6.text_input("Nota V3", value=str(r["Nota VWAP 3"] or ""), key=f"edit_nv3_{ticker_riga}_{_}", label_visibility="collapsed")
+        else:
+            c = st.columns(COLS)
+            prefisso_origine = "🤖 " if origine_riga == "auto" else ""
+            if c[0].button(prefisso_origine + ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
+                st.session_state["ticker_grafico"] = ticker_riga
+                st.rerun()
+            c[1].markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
+            c[2].markdown(badge(r["Livello 2"], "l2", r["Nota 2"]), unsafe_allow_html=True)
+            c[3].markdown(badge(r["Livello 3"], "l3", r["Nota 3"]), unsafe_allow_html=True)
+            c[4].markdown(badge(r["VWAP 1"], "v1", r["Nota VWAP 1"]), unsafe_allow_html=True)
+            c[5].markdown(badge(r["VWAP 2"], "v2", r["Nota VWAP 2"]), unsafe_allow_html=True)
+            c[6].markdown(badge(r["VWAP 3"], "v3", r["Nota VWAP 3"]), unsafe_allow_html=True)
+            c[7].markdown(badge(r["POC 1"], "p1", r["Nota POC 1"]), unsafe_allow_html=True)
+            c[8].markdown(badge(r["POC 2"], "p2", r["Nota POC 2"]), unsafe_allow_html=True)
+            c[9].markdown(badge(r["POC 3"], "p3", r["Nota POC 3"]), unsafe_allow_html=True)
+
+            prezzo_riga = prezzi_condivisi.get(ticker_riga)
+            if prezzo_riga is not None:
+                c[10].markdown(f'<span class="wl-price">{prezzo_riga:.2f}</span>', unsafe_allow_html=True)
+            else:
+                c[10].markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
+
+            ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
+            tv_symbol = ticker_td_riga.replace('/', '')
+            tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
+            exch = determina_exchange(ticker_td_riga)
+            fc_url = f"https://terminal.forecaster.biz/instrument/{exch}/{ticker_riga.lower()}/overview"
+            c[11].markdown(f'<a href="{tv_url}" target="_blank" style="text-decoration:none;">📈</a>', unsafe_allow_html=True)
+            c[12].markdown(f'<a href="{fc_url}" target="_blank" style="text-decoration:none;">🔮</a>', unsafe_allow_html=True)
+            if r.get("Screenshot"):
+                if c[13].button("🖼️", key=f"screenshot_{ticker_riga}_{_}"):
+                    st.session_state["screenshot_da_mostrare"] = r["Screenshot"]
+                    st.rerun()
+            else:
+                c[13].write("")
+            if c[14].button("✏️", key=f"edit_{ticker_riga}_{_}"):
+                st.session_state["editing_ticker"] = ticker_riga
+                st.rerun()
+            if c[15].button("🗑️", key=f"del_{ticker_riga}_{_}"):
+                elimina_riga(ticker_riga)
+                st.rerun()
+
+    st.write("")
+
+    if st.session_state.get("screenshot_da_mostrare"):
+        path = st.session_state["screenshot_da_mostrare"]
+        try:
+            r_img = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
+            if r_img.status_code == 200:
+                img_bytes = base64.b64decode(r_img.json()["content"])
+                with st.expander("🖼️ Screenshot originale", expanded=True):
+                    st.image(img_bytes, use_container_width=True)
+                    if st.button("Chiudi anteprima"):
+                        st.session_state["screenshot_da_mostrare"] = None
+                        st.rerun()
+            else:
+                st.warning("Screenshot non trovato nel repo.")
+        except Exception as e:
+            st.warning(f"Impossibile caricare lo screenshot: {e}")
+
+    dim_kb = dimensione_repo_kb()
+    if dim_kb is not None:
+        dim_mb = dim_kb / 1024
+        soglia_mb = 800
+        if dim_mb >= soglia_mb:
+            st.warning(f"⚠️ Il repo occupa {dim_mb:.0f} MB, si sta avvicinando al limite consigliato (~1 GB). Valuta di ripulire vecchi screenshot.")
+        else:
+            st.caption(f"💾 Spazio repo: {dim_mb:.0f} MB / ~1000 MB")
+
+    # ================================================================
+    # GRAFICO TICKER SELEZIONATO
+    # ================================================================
+    if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
+        st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
+    ticker_selezionato = st.session_state["ticker_grafico"]
+    riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
+    livelli = [float(riga[f"Livello {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0]
+    vwap = [float(riga[f"VWAP {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"VWAP {i}"]) and riga[f"VWAP {i}"] != 0]
+    poc_liv = [float(riga[f"POC {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"POC {i}"]) and riga[f"POC {i}"] != 0]
+
+    import json as _json
+
+    TIMEFRAMES = {"4H": ("4h", 300), "1D": ("1day", 500), "1W": ("1week", 260), "1M": ("1month", 120)}
+
+    origine_selezionato = str(riga.get("Origine", "manuale")).strip().lower()
+    origine_pill = '<span class="wl-origin auto">🤖 AUTO</span>' if origine_selezionato == "auto" else '<span class="wl-origin man">👤 MAN</span>'
+    st.markdown(
+        f'<div class="wl-chart-head">'
+        f'<div><div class="wl-chart-label">Grafico attivo</div>'
+        f'<div class="wl-chart-ticker">{ticker_selezionato} {origine_pill}</div></div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    timeframe = st.radio("Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed")
+    intervallo, outputsize = TIMEFRAMES[timeframe]
+
+    ticker_td = mappa_ticker_twelvedata(ticker_selezionato)
+    storico = ottieni_time_series(ticker_td, intervallo, outputsize)
+    if storico.empty:
+        mappa_yf_periodo = {"4h": "2y", "1day": "10y", "1week": "10y", "1month": "max"}
+        storico = storico_yfinance(ticker_selezionato, mappa_yf_periodo.get(intervallo, "1y"), intervallo.replace("1day", "1d").replace("1week", "1wk").replace("1month", "1mo").replace("4h", "60m"))
+
+    if storico.empty:
+        dettaglio = f" — {_ULTIMO_ERRORE_TD}" if _ULTIMO_ERRORE_TD else ""
+        st.warning(f"Nessun dato storico trovato per {ticker_selezionato} ({ticker_td}){dettaglio}.")
+    else:
+        usa_timestamp = timeframe == "4H"
+        candele = [
+            {"time": int(idx.timestamp()) if usa_timestamp else idx.strftime("%Y-%m-%d"),
+             "open": round(r["Open"], 4), "high": round(r["High"], 4), "low": round(r["Low"], 4), "close": round(r["Close"], 4)}
+            for idx, r in storico.iterrows()
+        ]
+        linee_livelli_js = "\n".join(
+            f'candleSeries.createPriceLine({{price: {liv}, color: "{["#fbbf24", "#86efac", "#fca5a5"][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
+            for i, liv in enumerate(livelli))
+        linee_vwap_js = "\n".join(
+            f'candleSeries.createPriceLine({{price: {v}, color: "#67e8f9", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
+            for i, v in enumerate(vwap))
+        linee_poc_js = "\n".join(
+            f'candleSeries.createPriceLine({{price: {p}, color: "#c4b5fd", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
+            for i, p in enumerate(poc_liv))
+
+        chart_html = f"""
+        <div id="chart_container" style="width:100%; height:600px; border:1px solid #1e293b; border-radius:10px; overflow:hidden;"></div>
+        <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+        <script>
+          const container = document.getElementById('chart_container');
+          const chart = LightweightCharts.createChart(container, {{
+            width: container.clientWidth, height: 600,
+            layout: {{
+              background: {{ type: 'solid', color: '#0a0f1a' }},
+              textColor: '#cbd5e1',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 11,
+            }},
+            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }}, horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
+            timeScale: {{ borderColor: '#334155', timeVisible: {str(usa_timestamp).lower()} }},
+            rightPriceScale: {{ borderColor: '#334155' }},
+            crosshair: {{
+              mode: 1,
+              vertLine: {{ color: '#38bdf8', width: 1, style: 2 }},
+              horzLine: {{ color: '#38bdf8', width: 1, style: 2 }},
+            }},
+          }});
+          const candleSeries = chart.addCandlestickSeries({{
+            upColor: '#22c55e', downColor: '#ef4444',
+            borderVisible: false,
+            wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+          }});
+          candleSeries.setData({_json.dumps(candele)});
+          {linee_livelli_js}
+          {linee_vwap_js}
+          {linee_poc_js}
+          chart.timeScale().fitContent();
+          new ResizeObserver(entries => {{ chart.applyOptions({{ width: entries[0].contentRect.width }}); }}).observe(container);
+        </script>
+        """
+        st.components.v1.html(chart_html, height=620)
+
+st.divider()
+st.markdown('<div class="wl-card-head">🕘 Storico Alert</div>', unsafe_allow_html=True)
+HISTORY_PATH = "alert_history.csv"
+
+@st.cache_data(ttl=60)
+def carica_storico_alert() -> pd.DataFrame:
+    colonne = ["Data", "Ticker", "Livelli Toccati", "Convergenza", "Regime", "Prezzo al momento"]
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_PATH}"
+            headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+            r = requests.get(url, headers=headers)
+            if r.status_code == 200:
+                contenuto = base64.b64decode(r.json()["content"]).decode()
+                return pd.read_csv(io.StringIO(contenuto))
+        except Exception:
+            pass
+    if os.path.exists(HISTORY_PATH):
+        return pd.read_csv(HISTORY_PATH)
+    return pd.DataFrame(columns=colonne)
+
+storico_alert = carica_storico_alert()
+if storico_alert.empty:
+    st.caption("Nessun alert ancora scattato.")
+else:
+    st.dataframe(storico_alert.sort_values("Data", ascending=False), use_container_width=True, hide_index=True)
