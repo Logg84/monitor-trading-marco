@@ -1058,5 +1058,29 @@
     "MBG.DE": {
         "status": "Active",
         "indice": "DAX (Germania)"
+    },
+    "BAYN.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "HEN3.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "PAH3.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "P911.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "PUM.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
+    },
+    "SDF.DE": {
+        "status": "Active",
+        "indice": "DAX (Germania)"
     }
 }

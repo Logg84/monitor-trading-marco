@@ -2784,5 +2784,71 @@
         "revenueGrowth": -0.03500481579581026,
         "operatingCashflow": 13827000320,
         "last_updated": "2026-08-13T22:13:33.544451"
+    },
+    "HEN3.DE": {
+        "marketCap": 30898222243.489304,
+        "debtToEquity": 31.879,
+        "freeCashflow": 1390875008,
+        "operatingMargins": 0.14987999,
+        "returnOnEquity": 0.09395,
+        "netIncome": 2035000000.0,
+        "revenueGrowth": null,
+        "operatingCashflow": 2726000128,
+        "last_updated": "2026-08-16T21:47:44.069389"
+    },
+    "P911.DE": {
+        "marketCap": 40466618331.90918,
+        "debtToEquity": 50.953,
+        "freeCashflow": 1335000064,
+        "operatingMargins": 0.08597,
+        "returnOnEquity": 0.02861,
+        "netIncome": 431000000.0,
+        "revenueGrowth": -0.003160984420862497,
+        "operatingCashflow": 3964000000,
+        "last_updated": "2026-08-16T21:47:44.071635"
+    },
+    "BAYN.DE": {
+        "marketCap": 46950047778.21611,
+        "debtToEquity": 129.362,
+        "freeCashflow": 6562999808,
+        "operatingMargins": 0.09189,
+        "returnOnEquity": -0.056900002,
+        "netIncome": -3620000000.0,
+        "revenueGrowth": 0.012384765806872148,
+        "operatingCashflow": 4783000064,
+        "last_updated": "2026-08-16T21:47:44.068644"
+    },
+    "PUM.DE": {
+        "marketCap": 3905452350.7303333,
+        "debtToEquity": 145.367,
+        "freeCashflow": 269912512,
+        "operatingMargins": -0.02478,
+        "returnOnEquity": -0.22574,
+        "netIncome": -645500000.0,
+        "revenueGrowth": -0.1503668710423158,
+        "operatingCashflow": 363200000,
+        "last_updated": "2026-08-16T21:47:44.072274"
+    },
+    "SDF.DE": {
+        "marketCap": 2580830972.671509,
+        "debtToEquity": 18.46,
+        "freeCashflow": 341262496,
+        "operatingMargins": 0.77246004,
+        "returnOnEquity": 0.21958,
+        "netIncome": -1075800000.0,
+        "revenueGrowth": 0.09961646107598217,
+        "operatingCashflow": 639500032,
+        "last_updated": "2026-08-16T21:47:44.073239"
+    },
+    "PAH3.DE": {
+        "marketCap": 8464749813.079834,
+        "debtToEquity": 19.333,
+        "freeCashflow": -423000000,
+        "operatingMargins": 0.0,
+        "returnOnEquity": 0.0027,
+        "netIncome": 2651000000.0,
+        "revenueGrowth": -1.9177718832891246,
+        "operatingCashflow": 429000000,
+        "last_updated": "2026-08-16T21:47:44.071007"
     }
 }
