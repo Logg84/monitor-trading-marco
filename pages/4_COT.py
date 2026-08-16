@@ -35,7 +35,7 @@ CFTC_TO_FX = {
 CFTC_TO_COMM = {
     "WHEAT": "WHEAT", "CORN": "CORN", "OATS": "OATS", "SOYBEANS": "SOYBEANS",
     "SOYBEAN OIL": "SOYBEAN_OIL", "SOYBEAN MEAL": "SOYBEAN_MEAL",
-    "COTTON": "COTTON", "ORANGE JUICE": "OJ", "ROUGH RICE": "ROUGH_RICE",
+    "COTTON": "COTTON", "ORANGE JUICE": "OJ", "ROUGH_RICE": "ROUGH_RICE",
     "LIVE CATTLE": "LIVE_CATTLE", "LEAN HOGS": "LEAN_HOGS", "LUMBER": "LUMBER",
     "GOLD": "GOLD", "SILVER": "SILVER", "COPPER": "COPPER",
     "NATURAL GAS": "NG", "CRUDE OIL": "WTI", "BRENT CRUDE OIL": "BRENT",
@@ -125,68 +125,18 @@ def prezzo_yf(sym):
         return None
 
 
+DATA = carica_cot()
+
+
 # ================================================================
-# DOWNLOAD CFTC CON CASCATA MULTI-SORGENTE
-# Il CFTC dà 403 agli IP cloud: provo diretto, poi proxy, poi Wayback.
+# AGGIORNAMENTO MANUALE GUIDATA: link download + upload zip + merge
 # ================================================================
-_UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
-
-
-def _scarica_zip_cftc(anno: int) -> bytes:
-    url = f"https://www.cftc.gov/files/dea/history/fut_fin_xls_{anno}.zip"
-    tentativi = []
-
-    # 1) diretto CFTC
-    try:
-        r = requests.get(url, headers=_UA, timeout=180)
-        if r.status_code == 200 and r.content[:2] == b"PK":
-            return r.content
-        tentativi.append(f"diretto:{r.status_code}")
-    except Exception as e:
-        tentativi.append(f"diretto:{type(e).__name__}")
-
-    # 2) AllOrigins (fetch server-side, passa binari)
-    try:
-        r = requests.get("https://api.allorigins.win/raw?url=" + requests.utils.quote(url, safe=""), headers=_UA, timeout=180)
-        if r.status_code == 200 and r.content[:2] == b"PK":
-            return r.content
-        tentativi.append(f"allorigins:{r.status_code}")
-    except Exception as e:
-        tentativi.append(f"allorigins:{type(e).__name__}")
-
-    # 3) corsproxy.io
-    try:
-        r = requests.get("https://corsproxy.io/?url=" + requests.utils.quote(url, safe=""), headers=_UA, timeout=180)
-        if r.status_code == 200 and r.content[:2] == b"PK":
-            return r.content
-        tentativi.append(f"corsproxy:{r.status_code}")
-    except Exception as e:
-        tentativi.append(f"corsproxy:{type(e).__name__}")
-
-    # 4) Wayback Machine (ultimo snapshot disponibile)
-    try:
-        r = requests.get("https://archive.org/wayback/available", params={"url": url}, timeout=30)
-        snap = (r.json() or {}).get("archived_snapshots", {}).get("closest", {})
-        if snap.get("available") and snap.get("url"):
-            wurl = snap["url"].replace("http://", "https://", 1)
-            r2 = requests.get(wurl, headers=_UA, timeout=180)
-            if r2.status_code == 200 and r2.content[:2] == b"PK":
-                return r2.content
-            tentativi.append(f"wayback:{r2.status_code}")
-        else:
-            tentativi.append("wayback:nessuno-snapshot")
-    except Exception as e:
-        tentativi.append(f"wayback:{type(e).__name__}")
-
-    raise RuntimeError(f"zip {anno} non scaricabile [" + ", ".join(tentativi) + "]")
-
-
-def _leggi_anno_cftc(anno: int) -> pd.DataFrame:
-    content = _scarica_zip_cftc(anno)
+def leggi_zip_bytes(content: bytes) -> pd.DataFrame:
+    """Estrae il foglio Annual da uno zip CFTC ricevuto come bytes."""
     zf = zipfile.ZipFile(io.BytesIO(content))
     nomi = [n for n in zf.namelist() if n.lower().endswith((".xls", ".xlsx"))]
     if not nomi:
-        raise RuntimeError(f"Nessun file .xls dentro lo zip {anno}")
+        raise RuntimeError("Nessun file .xls dentro lo zip")
     inner = zf.read(nomi[0])
     errs = []
     for eng in (None, "openpyxl", "xlrd"):
@@ -204,21 +154,8 @@ def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
     return rows.dropna(subset=["_rd"]).sort_values("_rd")
 
 
-def aggiorna_cot_manuale() -> dict:
-    """Scarica CFTC (anno corrente + precedente) via cascata, processa e committa cot_data.json."""
-    anno = datetime.date.today().year
-    dfs = []
-    for y in (anno, anno - 1):
-        try:
-            dfs.append(_leggi_anno_cftc(y))
-            print(f"✅ Anno {y}: {len(dfs[-1])} righe")
-        except Exception as e:
-            print(f"⚠️ Anno {y} fallito: {e}")
-    if not dfs:
-        raise RuntimeError("Nessuna sorgente ha funzionato (CFTC + proxy + Wayback). Usa build locale.")
-    df = pd.concat(dfs, ignore_index=True)
-    df = df.drop_duplicates(subset=["Market_and_Exchange_Names", "Report_Date_as_MM_DD_YYYY"])
-
+def processa_dfs(df: pd.DataFrame):
+    """Da DataFrame CFTC a serie fx/comm nel formato cot_data.json."""
     fx = {}
     for nome_cftc, simbolo in CFTC_TO_FX.items():
         rows = _rows_ordinate(df, nome_cftc)
@@ -246,10 +183,25 @@ def aggiorna_cot_manuale() -> dict:
             serie.append({"t": t, "prod": float(prod), "swap": float(swap), "mm": float(mm)})
         if serie:
             comm[simbolo] = serie
+    return fx, comm
 
-    if not fx and not comm:
-        raise RuntimeError("Nessun dato Forex o Commodity processato.")
 
+def merge_con_esistente(existing_fx, existing_comm, new_fx, new_comm):
+    """Aggiunge allo storico salvato solo le settimane piu recenti (dedup per t)."""
+    def _merge(old, new):
+        out = {k: list(v) for k, v in (old or {}).items()}
+        for k, v in (new or {}).items():
+            if k in out and out[k]:
+                last_t = max(x["t"] for x in out[k])
+                add = [x for x in v if x["t"] > last_t]
+                out[k] = out[k] + add
+            else:
+                out[k] = list(v)
+        return out
+    return _merge(existing_fx, new_fx), _merge(existing_comm, new_comm)
+
+
+def pubblica_payload(fx, comm):
     fx_order = [s for s in ["EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "USD"] if s in fx]
     comm_order = [s for s in [
         "GOLD", "SILVER", "COPPER", "WTI", "BRENT", "NG",
@@ -274,7 +226,7 @@ def aggiorna_cot_manuale() -> dict:
         "meta": {
             "date": data_str,
             "weeks": max_settimane,
-            "src": "PORTALE·streamlit",
+            "src": "PORTALE·upload",
             "gen": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "fx_n": len(fx),
             "cm_n": len(comm),
@@ -301,26 +253,41 @@ def aggiorna_cot_manuale() -> dict:
     r = requests.put(url, headers=headers, json=put_payload)
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Commit su GitHub fallito: {r.status_code} {r.text[:200]}")
+    return payload
 
-    return {"fx_n": len(fx), "cm_n": len(comm), "date": data_str, "weeks": max_settimane}
-
-
-DATA = carica_cot()
 
 if not DATA:
-    st.info("🛢️ **Nessun dato COT sul repo.** Usa il pulsante **🔄 Aggiorna dati COT** qui sotto, oppure lancia `cot_build.py` in locale e committa `cot_data.json` nella root del repo. Poi ricarica questa pagina.")
+    st.info("🛢️ **Nessun dato COT sul repo.** Usa il pannello **📥 Aggiornamento manuale** qui sotto: scarica i zip dal tuo browser e caricali qui.")
 
-if st.button("🔄 Aggiorna dati COT dal CFTC", type="primary",
-             help="Scarica gli ultimi report CFTC (anno corrente + precedente) con cascata diretto/proxy/Wayback e committa cot_data.json su GitHub. Richiede circa 30-120 secondi."):
-    with st.spinner("Download CFTC (cascata multi-sorgente) + commit su GitHub..."):
-        try:
-            res = aggiorna_cot_manuale()
-            st.cache_data.clear()
-            st.success(f"✅ COT aggiornato: {res['fx_n']} forex + {res['cm_n']} commodities · report del {res['date']} · {res['weeks']} settimane.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Aggiornamento fallito: {e}")
-            st.info("💡 Ultima ratio: lancia `cot_build.py` sul tuo PC (il CFTC non blocca le utenze residenziali) e committa `cot_data.json`.")
+_anno = datetime.date.today().year
+with st.expander("📥 Aggiornamento manuale (download dal browser + upload)", expanded=(DATA is None)):
+    st.markdown(
+        f"**1️⃣ Scarica i zip dal sito CFTC** (il tuo browser non viene bloccato):\n\n"
+        f"- 🔗 [fut_fin_xls_{_anno}.zip](https://www.cftc.gov/files/dea/history/fut_fin_xls_{_anno}.zip) — **basta questo**: lo storico salvato viene conservato e aggiornato\n"
+        f"- 🔗 [fut_fin_xls_{_anno - 1}.zip](https://www.cftc.gov/files/dea/history/fut_fin_xls_{_anno - 1}.zip) — opzionale, solo per ricostruzione da zero\n\n"
+        f"**2️⃣ Carica qui i file scaricati** (anche uno solo), poi premi **Processa**."
+    )
+    uploaded = st.file_uploader("Zip CFTC (.zip)", type=["zip"], accept_multiple_files=True, label_visibility="collapsed")
+    if st.button("⚙️ Processa e pubblica su GitHub", type="primary", disabled=(not uploaded)):
+        with st.spinner("Lettura zip + merge con storico + commit..."):
+            try:
+                frames = []
+                for up in uploaded:
+                    frames.append(leggi_zip_bytes(up.read()))
+                df_new = pd.concat(frames, ignore_index=True)
+                df_new = df_new.drop_duplicates(subset=["Market_and_Exchange_Names", "Report_Date_as_MM_DD_YYYY"])
+                new_fx, new_comm = processa_dfs(df_new)
+                if not new_fx and not new_comm:
+                    raise RuntimeError("Nessun mercato riconosciuto nei zip caricati.")
+                old_fx = DATA.get("fx", {}) if DATA else {}
+                old_comm = DATA.get("comm", {}) if DATA else {}
+                fx, comm = merge_con_esistente(old_fx, old_comm, new_fx, new_comm)
+                payload = pubblica_payload(fx, comm)
+                st.cache_data.clear()
+                st.success(f"✅ COT pubblicato: report del {payload['meta']['date']} · {payload['meta']['weeks']} settimane · {payload['meta']['rec']} record.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Elaborazione fallita: {e}")
 
 if not DATA:
     st.stop()
@@ -332,7 +299,7 @@ try:
     d_rep = datetime.date.fromisoformat(META["date"])
     giorni = (datetime.date.today() - d_rep).days
     if giorni > 12:
-        st.warning(f"⚠️ Dati COT del **{META['date']}** ({giorni} giorni fa): il report CFTC esce il venerdì, premi **🔄 Aggiorna dati COT**.")
+        st.warning(f"⚠️ Dati COT del **{META['date']}** ({giorni} giorni fa): il report CFTC esce il venerdì, usa **📥 Aggiornamento manuale**.")
 except Exception:
     pass
 
@@ -419,7 +386,7 @@ tab_fx, tab_cm = st.tabs(["💱 Forex · Leveraged Money", "🛢️ Materie prim
 with tab_fx:
     syms = [s for s in FX_ORDER if len(FX.get(s) or []) >= MINW]
     if not syms:
-        st.info("Nessun dato Forex valido: servono ≥ 52 settimane (premi 🔄 Aggiorna dati COT).")
+        st.info("Nessun dato Forex valido: servono ≥ 52 settimane (usa 📥 Aggiornamento manuale).")
     else:
         P = {}; D = {}
         for s in syms:
@@ -503,7 +470,7 @@ with tab_cm:
     stati = {s: comm_state(s) for s in COMM_ORDER}
     mk = [s for s in COMM_ORDER if len(COMM.get(s) or []) >= MINW]
     if not mk:
-        st.info("Nessun dato Disaggregated valido: servono ≥ 52 settimane (premi 🔄 Aggiorna dati COT).")
+        st.info("Nessun dato Disaggregated valido: servono ≥ 52 settimane (usa 📥 Aggiornamento manuale).")
     else:
         if "cot_filter" not in st.session_state: st.session_state["cot_filter"] = "hot"
         bf1, bf2, bf3, bf4 = st.columns([1, 1, 1, 5])
