@@ -1,8 +1,9 @@
-# pages/4_COT.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import json, os, base64, requests, datetime, html as _html
+import io
+import zipfile
 import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -16,6 +17,7 @@ GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 WINDOW = 104
 MINW = 52
 
+# --- simboli yfinance (future front-month) per le materie prime CFTC ---
 YF_COMM = {
     "GOLD": "GC=F", "SILVER": "SI=F", "COPPER": "HG=F", "PLATINUM": "PL=F", "PALLADIUM": "PA=F",
     "WTI": "CL=F", "BRENT": "BZ=F", "RBOB": "RB=F", "HO": "HO=F", "NG": "NG=F",
@@ -23,6 +25,31 @@ YF_COMM = {
     "OATS": "ZO=F", "ROUGH_RICE": "ZR=F", "COTTON": "CT=F", "COFFEE": "KC=F",
     "SUGAR11": "SB=F", "SUGAR14": None, "COCOA": "CC=F", "OJ": "OJ=F", "LUMBER": "LBS=F",
     "LIVE_CATTLE": "LE=F", "FEEDER_CATTLE": "GF=F", "LEAN_HOGS": "HE=F",
+}
+
+# --- mappe CFTC -> simboli (usate dal pulsante di aggiornamento manuale) ---
+CFTC_TO_FX = {
+    "EURO FX": "EUR", "BRITISH POUND": "GBP", "JAPANESE YEN": "JPY",
+    "AUSTRALIAN DOLLAR": "AUD", "CANADIAN DOLLAR": "CAD",
+    "SWISS FRANC": "CHF", "NEW ZEALAND DOLLAR": "NZD", "US DOLLAR INDEX": "USD",
+}
+
+CFTC_TO_COMM = {
+    "WHEAT": "WHEAT", "CORN": "CORN", "OATS": "OATS", "SOYBEANS": "SOYBEANS",
+    "SOYBEAN OIL": "SOYBEAN_OIL", "SOYBEAN MEAL": "SOYBEAN_MEAL",
+    "COTTON": "COTTON", "ORANGE JUICE": "OJ", "ROUGH RICE": "ROUGH_RICE",
+    "LIVE CATTLE": "LIVE_CATTLE", "LEAN HOGS": "LEAN_HOGS", "LUMBER": "LUMBER",
+    "GOLD": "GOLD", "SILVER": "SILVER", "COPPER": "COPPER",
+    "NATURAL GAS": "NG", "CRUDE OIL": "WTI", "BRENT CRUDE OIL": "BRENT",
+}
+
+COMM_NAMES = {
+    "WHEAT": "🌾 Frumento", "CORN": "🌽 Mais", "OATS": "🥣 Avena",
+    "SOYBEANS": "🫘 Soia", "SOYBEAN_OIL": "🫗 Olio di soia", "SOYBEAN_MEAL": "🥜 Farina di soia",
+    "COTTON": "🧶 Cotone", "OJ": "🍊 Succo d'arancia", "ROUGH_RICE": "🍚 Riso",
+    "LIVE_CATTLE": "🐂 Bovini vivi", "LEAN_HOGS": "🐖 Suini magri", "LUMBER": "🪵 Legname",
+    "GOLD": "🥇 Oro", "SILVER": "🥈 Argento", "COPPER": "🟠 Rame",
+    "NG": "🔥 Gas Naturale", "WTI": "🛢️ Petrolio WTI", "BRENT": "⛽ Brent",
 }
 
 st.markdown("""
@@ -84,6 +111,7 @@ def carica_cot():
 
 @st.cache_data(ttl=43200)
 def prezzo_yf(sym):
+    """Serie daily del future front-month; None se assente/errore."""
     if not sym:
         return None
     try:
@@ -100,10 +128,155 @@ def prezzo_yf(sym):
         return None
 
 
+# ================================================================
+# AGGIORNAMENTO MANUALE COT (pulsante) — Opzione B
+# ================================================================
+def _leggi_anno_cftc(anno: int) -> pd.DataFrame:
+    url = f"https://www.cftc.gov/files/dea/history/fut_fin_xls_{anno}.zip"
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}, timeout=180)
+    r.raise_for_status()
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    nomi = [n for n in zf.namelist() if n.lower().endswith((".xls", ".xlsx"))]
+    if not nomi:
+        raise RuntimeError(f"Nessun file .xls dentro lo zip {anno}")
+    inner = zf.read(nomi[0])
+    errs = []
+    for eng in (None, "openpyxl", "xlrd"):
+        try:
+            return pd.read_excel(io.BytesIO(inner), sheet_name="Annual", engine=eng)
+        except Exception as e:
+            errs.append(f"{eng or 'auto'}: {e}")
+    raise RuntimeError("Lettura Annual fallita -> " + " | ".join(errs))
+
+
+def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
+    mask = df["Market_and_Exchange_Names"].str.upper().str.strip() == nome_cftc.upper().strip()
+    rows = df[mask].copy()
+    rows["_rd"] = pd.to_datetime(rows["Report_Date_as_MM_DD_YYYY"], errors="coerce")
+    return rows.dropna(subset=["_rd"]).sort_values("_rd")
+
+
+def aggiorna_cot_manuale() -> dict:
+    """Scarica CFTC (anno corrente + precedente), processa e committa cot_data.json su GitHub."""
+    anno = datetime.date.today().year
+    dfs = []
+    for y in (anno, anno - 1):
+        try:
+            dfs.append(_leggi_anno_cftc(y))
+            print(f"✅ Anno {y}: {len(dfs[-1])} righe")
+        except Exception as e:
+            print(f"⚠️ Anno {y} fallito: {e}")
+    if not dfs:
+        raise RuntimeError("Nessun anno scaricato dal CFTC (403/timeout). Riprova più tardi o build locale.")
+    df = pd.concat(dfs, ignore_index=True)
+    df = df.drop_duplicates(subset=["Market_and_Exchange_Names", "Report_Date_as_MM_DD_YYYY"])
+
+    fx = {}
+    for nome_cftc, simbolo in CFTC_TO_FX.items():
+        rows = _rows_ordinate(df, nome_cftc)
+        if rows.empty:
+            continue
+        serie = []
+        for _, row in rows.iterrows():
+            t = int(row["_rd"].timestamp() * 1000)
+            nc = row.get("NonComm_Positions_Long_All", 0) - row.get("NonComm_Positions_Short_All", 0)
+            serie.append({"t": t, "nc": float(nc)})
+        if serie:
+            fx[simbolo] = serie
+
+    comm = {}
+    for nome_cftc, simbolo in CFTC_TO_COMM.items():
+        rows = _rows_ordinate(df, nome_cftc)
+        if rows.empty:
+            continue
+        serie = []
+        for _, row in rows.iterrows():
+            t = int(row["_rd"].timestamp() * 1000)
+            prod = row.get("Prod_Merch_Positions_Long_All", 0) - row.get("Prod_Merch_Positions_Short_All", 0)
+            swap = row.get("Swap_Positions_Long_All", 0) - row.get("Swap_Positions_Short_All", 0)
+            mm = row.get("Money_Positions_Long_All", 0) - row.get("Money_Positions_Short_All", 0)
+            serie.append({"t": t, "prod": float(prod), "swap": float(swap), "mm": float(mm)})
+        if serie:
+            comm[simbolo] = serie
+
+    if not fx and not comm:
+        raise RuntimeError("Nessun dato Forex o Commodity processato.")
+
+    fx_order = [s for s in ["EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "USD"] if s in fx]
+    comm_order = [s for s in [
+        "GOLD", "SILVER", "COPPER", "WTI", "BRENT", "NG",
+        "CORN", "WHEAT", "SOYBEANS", "SOYBEAN_OIL", "SOYBEAN_MEAL",
+        "OATS", "ROUGH_RICE", "COTTON", "OJ", "LUMBER",
+        "LIVE_CATTLE", "LEAN_HOGS",
+    ] if s in comm]
+
+    max_settimane = 0
+    totale_record = 0
+    for v in list(fx.values()) + list(comm.values()):
+        max_settimane = max(max_settimane, len(v))
+        totale_record += len(v)
+
+    ultima_data = None
+    for v in list(fx.values()) + list(comm.values()):
+        if v:
+            ultima_data = max(ultima_data or 0, v[-1]["t"])
+    data_str = datetime.datetime.fromtimestamp(ultima_data / 1000, datetime.timezone.utc).strftime("%Y-%m-%d") if ultima_data else ""
+
+    payload = {
+        "meta": {
+            "date": data_str,
+            "weeks": max_settimane,
+            "src": "PORTALE·streamlit",
+            "gen": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            "fx_n": len(fx),
+            "cm_n": len(comm),
+            "rec": totale_record,
+        },
+        "fx": {k: fx[k] for k in fx_order},
+        "comm": {k: comm[k] for k in comm_order},
+        "comm_name": COMM_NAMES,
+        "fx_order": fx_order,
+        "comm_order": comm_order,
+    }
+
+    # Commit su GitHub
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/cot_data.json"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    r = requests.get(url, headers=headers)
+    sha = r.json().get("sha") if r.status_code == 200 else None
+    put_payload = {
+        "message": f"chore(cot): aggiornamento manuale {datetime.date.today().isoformat()}",
+        "content": base64.b64encode(json.dumps(payload, indent=2).encode()).decode(),
+        "branch": "main",
+    }
+    if sha:
+        put_payload["sha"] = sha
+    r = requests.put(url, headers=headers, json=put_payload)
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"Commit su GitHub fallito: {r.status_code} {r.text[:200]}")
+
+    return {"fx_n": len(fx), "cm_n": len(comm), "date": data_str, "weeks": max_settimane}
+
+
 DATA = carica_cot()
 
 if not DATA:
-    st.info("🛢️ **Nessun dato COT sul repo.** Lancia `cot_build.py` sul tuo PC (scrive anche `cot_data.json`) e committa `cot_data.json` nella root del repo, accanto a `watchlist.csv`. Poi ricarica questa pagina.")
+    st.info("🛢️ **Nessun dato COT sul repo.** Usa il pulsante **🔄 Aggiorna dati COT** qui sotto, oppure lancia `cot_build.py` in locale e committa `cot_data.json` nella root del repo. Poi ricarica questa pagina.")
+
+# Pulsante aggiornamento manuale (sempre visibile, anche senza dati)
+if st.button("🔄 Aggiorna dati COT dal CFTC", type="primary",
+             help="Scarica gli ultimi report CFTC (anno corrente + precedente), li processa e committa cot_data.json su GitHub. Richiede ~30-60 secondi."):
+    with st.spinner("Download CFTC + commit su GitHub in corso..."):
+        try:
+            res = aggiorna_cot_manuale()
+            st.cache_data.clear()
+            st.success(f"✅ COT aggiornato: {res['fx_n']} forex + {res['cm_n']} commodities · report del {res['date']} · {res['weeks']} settimane.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Aggiornamento fallito: {e}")
+            st.info("💡 Se il CFTC rifiuta la richiesta (403), riprova tra qualche minuto oppure lancia `cot_build.py` in locale e committa il file.")
+
+if not DATA:
     st.stop()
 
 META = DATA["meta"]; FX = DATA["fx"]; COMM = DATA["comm"]
@@ -113,7 +286,7 @@ try:
     d_rep = datetime.date.fromisoformat(META["date"])
     giorni = (datetime.date.today() - d_rep).days
     if giorni > 12:
-        st.warning(f"⚠️ Dati COT del **{META['date']}** ({giorni} giorni fa): il report CFTC esce il venerdì, valuta un refresh di `cot_build.py`.")
+        st.warning(f"⚠️ Dati COT del **{META['date']}** ({giorni} giorni fa): il report CFTC esce il venerdì, premi **🔄 Aggiorna dati COT**.")
 except Exception:
     pass
 
@@ -154,37 +327,22 @@ def reversing(a, w=2):
     r = a[-w - 1:]; d = [r[i] - r[i - 1] for i in range(1, len(r))]
     return all(x > 0 for x in d) or all(x < 0 for x in d)
 
-
 def comm_state(sym):
-    """Classifica lo stato COT di una commodity.
-    
-    NUOVA REGOLA HOT (allargata):
-    - Producer estremo (pP<10 o pP>90) => hot (yellow), anche senza Managed estremo
-    - Questo fa emergere i metalli sotto copertura estrema anche quando
-      il Managed Money è neutro (es. GOLD, SILVER, COPPER spesso piatti su MM).
-    """
+    """Stato COT di una commodity.
+    REGOLA HOT ALLARGATA: Producer estremo (pP<10 o pP>90) => hot anche senza Managed estremo.
+    Fa emergere i metalli sotto copertura estrema anche con Managed neutro."""
     arr = COMM.get(sym) or []
     if len(arr) < MINW:
         return {"key": "flat", "tone": "muted", "pP": 50, "pM": 50, "pS": 50, "dP": 0, "dM": 0, "revP": False}
     pA = series(arr, "prod"); mA = series(arr, "mm"); sA = series(arr, "swap")
     pP = percentile(pA, pA[-1]); pM = percentile(mA, mA[-1]); pS = percentile(sA, sA[-1])
     dP = deriv(pA); dM = deriv(mA); revP = reversing(pA)
-
-    # Regole congiunte (precedenti, più forti)
-    if pP < 20 and pM > 65:
-        key, tone = "bull", "green"
-    elif pP > 80 and pM < 35:
-        key, tone = "bear", "red"
-    elif (pM > 85 or pM < 15) and not revP:
-        key, tone = "watch", "yellow"
-    elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
-        key, tone = "trend", "ice"
-    # NUOVO: Producer estremo anche senza Managed estremo => hot
-    elif (pP < 10 or pP > 90):
-        key, tone = "hot_producer", "yellow"
-    else:
-        key, tone = "flat", "muted"
-
+    if pP < 20 and pM > 65: key, tone = "bull", "green"
+    elif pP > 80 and pM < 35: key, tone = "bear", "red"
+    elif (pM > 85 or pM < 15) and not revP: key, tone = "watch", "yellow"
+    elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85: key, tone = "trend", "ice"
+    elif (pP < 10 or pP > 90): key, tone = "hot_producer", "yellow"
+    else: key, tone = "flat", "muted"
     return {"key": key, "tone": tone, "pP": pP, "pM": pM, "pS": pS, "dP": dP, "dM": dM, "revP": revP}
 
 
@@ -216,7 +374,7 @@ tab_fx, tab_cm = st.tabs(["💱 Forex · Leveraged Money", "🛢️ Materie prim
 with tab_fx:
     syms = [s for s in FX_ORDER if len(FX.get(s) or []) >= MINW]
     if not syms:
-        st.info("Nessun dato Forex valido: servono ≥ 52 settimane (lancia `cot_build.py` con lo storico).")
+        st.info("Nessun dato Forex valido: servono ≥ 52 settimane (premi 🔄 Aggiorna dati COT).")
     else:
         P = {}; D = {}
         for s in syms:
@@ -259,7 +417,6 @@ with tab_fx:
                 yaxis={"autorange": "reversed", "tickfont": {"family": "IBM Plex Mono", "color": "#7dd3fc"}},
             )
             st.plotly_chart(fig, use_container_width=True)
-            hero_cls = "long" if maxSign > 0 else "short"
             st.markdown(
                 f'<div class="cot-readout {"green" if maxSign>0 else "red"}">Coppia più sbilanciata: '
                 f'<b>{"LONG" if maxSign>0 else "SHORT"} {maxPair}</b> · Δperc {maxD:.0f}° · soglie alert ±80°</div>',
@@ -301,7 +458,7 @@ with tab_cm:
     stati = {s: comm_state(s) for s in COMM_ORDER}
     mk = [s for s in COMM_ORDER if len(COMM.get(s) or []) >= MINW]
     if not mk:
-        st.info("Nessun dato Disaggregated valido: servono ≥ 52 settimane.")
+        st.info("Nessun dato Disaggregated valido: servono ≥ 52 settimane (premi 🔄 Aggiorna dati COT).")
     else:
         if "cot_filter" not in st.session_state: st.session_state["cot_filter"] = "hot"
         bf1, bf2, bf3, bf4 = st.columns([1, 1, 1, 5])
@@ -321,7 +478,7 @@ with tab_cm:
                     f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#64748b;margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
                     unsafe_allow_html=True)
 
-        opts = {s: (COMM_NAME.get(s) or s) for s in mk}
+        opts = {s: (COMM_NAME.get(s) or s) for s in mk}   # menu sempre completo, svincolato dal filtro
         if "cot_market" not in st.session_state or st.session_state["cot_market"] not in opts:
             st.session_state["cot_market"] = (visible[0] if visible else mk[0])
         sym = st.selectbox("Mercato", list(opts.keys()), format_func=lambda s: opts[s], label_visibility="collapsed")
@@ -336,7 +493,6 @@ with tab_cm:
         with g1:
             st.markdown(f"**Trasferimento rischio — {COMM_NAME.get(sym, sym)}** · {len(arr)} sett. · la linea ambra (asse destro) è il **prezzo del future front‑month**, allineato alla settimana CFTC.")
             show_price = st.checkbox("Sovrapponi prezzo dell'asset (asse destro)", value=True, key="cot_price_on")
-            n = len(pA)
             figc = make_subplots(specs=[[{"secondary_y": True}]])
             figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant", line={"color": "#d65a4a", "width": 2}, fill="tozeroy", fillcolor="rgba(214,90,74,.08)"), secondary_y=False)
             figc.add_trace(go.Scatter(y=mA, name="Managed Money", line={"color": "#4fae7e", "width": 2}), secondary_y=False)
@@ -402,8 +558,7 @@ with tab_cm:
             elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
                 vcls, vtxt = "green", (f"<b style='color:#7dd3fc'>TREND SPECULATIVO IN CORSO</b> · Managed {'accumula long' if dM>0 else 'accumula short'} (Δ {dM:+.0f}) senza estremi: trend vivo → <b>non operare contro</b>.")
             elif (pP < 10 or pP > 90):
-                # NUOVO: Producer estremo isolato (tipico dei metalli)
-                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° (copertura massima/minima storica) con Managed neutro ({pM:.0f}°). I commerciali stanno coprendo/decoprendo in modo anomalo → <b>monitora l'inversione della linea rossa</b> come segnale anticipatore.")
+                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° con Managed neutro ({pM:.0f}°): copertura commerciale anomala → <b>monitora l'inversione della linea rossa</b> come anticipatore.")
             else:
                 vcls, vtxt = "green", (f"<b>NESSUNA LETTURA DOMINANTE</b> · Producer {pP:.0f}° · Managed {pM:.0f}° · Swap {pS:.0f}°. Nessun trasferimento netto: stai fermo.")
             st.markdown(f'<div class="cot-readout {vcls}">{vtxt}</div>', unsafe_allow_html=True)
@@ -416,10 +571,9 @@ with tab_cm:
                            + (f'<span class="hint">Producer in inversione: segnale di contesto forte.</span>' if revP else '<span class="hint">Estremo ma Producer non ancora in inversione → sola watchlist.</span>')
                            + '<span class="hint">Conferma divergenza prezzo/volumi su TradingView.</span></div>')
             elif (pP < 10 or pP > 90):
-                # Alert dedicato per Producer estremo isolato
                 als.append(f'<div class="cot-al yellow"><b>PRODUCER ESTREMO ({pP:.0f}°)</b>'
                            f'<span class="mono">ΔProd {dP:+.0f} · Managed {pM:.0f}° (neutro) · Z-prod {zP:.2f}</span>'
-                           f'<span class="hint">Copertura commerciale a livello storico estremo. Attendi che la linea rossa inverta direzione per avere il timing.</span></div>')
+                           f'<span class="hint">Copertura commerciale a livello storico estremo: attendi l'inversione della linea rossa per il timing.</span></div>')
             if abs(zP) > 2 or abs(zM) > 2:
                 als.append(f'<div class="cot-al yellow"><b>Z-score oltre ±2σ</b><span class="mono">Prod {zP:.2f} · MM {zM:.2f}</span><span class="hint">Attenzione al cambio di regime.</span></div>')
             if not als:
@@ -438,7 +592,7 @@ with tab_cm:
                 st.markdown(
                     "- **▲ RIALZISTA** — Producer ai minimi + Managed ai massimi = tensione; diventa long **solo quando il Producer inverte**.\n"
                     "- **▼ RIBASSISTA** — speculare: conferma quando il Producer riprende a coprire.\n"
-                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa è al limite storico: i commerciali stanno prendendo una posizione senza precedenti. Spesso **anticipa** il movimento; aspetta l'inversione della linea per entrare.\n"
+                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa al limite storico: i commerciali prendono posizione senza precedenti; aspetta l'inversione della linea per il timing.\n"
                     "- **TREND VIVO** — Managed in trend *senza* estremi e Producer che accompagna → non operare contro.\n"
-                    "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo (ora leggibile direttamente sull'asse destro).",
+                    "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo (leggibile sull'asse destro).",
                     unsafe_allow_html=False)
