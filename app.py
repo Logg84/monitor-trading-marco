@@ -6,10 +6,10 @@ import datetime
 import time
 import json
 import requests
+import re
 import yfinance as yf
 from PIL import Image
-from google import genai
-from google.genai import types
+from groq import Groq
 import base64
 from nav import render_navbar, section_header
 
@@ -25,79 +25,358 @@ def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 CSV_PATH = "watchlist.csv"
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "llama-3.2-11b-vision-preview"
 
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.block-container { padding-top: 1.5rem; padding-bottom: 2rem; padding-left: 2rem; padding-right: 2rem; max-width: 100%; }
-h3 { font-size: 1.05rem !important; font-weight: 600 !important; color: #9aa4b2 !important; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0 !important; }
-hr { margin: 1.4rem 0 !important; border-color: #232733 !important; }
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { display: flex; align-items: center; }
-.wl-badge { font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600; padding: 3px 10px; border-radius: 6px; display: inline-block; border: 1px solid transparent; }
-.wl-badge.l1 { color: #f0b90b; background: rgba(240,185,11,0.10); border-color: rgba(240,185,11,0.25); }
-.wl-badge.l2 { color: #00c176; background: rgba(0,193,118,0.10); border-color: rgba(0,193,118,0.25); }
-.wl-badge.l3 { color: #ff4d4d; background: rgba(255,77,77,0.10); border-color: rgba(255,77,77,0.25); }
-.wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: #00b4d8; background: rgba(0,180,216,0.10); border-color: rgba(0,180,216,0.25); }
-.wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #a78bfa; background: rgba(167,139,250,0.10); border-color: rgba(167,139,250,0.25); }
-.wl-badge.empty { color: #4a5568; background: transparent; border: 1px dashed #2d3340; }
-.wl-header { font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; padding-bottom: 6px; border-bottom: 1px solid #232733; margin-bottom: 4px; }
-div[data-testid="stButton"] button { border: 1px solid #2d3340; background: transparent; color: #6b7280; border-radius: 6px; transition: all 0.15s ease; }
-div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button { color: #e8eaed; font-family: 'IBM Plex Mono', monospace; font-weight: 600; text-align: left; border: none; background: transparent; padding-left: 0; }
-div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover { color: #f0b90b; background: transparent; border: none; }
-div[data-testid="stButton"] button:hover { border-color: #ff4d4d; color: #ff4d4d; background: rgba(255,77,77,0.08); }
-div[data-testid="stFileUploaderDropzone"] { border: 1px dashed #2d3340; background: #0f1219; border-radius: 10px; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg-base: #0a0f1a;
+  --bg-panel: #0f172a;
+  --bg-panel-2: #111827;
+  --bg-hover: rgba(56, 189, 248, 0.08);
+  --border: #1e293b;
+  --border-strong: #334155;
+  --txt-1: #f8fafc;
+  --txt-2: #cbd5e1;
+  --txt-3: #94a3b8;
+  --txt-muted: #64748b;
+  --accent: #38bdf8;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --violet: #a78bfa;
+  --cyan: #06b6d4;
+}
+
+html, body, [class*="css"] {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-base);
+  color: var(--txt-2);
+}
+
+.block-container {
+  padding: 1.5rem 1.5rem 2rem 1.5rem;
+  max-width: 100%;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', sans-serif;
+  color: var(--txt-1);
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: var(--accent) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em !important;
+  margin-top: 0.5rem !important;
+}
+
+hr {
+  margin: 1.5rem 0 !important;
+  border-color: var(--border) !important;
+  border-top-width: 1px !important;
+}
+
+/* === Badges Livelli === */
+.wl-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 7px;
+  display: inline-block;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: transform .12s ease, box-shadow .15s ease;
+}
+.wl-badge:hover { transform: translateY(-1px); }
+
+.wl-badge.l1 { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.35); }
+.wl-badge.l2 { color: #86efac; background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
+.wl-badge.l3 { color: #fca5a5; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
+.wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: #67e8f9; background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.35); }
+.wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #c4b5fd; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); }
+.wl-badge.empty { color: var(--txt-muted); background: transparent; border: 1px dashed var(--border-strong); }
+
+/* === Header righe tabella === */
+.wl-header {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--txt-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* === Pulsanti === */
+div[data-testid="stButton"] button {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--txt-2);
+  border-radius: 7px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+div[data-testid="stButton"] button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+/* Ticker pulsante (prima colonna) */
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {
+  color: var(--txt-1);
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding-left: 0;
+  font-size: 0.92rem;
+}
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {
+  color: var(--accent);
+  background: transparent;
+  border: none;
+}
+
+/* Pulsanti icona (📈 🔮 🖼️ ✏️ 🗑️) */
+div[data-testid="column"]:nth-of-type(12) div[data-testid="stButton"] button,
+div[data-testid="column"]:nth-of-type(13) div[data-testid="stButton"] button,
+div[data-testid="column"]:nth-of-type(14) div[data-testid="stButton"] button,
+div[data-testid="column"]:nth-of-type(15) div[data-testid="stButton"] button,
+div[data-testid="column"]:nth-of-type(16) div[data-testid="stButton"] button {
+  padding: 3px 0 !important;
+  font-size: 16px !important;
+  min-width: 32px;
+}
+
+/* === Upload zone === */
+div[data-testid="stFileUploaderDropzone"] {
+  border: 1px dashed var(--border-strong);
+  background: var(--bg-panel);
+  border-radius: 12px;
+  padding: 1.5rem !important;
+  transition: border-color .15s ease, background .15s ease;
+}
+div[data-testid="stFileUploaderDropzone"]:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* === Input / number === */
+div[data-testid="stInput"] input,
+div[data-testid="stNumberInput"] input {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--txt-1);
+  font-family: 'IBM Plex Mono', monospace;
+  border-radius: 7px;
+}
+div[data-testid="stInput"] input:focus,
+div[data-testid="stNumberInput"] input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
+}
+
+/* === Card pannello === */
+.wl-card {
+  background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-panel-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 20px -10px rgba(0,0,0,.5);
+}
+.wl-card-head {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+/* === Righe watchlist: hover === */
+div[data-testid="stHorizontalBlock"] {
+  border-bottom: 1px solid rgba(30,41,59,0.5);
+  padding: 6px 0;
+  transition: background .12s ease;
+}
+div[data-testid="stVerticalBlock"]:hover > div[data-testid="stHorizontalBlock"] {
+  background: var(--bg-hover);
+}
+
+/* === Prezzo attuale evidenziato === */
+.wl-price {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--txt-1);
+  padding: 3px 8px;
+  background: rgba(56,189,248,0.08);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+/* === Pill origine === */
+.wl-origin {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.wl-origin.auto { color: #67e8f9; background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.35); }
+.wl-origin.man { color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.30); }
+
+/* === Info box AI === */
+.wl-ai-box {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  border: 1px solid #4c1d95;
+  border-left: 4px solid var(--violet);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  font-size: 12px;
+  color: #e0e7ff;
+}
+.wl-ai-box b { color: #c4b5fd; }
+
+/* === Sezione grafico === */
+.wl-chart-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.wl-chart-ticker {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--txt-1);
+  letter-spacing: -0.02em;
+}
+.wl-chart-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--txt-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+/* === Alert history === */
+div[data-testid="stDataFrame"] {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 render_navbar("watchlist", hide_sidebar=True)
 section_header("Portafoglio monitorato", "Watchlist & Livelli")
 
+
+# ================================================================
+# CLIENT GROQ (sostituisce Gemini)
+# ================================================================
 @st.cache_resource
 def get_client():
-    api_key = st.secrets["GEMINI_API_KEY"]
-    return genai.Client(api_key=api_key)
+    api_key = st.secrets.get("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("Secret GROQ_API_KEY non configurato su Streamlit Cloud.")
+    return Groq(api_key=api_key)
+
 
 client = get_client()
 
-RESPONSE_SCHEMA = {
-    "type": "OBJECT",
-    "properties": {
-        "ticker": {"type": "STRING"},
-        "livello_1": {"type": "NUMBER"}, "livello_2": {"type": "NUMBER"}, "livello_3": {"type": "NUMBER"},
-        "vwap_1": {"type": "NUMBER"}, "vwap_2": {"type": "NUMBER"}, "vwap_3": {"type": "NUMBER"},
-    },
-    "required": ["ticker"],
+
+PROMPT_VISION = """Sei un analista tecnico quantitativo. Analizza questo screenshot di un grafico finanziario.
+
+Estrai in formato JSON puro (senza markdown, senza backtick, senza testo esterno):
+{
+  "ticker": "string — simbolo dello strumento (es. AAPL, CPR.MI, GOLD)",
+  "livello_1": number,
+  "livello_2": number,
+  "livello_3": number,
+  "vwap_1": number,
+  "vwap_2": number,
+  "vwap_3": number
 }
 
-PROMPT = """Analizza questo screenshot di un grafico finanziario (piattaforma di trading).
-Estrai:
-1. Il ticker/simbolo dello strumento.
-2. Fino a 3 livelli di prezzo numerici rilevanti (supporti, resistenze, linee orizzontali).
-3. Fino a 3 valori VWAP (Volume Weighted Average Price) se visibili sul grafico.
-Se non trovi un dato, lascialo a 0. Rispondi SOLO con i dati richiesti in JSON."""
+Regole:
+- "ticker": usa il simbolo esatto come appare sul grafico. Se non visibile, stringa vuota.
+- "livello_1/2/3": i 3 livelli di prezzo orizzontali più rilevanti (supporti/resistenze evidenti). 0 se non ne trovi 3.
+- "vwap_1/2/3": fino a 3 valori VWAP se etichettati o chiaramente leggibili. 0 se non visibili.
+- Tutti i prezzi in formato numerico (non stringhe).
+- Rispondi SOLO con l'oggetto JSON, nessun altro testo prima o dopo."""
+
 
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
-    response = client.models.generate_content(
+    """Invia screenshot a Groq (llama-3.2-11b-vision-preview) e parsa JSON."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64}"
+
+    response = client.chat.completions.create(
         model=MODEL_NAME,
-        contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type), PROMPT],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json", response_schema=RESPONSE_SCHEMA,
-            safety_settings=[
-                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-            ],
-        ),
+        messages=[
+            {"role": "system", "content": "Rispondi SOLO con JSON valido, senza testo esterno né blocchi markdown."},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": PROMPT_VISION},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            },
+        ],
+        temperature=0.1,
+        max_tokens=500,
+        response_format={"type": "json_object"},
     )
-    if not response.candidates:
-        raise ValueError(f"Nessuna risposta da Gemini. Prompt feedback: {response.prompt_feedback}")
-    candidate = response.candidates[0]
-    if candidate.finish_reason not in ("STOP", 1):
-        raise ValueError(f"Risposta bloccata. finish_reason={candidate.finish_reason}")
-    return json.loads(response.text)
+
+    text = response.choices[0].message.content or ""
+    # Strip markdown fences nel caso il modello le aggiunga comunque
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+
+    if not text.strip():
+        raise ValueError("Risposta vuota dal modello vision.")
+
+    try:
+        dati = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON non parsabile dal modello: {e}. Risposta grezza: {text[:200]}")
+
+    # Normalizza: assicura tutte le chiavi
+    defaults = {"ticker": "", "livello_1": 0, "livello_2": 0, "livello_3": 0,
+                "vwap_1": 0, "vwap_2": 0, "vwap_3": 0}
+    for k, v in defaults.items():
+        if k not in dati or dati[k] is None:
+            dati[k] = v
+    return dati
+
 
 COLONNE_ATTESE = [
     "Ticker",
@@ -252,34 +531,57 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
     commit_csv_su_github(df)
     return df
 
-st.info(
-    "🔗 **Automazione attiva dalla pagina Screening.** I titoli dello screener che toccano "
-    "un POC o un VWAP entrano **da soli** nella watchlist con origine `auto` (🤖) e vengono "
-    "rimossi quando escono dalla zona. I titoli che inserisci o modifichi a mano qui hanno "
-    "origine `manuale` e **non vengono mai toccati** dall'automazione."
+
+# ================================================================
+# HEADER + SEZIONE UPLOAD / ANALISI
+# ================================================================
+st.markdown(
+    '<div class="wl-card">'
+    '<div class="wl-card-head">🤖 Automazione watchlist</div>'
+    '<div style="font-size:12.5px;line-height:1.55;color:#cbd5e1">'
+    'I titoli dello <b>screener</b> che toccano un POC o un VWAP entrano <b>da soli</b> nella watchlist '
+    'con origine <span class="wl-origin auto">🤖 AUTO</span> e vengono rimossi quando escono dalla zona. '
+    'I titoli che inserisci o modifichi a mano qui hanno origine <span class="wl-origin man">👤 MAN</span> '
+    'e <b>non vengono mai toccati</b> dall\'automazione.'
+    '</div></div>',
+    unsafe_allow_html=True,
 )
 
-col_upload, col_result = st.columns([1, 1])
+col_upload, col_result = st.columns([1, 1], gap="large")
 
 with col_upload:
-    uploaded_file = st.file_uploader("Carica screenshot del grafico", type=["png", "jpg", "jpeg", "webp"])
+    st.markdown('<div class="wl-card-head">📸 Upload screenshot</div>', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader(
+        "Carica screenshot del grafico (TradingView, broker, ecc.)",
+        type=["png", "jpg", "jpeg", "webp"],
+        label_visibility="collapsed",
+    )
     if uploaded_file is not None:
-        st.image(uploaded_file, caption="Screenshot caricato", use_container_width=True)
-        if st.button("🔍 Analizza con Gemini", type="primary"):
-            with st.spinner("Analisi in corso..."):
+        st.image(uploaded_file, caption="Anteprima", use_container_width=True)
+        if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
+            with st.spinner("Analisi in corso (Groq llama-3.2-11b-vision)..."):
                 try:
                     image_bytes = uploaded_file.getvalue()
-                    mime_type = uploaded_file.type
+                    mime_type = uploaded_file.type or "image/png"
                     dati = analizza_immagine(image_bytes, mime_type)
                     st.session_state["ultima_analisi"] = dati
-                    st.success("Analisi completata.")
+                    st.success("✅ Analisi completata.")
                 except Exception as e:
-                    st.error(f"Errore durante l'analisi: {e}")
+                    st.error(f"❌ Errore durante l'analisi: {e}")
+                    st.info("💡 Verifica che il secret GROQ_API_KEY sia configurato e che il modello sia disponibile. I screenshot molto sfocati o senza ticker visibile possono dare ticker vuoto.")
 
 with col_result:
     if "ultima_analisi" in st.session_state:
         dati = st.session_state["ultima_analisi"]
-        st.subheader("Risultato estratto")
+        st.markdown('<div class="wl-card-head">🧩 Dati estratti (verifica e salva)</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            '<div class="wl-ai-box"><b>🧠 Lettura AI</b> — il modello ha interpretato lo screenshot. '
+            'Verifica ogni valore prima di salvare: la lettura può contenere errori, soprattutto su '
+            'VWAP non etichettati o livelli secondari.</div>',
+            unsafe_allow_html=True,
+        )
+
         ticker_edit = st.text_input("Ticker", value=dati.get("ticker", ""))
         col_l, col_v = st.columns(2)
         with col_l:
@@ -298,16 +600,39 @@ with col_result:
         nv1_edit = st.text_input("Nota VWAP 1", value="")
         nv2_edit = st.text_input("Nota VWAP 2", value="")
         nv3_edit = st.text_input("Nota VWAP 3", value="")
-        if st.button("💾 Salva in watchlist"):
-            screenshot_path = None
-            if uploaded_file is not None:
-                estensione = uploaded_file.type.split("/")[-1] if uploaded_file.type else "png"
-                screenshot_path = carica_screenshot_su_github(ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione)
-            salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit,
-                       n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
-            del st.session_state["ultima_analisi"]
-            st.rerun()
 
+        c_save, c_reset = st.columns([3, 1])
+        with c_save:
+            if st.button("💾 Salva in watchlist", type="primary", use_container_width=True):
+                screenshot_path = None
+                if uploaded_file is not None:
+                    estensione = (uploaded_file.type or "image/png").split("/")[-1]
+                    if estensione == "jpeg":
+                        estensione = "jpg"
+                    screenshot_path = carica_screenshot_su_github(
+                        ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
+                    )
+                salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit,
+                           n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
+                del st.session_state["ultima_analisi"]
+                st.rerun()
+        with c_reset:
+            if st.button("🔄", use_container_width=True, help="Scarta e ricomincia"):
+                del st.session_state["ultima_analisi"]
+                st.rerun()
+    else:
+        st.markdown(
+            '<div class="wl-card" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:#64748b;text-align:center">'
+            '<div><div style="font-size:36px;opacity:.5">📸</div>'
+            '<div style="font-size:12px;margin-top:8px">Carica uno screenshot a sinistra<br>per estrarre ticker, livelli e VWAP</div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+
+
+# ================================================================
+# INSERIMENTO MANUALE
+# ================================================================
 with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
     with st.form("form_inserimento_manuale"):
         col_m1, col_m2, col_m3 = st.columns(3)
@@ -328,7 +653,7 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
             m_nv1 = st.text_input("Nota V1")
             m_nv2 = st.text_input("Nota V2")
             m_nv3 = st.text_input("Nota V3")
-        m_submit = st.form_submit_button("💾 Salva Ticker Manuale")
+        m_submit = st.form_submit_button("💾 Salva Ticker Manuale", use_container_width=True)
     if m_submit:
         if not m_ticker:
             st.error("Il Ticker è obbligatorio.")
@@ -343,7 +668,10 @@ with st.expander("➕ Inserimento Manuale Ticker", expanded=False):
 
 st.divider()
 
-st.subheader("📋 Watchlist salvata")
+# ================================================================
+# WATCHLIST TABELLA
+# ================================================================
+st.markdown('<div class="wl-card-head">📋 Watchlist salvata</div>', unsafe_allow_html=True)
 df = carica_watchlist()
 
 TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
@@ -438,7 +766,7 @@ else:
 
     COLS = [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.3, 0.3, 0.3, 0.3]
     cols = st.columns(COLS)
-    etichette = list(zip(cols[:11], ("Ticker", "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3", "Prezzo")))
+    etichette = list(zip(cols[:11], ("Ticker", "L1", "L2", "L3", "V1", "V2", "V3", "POC1", "POC2", "POC3", "Prezzo")))
     for col, label in etichette:
         col.markdown(f'<div class="wl-header">{label}</div>', unsafe_allow_html=True)
     for col in cols[11:]:
@@ -492,7 +820,7 @@ else:
                 salva_riga(ticker_finale, nl1, nl2, nl3, nv1, nv2, nv3, nota_1, nota_2, nota_3, nota_v1, nota_v2, nota_v3)
                 st.session_state["editing_ticker"] = None
                 st.rerun()
-            if c[12].button("️", key=f"cancel_{ticker_riga}_{_}"):
+            if c[12].button("✖", key=f"cancel_{ticker_riga}_{_}"):
                 st.session_state["editing_ticker"] = None
                 st.rerun()
             for cc in (c[13], c[14], c[15]):
@@ -506,8 +834,16 @@ else:
             nc6.text_input("Nota V3", value=str(r["Nota VWAP 3"] or ""), key=f"edit_nv3_{ticker_riga}_{_}", label_visibility="collapsed")
         else:
             c = st.columns(COLS)
-            prefisso_origine = "🤖 " if origine_riga == "auto" else ""
-            if c[0].button(prefisso_origine + ticker_riga, key=f"select_{ticker_riga}_{_}", use_container_width=True):
+            # Ticker con pill origine
+            origine_badge = '<span class="wl-origin auto">🤖</span>' if origine_riga == "auto" else '<span class="wl-origin man">👤</span>'
+            c[0].markdown(
+                f'<button style="all:unset;cursor:pointer;color:#f8fafc;font-family:IBM Plex Mono,monospace;font-weight:700" '
+                f'onclick="document.querySelector(\'button[key=select_{ticker_riga}_{_}\']\').click()">'
+                f'{ticker_riga}{origine_badge}</button>',
+                unsafe_allow_html=True,
+            )
+            # Bottone invisibile per gestire il click
+            if c[0].button("sel", key=f"select_{ticker_riga}_{_}", type="secondary"):
                 st.session_state["ticker_grafico"] = ticker_riga
                 st.rerun()
             c[1].markdown(badge(r["Livello 1"], "l1", r["Nota 1"]), unsafe_allow_html=True)
@@ -519,12 +855,14 @@ else:
             c[7].markdown(badge(r["POC 1"], "p1", r["Nota POC 1"]), unsafe_allow_html=True)
             c[8].markdown(badge(r["POC 2"], "p2", r["Nota POC 2"]), unsafe_allow_html=True)
             c[9].markdown(badge(r["POC 3"], "p3", r["Nota POC 3"]), unsafe_allow_html=True)
-            ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
+
             prezzo_riga = prezzi_condivisi.get(ticker_riga)
             if prezzo_riga is not None:
-                c[10].markdown(f'<span style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;">{prezzo_riga:.2f}</span>', unsafe_allow_html=True)
+                c[10].markdown(f'<span class="wl-price">{prezzo_riga:.2f}</span>', unsafe_allow_html=True)
             else:
                 c[10].markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
+
+            ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
             tv_symbol = ticker_td_riga.replace('/', '')
             tv_url = f"https://www.tradingview.com/symbols/{tv_symbol}/"
             exch = determina_exchange(ticker_td_riga)
@@ -569,8 +907,11 @@ else:
         if dim_mb >= soglia_mb:
             st.warning(f"⚠️ Il repo occupa {dim_mb:.0f} MB, si sta avvicinando al limite consigliato (~1 GB). Valuta di ripulire vecchi screenshot.")
         else:
-            st.caption(f"Spazio repo usato: {dim_mb:.0f} MB / ~1000 MB consigliati")
+            st.caption(f"💾 Spazio repo: {dim_mb:.0f} MB / ~1000 MB")
 
+    # ================================================================
+    # GRAFICO TICKER SELEZIONATO (con card header)
+    # ================================================================
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
         st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
     ticker_selezionato = st.session_state["ticker_grafico"]
@@ -582,7 +923,18 @@ else:
     import json as _json
 
     TIMEFRAMES = {"4H": ("4h", 300), "1D": ("1day", 500), "1W": ("1week", 260), "1M": ("1month", 120)}
-    st.markdown(f'<h3 style="margin-bottom:0.4rem;">📈 {ticker_selezionato}</h3>', unsafe_allow_html=True)
+
+    # Card header del grafico
+    origine_selezionato = str(riga.get("Origine", "manuale")).strip().lower()
+    origine_pill = '<span class="wl-origin auto">🤖 AUTO</span>' if origine_selezionato == "auto" else '<span class="wl-origin man">👤 MAN</span>'
+    st.markdown(
+        f'<div class="wl-chart-head">'
+        f'<div><div class="wl-chart-label">Grafico attivo</div>'
+        f'<div class="wl-chart-ticker">{ticker_selezionato} {origine_pill}</div></div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
     timeframe = st.radio("Timeframe", list(TIMEFRAMES.keys()), index=1, horizontal=True, label_visibility="collapsed")
     intervallo, outputsize = TIMEFRAMES[timeframe]
 
@@ -603,29 +955,41 @@ else:
             for idx, r in storico.iterrows()
         ]
         linee_livelli_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {liv}, color: "{["#f0b90b", "#00c176", "#ff4d4d"][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
+            f'candleSeries.createPriceLine({{price: {liv}, color: "{["#fbbf24", "#86efac", "#fca5a5"][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
             for i, liv in enumerate(livelli))
         linee_vwap_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {v}, color: "#00b4d8", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
+            f'candleSeries.createPriceLine({{price: {v}, color: "#67e8f9", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
             for i, v in enumerate(vwap))
         linee_poc_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {p}, color: "#a78bfa", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
+            f'candleSeries.createPriceLine({{price: {p}, color: "#c4b5fd", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
             for i, p in enumerate(poc_liv))
 
         chart_html = f"""
-        <div id="chart_container" style="width:100%; height:600px;"></div>
+        <div id="chart_container" style="width:100%; height:600px; border:1px solid #1e293b; border-radius:10px; overflow:hidden;"></div>
         <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
         <script>
           const container = document.getElementById('chart_container');
           const chart = LightweightCharts.createChart(container, {{
             width: container.clientWidth, height: 600,
-            layout: {{ background: {{ color: '#0e1117' }}, textColor: '#d1d4dc' }},
-            grid: {{ vertLines: {{ color: '#1e222d' }}, horzLines: {{ color: '#1e222d' }} }},
-            timeScale: {{ borderColor: '#485c7b', timeVisible: {str(usa_timestamp).lower()} }},
+            layout: {{
+              background: {{ type: 'solid', color: '#0a0f1a' }},
+              textColor: '#cbd5e1',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 11,
+            }},
+            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }}, horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
+            timeScale: {{ borderColor: '#334155', timeVisible: {str(usa_timestamp).lower()} }},
+            rightPriceScale: {{ borderColor: '#334155' }},
+            crosshair: {{
+              mode: 1,
+              vertLine: {{ color: '#38bdf8', width: 1, style: 2 }},
+              horzLine: {{ color: '#38bdf8', width: 1, style: 2 }},
+            }},
           }});
           const candleSeries = chart.addCandlestickSeries({{
-            upColor: '#26a69a', downColor: '#ef5350',
-            borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+            upColor: '#22c55e', downColor: '#ef4444',
+            borderVisible: false,
+            wickUpColor: '#22c55e', wickDownColor: '#ef4444',
           }});
           candleSeries.setData({_json.dumps(candele)});
           {linee_livelli_js}
@@ -638,7 +1002,7 @@ else:
         st.components.v1.html(chart_html, height=620)
 
 st.divider()
-st.subheader("🕘 Storico Alert")
+st.markdown('<div class="wl-card-head">🕘 Storico Alert</div>', unsafe_allow_html=True)
 HISTORY_PATH = "alert_history.csv"
 
 @st.cache_data(ttl=60)
