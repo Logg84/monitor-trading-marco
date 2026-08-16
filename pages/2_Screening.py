@@ -88,7 +88,7 @@ section[data-testid="stSidebar"] > div { width: 250px !important; }
 
 /* ---- barra ordinamento ---- */
 .sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin: 2px 0 6px 0; }
-div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
+div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
 
 /* ---- tabella screening ---- */
 .argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
@@ -137,7 +137,7 @@ div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding:
 render_navbar("screening", hide_sidebar=False)
 section_header("Terminale operativo", "Screening & Titoli in Sconto")
 
-# ---------- LEGENDA HEALTH CHECK (aggiornata con nota mercati europei) ----------
+# ---------- LEGENDA HEALTH CHECK ----------
 with st.expander("ℹ️ Legenda Health Check", expanded=False):
     st.markdown("""
     **Health Check** – Valutazione assoluta della salute finanziaria (0-4):
@@ -331,6 +331,7 @@ with st.sidebar:
     st.caption("🧹  POC operativi:  nel grafico vedi solo i POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
     st.caption("🤖  Automazione:  i titoli in zona entrano da soli; i VWAP si rinfrescano sempre; escono solo se non più in sconto.")
     st.caption("⏰  Screening automatico:  1 volta/giorno alle 21:30 UTC. AVVIA = override manuale.")
+    st.caption("⚖️  Operazione Potenziale:  lettura automatica non vincolante. Decisione e rischio sono interamente a carico dell'utente.")
 
     st.markdown("---")
     st.subheader("🕒 Stato Scansioni")
@@ -482,7 +483,7 @@ _HDR = {
     "Distanza VWAP (%)": ("dVWAP %", "Distanza % dal VWAP più vicino"),
     "🎯 Alert": ("🎯 Alert", "Tocco POC / VWAP entro la soglia, con distanza"),
     "Market Cap (B)": ("MCap", "Capitalizzazione (miliardi)"),
-    "Entry Mode": ("Entry", "Modalità di ingresso"),
+    "Entry Mode": ("Operazione Potenziale", "Lettura automatica non vincolante del metodo REA: decisione e rischio interamente a carico dell'utente"),
     "Stato": ("Stato", "Stato del titolo"),
     "Grafico TW": ("TW", "Apri su TradingView"),
 }
@@ -537,10 +538,7 @@ def _parse_pct(s):
 
 def arricchisci(df, soglia):
     """Calcola lato pagina: VWAP vicino + distanza, distanza POC numerica, 🎯 Alert unificato.
-    
-    NUOVO: Zone POC - se il prezzo è dentro una zona (POC Low ≤ prezzo ≤ POC High),
-    distanza = 0 e alert = "🎯 IN ZONA POC". Altrimenti calcola distanza dal punto POC più vicino.
-    """
+    Zone POC: se il prezzo è dentro una zona (POC Low ≤ prezzo ≤ POC High), distanza = 0."""
     if df.empty:
         for c in ["VWAP vicino", "_vwap_tf", "Distanza VWAP (%)", "_dist_poc_num", "🎯 Alert", "_alert_detail"]:
             df[c] = np.nan if c in ("VWAP vicino", "Distanza VWAP (%)", "_dist_poc_num") else ""
@@ -565,10 +563,8 @@ def arricchisci(df, soglia):
     df["_dist_poc_num"] = df["Distanza POC (%)"].apply(_parse_pct)
 
     def _alert(row):
-        """NUOVO: controlla se il prezzo è dentro una zona POC, altrimenti usa la logica punto."""
         P = _sf(row.get("Prezzo"))
-        
-        # Controlla se il prezzo è dentro una zona POC
+
         in_zona = False
         for k in (1, 2, 3):
             poc_low = _sf(row.get(f"POC {k} Low"))
@@ -577,15 +573,15 @@ def arricchisci(df, soglia):
                 if poc_low <= P <= poc_high:
                     in_zona = True
                     break
-        
+
         poc_hit = in_zona or (str(row.get("🎯 ALERT POC", "")).strip() == "🎯 SU POC")
         dv = row["Distanza VWAP (%)"]
         vwap_hit = pd.notna(dv) and abs(dv) <= soglia
         dp = row["_dist_poc_num"]
-        
+
         if not poc_hit and not vwap_hit:
             return pd.Series({"🎯 Alert": "", "_alert_detail": ""})
-        
+
         parts = []
         if poc_hit:
             if in_zona:
@@ -594,22 +590,21 @@ def arricchisci(df, soglia):
                 parts.append(f"POC {dp:+.1f}%")
             else:
                 parts.append("POC")
-        
+
         if vwap_hit:
             parts.append(f"VWAP {dv:+.1f}%")
-        
+
         if poc_hit and vwap_hit:
             label = "🎯 POC+VWAP"
         elif poc_hit:
             label = "🎯 IN ZONA POC" if in_zona else "🎯 SU POC"
         else:
             label = "🎯 SU VWAP"
-        
+
         return pd.Series({"🎯 Alert": label, "_alert_detail": " · ".join(parts)})
 
     df[["🎯 Alert", "_alert_detail"]] = df.apply(_alert, axis=1)
-    
-    # Aggiorna la colonna "Distanza POC (%)" per mostrare "📍 in zona" se dentro zona
+
     def _format_dist_poc(row):
         P = _sf(row.get("Prezzo"))
         for k in (1, 2, 3):
@@ -618,11 +613,10 @@ def arricchisci(df, soglia):
             if poc_low > 0 and poc_high > 0 and P > 0:
                 if poc_low <= P <= poc_high:
                     return "📍 in zona"
-        # Altrimenti usa il valore numerico esistente
         return row.get("Distanza POC (%)", "N/D")
-    
+
     df["Distanza POC (%)"] = df.apply(_format_dist_poc, axis=1)
-    
+
     return df
 
 
@@ -636,13 +630,11 @@ def _fmt2(v):
 
 
 def _score_bg(col, v):
-    # usato solo per Bottom Score
     if col.startswith("Bottom"):
         if v >= 4: return "background:#065f46;color:#a7f3d0"
         if v >= 3: return "background:#143524;color:#86efac"
         if v >= 2: return "background:#3a2408;color:#fde68a"
         return "background:#3a1414;color:#fca5a5"
-    # fallback
     if v >= 3: return "background:#065f46;color:#a7f3d0"
     if v >= 2: return "background:#143524;color:#86efac"
     return "background:#3a1414;color:#fca5a5"
@@ -689,7 +681,6 @@ def _alert_cell(val, row):
 
 
 def _health_style(score):
-    """Stili per la colonna Health in base al punteggio."""
     if score == 4:
         return "background:#065f46; color:#a7f3d0"
     elif score >= 2:
@@ -717,7 +708,7 @@ def _td(col, val, row=None):
             score_int = int(score)
         except (ValueError, TypeError):
             return ("score", "", str(val))
-        disp = str(val).strip()  # es. "✅ 4/4"
+        disp = str(val).strip()
         return ("score", _health_style(score_int), disp)
     if col == "Bottom Score (0-4)":
         try:
@@ -746,10 +737,8 @@ def _td(col, val, row=None):
             return ("r num muted", "", "—")
         return ("r num", "", f'{float(val):+.1f}%')
     if col == "Distanza POC (%)":
-        # NUOVO: se è "📍 in zona", mostra il badge verde
         if str(val).strip() == "📍 in zona":
             return ("r num", "background:rgba(34,197,94,.20);color:#86efac;font-weight:700", "📍 in zona")
-        # Altrimenti usa il valore numerico
         d = row.get("_dist_poc_num") if row is not None else np.nan
         if d is None or (isinstance(d, float) and pd.isna(d)):
             return ("r num muted", "", "N/D")
@@ -875,6 +864,7 @@ def interpreta_bottom_score(score, dettagli):
 # CORPO: LISTA TITOLI SCREENING
 # ---------------------------------------------------------------
 st.subheader("📋 Lista Titoli Screening")
+st.caption("⚖️ **Operazione Potenziale** è una lettura automatica del metodo REA, non un consiglio d'investimento: ogni decisione operativa e il relativo rischio sono interamente a carico dell'utente.")
 is_all_selected = (indice_scelto == "🌍 TUTTI GLI INDICI INSIEME")
 
 if is_all_selected:
@@ -918,7 +908,6 @@ if has_data_to_show:
             df_total[col] = "N/D"
     if "Grafico TW" not in df_total.columns:
         df_total["Grafico TW"] = df_total["Ticker"].apply(genera_url_tradingview)
-    # calcola VWAP vicino / distanze / alert unificato
     df_total = arricchisci(df_total, soglia_poc_pct)
 
     t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Health)", "🎯 ALERT POC / VWAP"])
