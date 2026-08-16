@@ -89,6 +89,12 @@ section[data-testid="stSidebar"] > div { width: 250px !important; }
 .sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin: 2px 0 6px 0; }
 div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
 
+/* chip ticker analisi */
+.decel-chips div[data-testid="stButton"] button {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600;
+    padding: 4px 2px; border-radius: 7px;
+}
+
 .argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
 .argo-tbl-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
 .argo-tbl-wrap::-webkit-scrollbar-track { background: transparent; }
@@ -133,7 +139,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { paddin
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------
-# MOTORE (prima della navbar, per passare la Bussola al chip Regime)
+# MOTORE (prima della navbar, per il chip Regime)
 # ---------------------------------------------------------------
 if "engine" not in st.session_state:
     st.session_state["engine"] = DataEngine()
@@ -899,14 +905,39 @@ if has_data_to_show:
     st.markdown("---")
 
     # ---------------------------------------------------------------
-    # ANALISI DECELERAZIONE A SCOMPARSA (nativa: nessun cambio pagina)
+    # ANALISI DECELERAZIONE — chip ticker cliccabili (nativo, no reload)
     # ---------------------------------------------------------------
-    with st.expander("📉 Analisi di Decelerazione per singolo titolo — apri e scegli il ticker", expanded=False):
-        ticker_list = sorted(str(t) for t in df_total["Ticker"].unique())
-        _prev = st.session_state.get("decel_ticker")
-        _idx = ticker_list.index(_prev) if _prev in ticker_list else 0
-        selected_ticker = st.selectbox("Seleziona titolo", ticker_list, index=_idx, key="decel_select", label_visibility="collapsed")
-        st.session_state["decel_ticker"] = selected_ticker
+    st.subheader("📉 Analisi di Decelerazione")
+    ticker_list = sorted(str(t) for t in df_total["Ticker"].unique())
+    _sel = st.session_state.get("decel_ticker")
+    if _sel not in ticker_list:
+        _sel = None
+
+    st.caption("🖱️ Clicca un ticker per aprire/chiudere il grafico. Nessun cambio pagina.")
+
+    clicked = None
+    per_row = 10
+    with st.container():
+        st.markdown('<div class="decel-chips">', unsafe_allow_html=True)
+        for i in range(0, len(ticker_list), per_row):
+            cols = st.columns(per_row, gap="small")
+            for j, tk in enumerate(ticker_list[i:i + per_row]):
+                if cols[j].button(tk, key=f"decel_chip_{tk}",
+                                  type="primary" if tk == _sel else "secondary",
+                                  use_container_width=True):
+                    clicked = tk
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    if clicked:
+        st.session_state["decel_ticker"] = clicked
+        st.rerun()
+
+    if _sel:
+        c_top, c_spacer = st.columns([1, 6])
+        with c_top:
+            if st.button("✖ Chiudi analisi", key="decel_close"):
+                st.session_state["decel_ticker"] = None
+                st.rerun()
 
         @st.cache_data(ttl=600)
         def get_hist_for_ticker(ticker):
@@ -920,12 +951,12 @@ if has_data_to_show:
             except Exception:
                 return None
 
-        hist = get_hist_for_ticker(selected_ticker)
+        hist = get_hist_for_ticker(_sel)
         if hist is not None and not hist.empty:
-            fig_decel = grafico_decelerazione(hist, selected_ticker)
+            fig_decel = grafico_decelerazione(hist, _sel)
             if fig_decel:
                 st.plotly_chart(fig_decel, use_container_width=True)
-                row = df_total[df_total["Ticker"] == selected_ticker].iloc[0]
+                row = df_total[df_total["Ticker"] == _sel].iloc[0]
                 raw_bs = row.get('Bottom Score (0-4)', 0)
                 try:
                     bottom_score = int(float(str(raw_bs)))
@@ -963,6 +994,6 @@ if has_data_to_show:
             else:
                 st.warning("Dati insufficienti per generare il grafico.")
         else:
-            st.warning(f"Impossibile scaricare i dati storici per {selected_ticker}.")
+            st.warning(f"Impossibile scaricare i dati storici per {_sel}.")
 else:
     st.info(f"📊 Nessun dato disponibile per '{indice_scelto}'. Il run automatico delle 21:30 UTC popola questa tabella; premi 'AVVIA SCREENING QUALITY (v2)' per un giro manuale immediato.")
