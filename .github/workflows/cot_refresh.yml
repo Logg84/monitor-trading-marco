@@ -2,9 +2,8 @@ name: COT Weekly Refresh
 
 on:
   schedule:
-    # Sabato 08:00 UTC (CFTC esce venerdì 15:30 ET = 21:30/22:30 UTC)
-    - cron: '0 8 * * 6'
-  workflow_dispatch:  # trigger manuale dal tab Actions
+    - cron: '0 8 * * 6'   # sabato 08:00 UTC, dopo l'uscita CFTC di venerdì
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,42 +11,41 @@ permissions:
 jobs:
   refresh-cot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install pandas numpy openpyxl requests yfinance
+      - name: Dipendenze
+        run: pip install --upgrade pip && pip install pandas numpy requests openpyxl xlrd
 
-      - name: Pull latest (ours strategy)
+      - name: Configura git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull -X ours origin main || true
 
-      - name: Run COT build
+      - name: Build COT
         run: python cot_build.py
 
-      - name: Commit & push
+      - name: Commit & push (solo file esistenti)
         run: |
-          git add cot_data.json cot_report.html
+          FILES=""
+          [ -f cot_data.json ] && FILES="$FILES cot_data.json"
+          [ -f cot_report.html ] && FILES="$FILES cot_report.html"
+          if [ -z "$FILES" ]; then
+            echo "❌ cot_build.py non ha generato output: leggi il log dello step 'Build COT'."
+            exit 1
+          fi
+          git pull -X ours origin main || true
+          git add $FILES
           if git diff --staged --quiet; then
-            echo "Nessuna modifica al COT, skip commit."
+            echo "ℹ️ Nessuna modifica ai dati COT, skip commit."
           else
             git commit -m "chore(cot): refresh settimanale $(date -u +%Y-%m-%d)"
-            git pull -X ours origin main || true
             git push origin main
           fi
