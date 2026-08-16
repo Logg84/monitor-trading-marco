@@ -265,7 +265,7 @@ if not DATA:
 
 # Pulsante aggiornamento manuale (sempre visibile, anche senza dati)
 if st.button("🔄 Aggiorna dati COT dal CFTC", type="primary",
-             help="Scarica gli ultimi report CFTC (anno corrente + precedente), li processa e committa cot_data.json su GitHub. Richiede ~30-60 secondi."):
+             help="Scarica gli ultimi report CFTC (anno corrente + precedente), li processa e committa cot_data.json su GitHub. Richiede circa 30-60 secondi."):
     with st.spinner("Download CFTC + commit su GitHub in corso..."):
         try:
             res = aggiorna_cot_manuale()
@@ -558,7 +558,7 @@ with tab_cm:
             elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
                 vcls, vtxt = "green", (f"<b style='color:#7dd3fc'>TREND SPECULATIVO IN CORSO</b> · Managed {'accumula long' if dM>0 else 'accumula short'} (Δ {dM:+.0f}) senza estremi: trend vivo → <b>non operare contro</b>.")
             elif (pP < 10 or pP > 90):
-                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° con Managed neutro ({pM:.0f}°): copertura commerciale anomala → <b>monitora l'inversione della linea rossa</b> come anticipatore.")
+                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° con Managed neutro ({pM:.0f}°): copertura commerciale anomala → <b>monitora quando la linea rossa inverte</b> come anticipatore.")
             else:
                 vcls, vtxt = "green", (f"<b>NESSUNA LETTURA DOMINANTE</b> · Producer {pP:.0f}° · Managed {pM:.0f}° · Swap {pS:.0f}°. Nessun trasferimento netto: stai fermo.")
             st.markdown(f'<div class="cot-readout {vcls}">{vtxt}</div>', unsafe_allow_html=True)
@@ -573,7 +573,7 @@ with tab_cm:
             elif (pP < 10 or pP > 90):
                 als.append(f'<div class="cot-al yellow"><b>PRODUCER ESTREMO ({pP:.0f}°)</b>'
                            f'<span class="mono">ΔProd {dP:+.0f} · Managed {pM:.0f}° (neutro) · Z-prod {zP:.2f}</span>'
-                           f'<span class="hint">Copertura commerciale a livello storico estremo: attendi l'inversione della linea rossa per il timing.</span></div>')
+                           f'<span class="hint">Copertura commerciale a livello storico estremo: attendi che la linea rossa inverta direzione per il timing.</span></div>')
             if abs(zP) > 2 or abs(zM) > 2:
                 als.append(f'<div class="cot-al yellow"><b>Z-score oltre ±2σ</b><span class="mono">Prod {zP:.2f} · MM {zM:.2f}</span><span class="hint">Attenzione al cambio di regime.</span></div>')
             if not als:
@@ -592,7 +592,7 @@ with tab_cm:
                 st.markdown(
                     "- **▲ RIALZISTA** — Producer ai minimi + Managed ai massimi = tensione; diventa long **solo quando il Producer inverte**.\n"
                     "- **▼ RIBASSISTA** — speculare: conferma quando il Producer riprende a coprire.\n"
-                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa al limite storico: i commerciali prendono posizione senza precedenti; aspetta l'inversione della linea per il timing.\n"
+                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa al limite storico: i commerciali prendono posizione senza precedenti; aspetta che la linea inverta per il timing.\n"
                     "- **TREND VIVO** — Managed in trend *senza* estremi e Producer che accompagna → non operare contro.\n"
                     "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo (leggibile sull'asse destro).",
                     unsafe_allow_html=False)
