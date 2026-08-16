@@ -131,6 +131,8 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { paddin
 .argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
 .argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
+.argo-tbl a.tklink { color: #7dd3fc; text-decoration: none; font-weight: 700; transition: color .12s ease; }
+.argo-tbl a.tklink:hover { color: #f8fafc; text-decoration: underline; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -332,6 +334,7 @@ with st.sidebar:
     st.caption("🤖  Automazione:  i titoli in zona entrano da soli; i VWAP si rinfrescano sempre; escono solo se non più in sconto.")
     st.caption("⏰  Screening automatico:  1 volta/giorno alle 21:30 UTC. AVVIA = override manuale.")
     st.caption("⚖️  Operazione Potenziale:  lettura automatica non vincolante. Decisione e rischio sono interamente a carico dell'utente.")
+    st.caption("🖱️  Clicca su un ticker in tabella per aprire l'analisi di decelerazione del titolo.")
 
     st.markdown("---")
     st.subheader("🕒 Stato Scansioni")
@@ -470,7 +473,7 @@ render_metric_guide()
 # ARRICCHIMENTO + RENDERER TABELLA
 # ---------------------------------------------------------------
 _HDR = {
-    "Ticker": ("Ticker", "Ticker"),
+    "Ticker": ("Ticker", "Clicca per aprire l'analisi di decelerazione"),
     "Indice": ("Indice", "Indice di appartenenza"),
     "Prezzo": ("Prezzo", "Prezzo attuale"),
     "Drawdown (%)": ("DD %", "Drawdown dall'ATH (%)"),
@@ -490,7 +493,6 @@ _HDR = {
 _RIGHT = {"Prezzo", "Drawdown (%)", "Market Cap (B)", "Distanza POC (%)", "VWAP vicino", "Distanza VWAP (%)"}
 _CENTER = {"Health", "Bottom Score (0-4)", "🎯 Alert", "Grafico TW", "Stato"}
 
-# barra ordinamento: chip -> colonna reale + direzione di default
 _CHIPS = ["Ticker", "Prezzo", "DD%", "Health", "Bottom", "MCap", "dPOC%", "dVWAP%"]
 _CHIP2COL = {
     "Ticker": "Ticker", "Prezzo": "Prezzo", "DD%": "Drawdown (%)",
@@ -537,8 +539,6 @@ def _parse_pct(s):
 
 
 def arricchisci(df, soglia):
-    """Calcola lato pagina: VWAP vicino + distanza, distanza POC numerica, 🎯 Alert unificato.
-    Zone POC: se il prezzo è dentro una zona (POC Low ≤ prezzo ≤ POC High), distanza = 0."""
     if df.empty:
         for c in ["VWAP vicino", "_vwap_tf", "Distanza VWAP (%)", "_dist_poc_num", "🎯 Alert", "_alert_detail"]:
             df[c] = np.nan if c in ("VWAP vicino", "Distanza VWAP (%)", "_dist_poc_num") else ""
@@ -564,7 +564,6 @@ def arricchisci(df, soglia):
 
     def _alert(row):
         P = _sf(row.get("Prezzo"))
-
         in_zona = False
         for k in (1, 2, 3):
             poc_low = _sf(row.get(f"POC {k} Low"))
@@ -573,15 +572,12 @@ def arricchisci(df, soglia):
                 if poc_low <= P <= poc_high:
                     in_zona = True
                     break
-
         poc_hit = in_zona or (str(row.get("🎯 ALERT POC", "")).strip() == "🎯 SU POC")
         dv = row["Distanza VWAP (%)"]
         vwap_hit = pd.notna(dv) and abs(dv) <= soglia
         dp = row["_dist_poc_num"]
-
         if not poc_hit and not vwap_hit:
             return pd.Series({"🎯 Alert": "", "_alert_detail": ""})
-
         parts = []
         if poc_hit:
             if in_zona:
@@ -590,17 +586,14 @@ def arricchisci(df, soglia):
                 parts.append(f"POC {dp:+.1f}%")
             else:
                 parts.append("POC")
-
         if vwap_hit:
             parts.append(f"VWAP {dv:+.1f}%")
-
         if poc_hit and vwap_hit:
             label = "🎯 POC+VWAP"
         elif poc_hit:
             label = "🎯 IN ZONA POC" if in_zona else "🎯 SU POC"
         else:
             label = "🎯 SU VWAP"
-
         return pd.Series({"🎯 Alert": label, "_alert_detail": " · ".join(parts)})
 
     df[["🎯 Alert", "_alert_detail"]] = df.apply(_alert, axis=1)
@@ -616,7 +609,6 @@ def arricchisci(df, soglia):
         return row.get("Distanza POC (%)", "N/D")
 
     df["Distanza POC (%)"] = df.apply(_format_dist_poc, axis=1)
-
     return df
 
 
@@ -693,7 +685,11 @@ def _td(col, val, row=None):
     na = _isna(val)
     raw = "" if na else str(val).strip()
     if col == "Ticker":
-        return ("tk", "", html.escape(raw) or "—")
+        if raw:
+            inner = f'<a class="tklink" href="?ticker={html.escape(raw, quote=True)}" title="Apri analisi decelerazione">{html.escape(raw)}</a>'
+        else:
+            inner = "—"
+        return ("tk", "", inner)
     if col == "Indice":
         return ("idx", "", html.escape(raw))
     if col == "Grafico TW":
@@ -781,7 +777,6 @@ def _screening_table_html(df, columns):
 
 
 def render_sort_bar(key, default_chip):
-    """Barra di ordinamento server-side. Ritorna (colonna_reale, ascending)."""
     cur_chip = st.session_state.get(f"{key}_chip", default_chip)
     cur_dir = st.session_state.get(f"{key}_dir", _CHIP_DIR[default_chip])
     st.markdown('<div class="sk-cap">↕️ Ordina per</div>', unsafe_allow_html=True)
@@ -933,11 +928,16 @@ if has_data_to_show:
             st.info("💡 Nessun titolo attualmente in zona POC / VWAP.")
 
     st.markdown("---")
-    st.subheader("📉 Analisi di Decelerazione per Singolo Titolo")
-    ticker_list = sorted(df_total["Ticker"].unique())
-    if ticker_list:
-        selected_ticker = st.selectbox("Seleziona un titolo per visualizzare il grafico di decelerazione:", ticker_list)
-        if selected_ticker:
+
+    # ---------------------------------------------------------------
+    # ANALISI DECELERAZIONE A SCOMPARSA (click sul ticker in tabella)
+    # ---------------------------------------------------------------
+    _sel_tk = str(st.query_params.get("ticker", "") or "").strip().upper()
+    ticker_set = set(str(t).strip().upper() for t in df_total["Ticker"].unique())
+
+    if _sel_tk and _sel_tk in ticker_set:
+        st.markdown('<div style="margin:2px 0 6px"><a href="?" style="color:#fca5a5;font-size:11px;text-decoration:none">✖ chiudi analisi</a></div>', unsafe_allow_html=True)
+        with st.expander(f"📉 Analisi di Decelerazione — {_sel_tk}", expanded=True):
             @st.cache_data(ttl=600)
             def get_hist_for_ticker(ticker):
                 try:
@@ -950,12 +950,12 @@ if has_data_to_show:
                 except Exception:
                     return None
 
-            hist = get_hist_for_ticker(selected_ticker)
+            hist = get_hist_for_ticker(_sel_tk)
             if hist is not None and not hist.empty:
-                fig_decel = grafico_decelerazione(hist, selected_ticker)
+                fig_decel = grafico_decelerazione(hist, _sel_tk)
                 if fig_decel:
                     st.plotly_chart(fig_decel, use_container_width=True)
-                    row = df_total[df_total["Ticker"] == selected_ticker].iloc[0]
+                    row = df_total[df_total["Ticker"].str.upper() == _sel_tk].iloc[0]
                     raw_bs = row.get('Bottom Score (0-4)', 0)
                     try:
                         bottom_score = int(float(str(raw_bs)))
@@ -993,8 +993,8 @@ if has_data_to_show:
                 else:
                     st.warning("Dati insufficienti per generare il grafico.")
             else:
-                st.warning(f"Impossibile scaricare i dati storici per {selected_ticker}.")
+                st.warning(f"Impossibile scaricare i dati storici per {_sel_tk}.")
     else:
-        st.info("Nessun titolo disponibile per l'analisi.")
+        st.caption("🖱️ Clicca su un **ticker** in tabella per aprire qui l'analisi di decelerazione del titolo scelto.")
 else:
     st.info(f"📊 Nessun dato disponibile per '{indice_scelto}'. Il run automatico delle 21:30 UTC popola questa tabella; premi 'AVVIA SCREENING QUALITY (v2)' per un giro manuale immediato.")
