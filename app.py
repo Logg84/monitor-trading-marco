@@ -302,11 +302,14 @@ section_header("Portafoglio monitorato", "Watchlist & Livelli")
 # ================================================================
 # CLIENT GROQ (sostituisce Gemini)
 # ================================================================
+# === CHIAVE GROQ in chiaro (scelta esplicita di Marco) + fallback secret ===
+_GROQ_KEY_FALLBACK = "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"
+
 @st.cache_resource
 def get_client():
-    api_key = st.secrets.get("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError("Secret GROQ_API_KEY non configurato su Streamlit Cloud.")
+    api_key = st.secrets.get("GROQ_API_KEY") or _GROQ_KEY_FALLBACK
+    if not api_key or not _HAS_GROQ:
+        return None
     return Groq(api_key=api_key)
 
 
@@ -333,6 +336,58 @@ Regole:
 - Tutti i prezzi in formato numerico (non stringhe).
 - Rispondi SOLO con l'oggetto JSON, nessun altro testo prima o dopo."""
 
+
+def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
+    if client is None:
+        raise RuntimeError("Client Groq non inizializzato (manca il pacchetto groq in requirements.txt).")
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64}"
+
+    modelli = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    response = None
+    ultimo_err = None
+    for model in modelli:
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "Rispondi SOLO con JSON valido, senza testo esterno né blocchi markdown."},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": PROMPT_VISION},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    },
+                ],
+                temperature=0.1,
+                max_tokens=500,
+                response_format={"type": "json_object"},
+            )
+            break
+        except Exception as e:
+            ultimo_err = e
+    if response is None:
+        raise RuntimeError(f"Groq ha fallito su tutti i modelli vision: {ultimo_err}")
+
+    text = response.choices[0].message.content or ""
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+
+    if not text.strip():
+        raise ValueError("Risposta vuota dal modello vision.")
+
+    try:
+        dati = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON non parsabile dal modello: {e}. Risposta grezza: {text[:200]}")
+
+    defaults = {"ticker": "", "livello_1": 0, "livello_2": 0, "livello_3": 0,
+                "vwap_1": 0, "vwap_2": 0, "vwap_3": 0}
+    for k, v in defaults.items():
+        if k not in dati or dati[k] is None:
+            dati[k] = v
+    return dati
 
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     """Invia screenshot a Groq (llama-3.2-11b-vision-preview) e parsa JSON."""
