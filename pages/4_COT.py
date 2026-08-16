@@ -513,8 +513,10 @@ with tab_cm:
         visible = [s for s in mk if (flt == "all") or (flt == "hot" and stati[s]["tone"] != "muted") or (flt == "bull" and stati[s]["key"] == "bull") or (flt == "bear" and stati[s]["key"] == "bear")]
         if not visible: visible = mk
 
+        # CHIP con dicitura italiana identica al menu (COMM_NAME)
         chips = "".join(
-            f'<span class="cot-chip t-{stati[s]["tone"]}"><span class="cd"></span><span class="cs">{s}</span>'
+            f'<span class="cot-chip t-{stati[s]["tone"]}"><span class="cd"></span>'
+            f'<span class="cs">{_html.escape(COMM_NAME.get(s, s))}</span>'
             f'<span>{stati[s]["pP"]:.0f}</span></span>' for s in visible)
         hot_n = sum(1 for s in mk if stati[s]["tone"] != "muted")
         st.markdown(f'<div style="margin:6px 0 4px">{chips}</div>'
