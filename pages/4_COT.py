@@ -129,22 +129,45 @@ DATA = carica_cot()
 
 
 # ================================================================
-# AGGIORNAMENTO MANUALE GUIDATA: link download + upload zip + merge
+# LETTURA ZIP CFTC ROBUSTA (nome foglio variabile tra gli anni)
 # ================================================================
+def _leggi_sheet_cftc(inner: bytes) -> pd.DataFrame:
+    """Legge il foglio dati CFTC senza dipendere dal nome:
+    1) prova 'Annual'; 2) primo foglio; 3) cerca quello con Market_and_Exchange_Names."""
+    # 1) nome classico
+    for eng in ("xlrd", None, "openpyxl"):
+        try:
+            df = pd.read_excel(io.BytesIO(inner), sheet_name="Annual", engine=eng)
+            if "Market_and_Exchange_Names" in df.columns:
+                return df
+        except Exception:
+            pass
+    # 2) primo foglio
+    for eng in ("xlrd", None, "openpyxl"):
+        try:
+            df = pd.read_excel(io.BytesIO(inner), sheet_name=0, engine=eng)
+            if "Market_and_Exchange_Names" in df.columns:
+                return df
+        except Exception:
+            pass
+    # 3) scansione di tutti i fogli
+    for eng in ("xlrd", None, "openpyxl"):
+        try:
+            sheets = pd.read_excel(io.BytesIO(inner), sheet_name=None, engine=eng)
+            for name, df in sheets.items():
+                if isinstance(df, pd.DataFrame) and "Market_and_Exchange_Names" in df.columns:
+                    return df
+        except Exception:
+            continue
+    raise RuntimeError("Nessun foglio con Market_and_Exchange_Names trovato nello zip")
+
+
 def leggi_zip_bytes(content: bytes) -> pd.DataFrame:
-    """Estrae il foglio Annual da uno zip CFTC ricevuto come bytes."""
     zf = zipfile.ZipFile(io.BytesIO(content))
     nomi = [n for n in zf.namelist() if n.lower().endswith((".xls", ".xlsx"))]
     if not nomi:
         raise RuntimeError("Nessun file .xls dentro lo zip")
-    inner = zf.read(nomi[0])
-    errs = []
-    for eng in (None, "openpyxl", "xlrd"):
-        try:
-            return pd.read_excel(io.BytesIO(inner), sheet_name="Annual", engine=eng)
-        except Exception as e:
-            errs.append(f"{eng or 'auto'}: {e}")
-    raise RuntimeError("Lettura Annual fallita -> " + " | ".join(errs))
+    return _leggi_sheet_cftc(zf.read(nomi[0]))
 
 
 def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
@@ -155,7 +178,6 @@ def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
 
 
 def processa_dfs(df: pd.DataFrame):
-    """Da DataFrame CFTC a serie fx/comm nel formato cot_data.json."""
     fx = {}
     for nome_cftc, simbolo in CFTC_TO_FX.items():
         rows = _rows_ordinate(df, nome_cftc)
@@ -187,7 +209,6 @@ def processa_dfs(df: pd.DataFrame):
 
 
 def merge_con_esistente(existing_fx, existing_comm, new_fx, new_comm):
-    """Aggiunge allo storico salvato solo le settimane piu recenti (dedup per t)."""
     def _merge(old, new):
         out = {k: list(v) for k, v in (old or {}).items()}
         for k, v in (new or {}).items():
