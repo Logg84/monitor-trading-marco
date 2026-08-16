@@ -16,10 +16,10 @@ MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un rel
 MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
 POC_MERGE_PCT = 2.5         # POC della watchlist entro questa % l'uno dall'altro vengono accorpati
 
-# === MANOPOLE ZONE POC (NUOVO) ===
+# === MANOPOLE ZONE POC (aree, non punti) ===
 ZONE_MIN_PCT = 0.60         # bin adiacenti >= 60% del volume del POC -> zona
 LVN_FLOOR_PCT = 0.15        # floor assoluto rispetto al max del profilo
-USE_LVN_EDGE = True         # ferma l'estensione al LVN (Low Volume Node)
+USE_LVN_EDGE = True         # ferma l'estensione al LVN
 
 # === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
 BARS_PER_YEAR = 252
@@ -45,6 +45,14 @@ NASDAQ100_STATIC = [
     "NVDA", "NXPI", "ODFL", "ON", "ORLY", "PANW", "PAYX", "PDD", "PEP", "PLTR",
     "PYPL", "QCOM", "REGN", "ROP", "RKLB", "SBUX", "SHOP", "SNDK", "SNPS", "STX",
     "TMUS", "TSLA", "TXN", "TRI", "VRTX", "WBD", "WDC", "WDAY", "XEL", "ZS",
+]
+
+# === DAX 40 STATICO (riserva: integra Wikipedia se parziale) ===
+DAX40_STATIC = [
+    "ADS", "AIR", "ALV", "BAS", "BAYN", "BEI", "BNR", "BMW", "CBK", "CON",
+    "COV", "DB1", "DBK", "DHL", "DTE", "DTG", "EOAN", "FME", "FRE", "HEI",
+    "HEN3", "IFX", "LIN", "MBG", "MRK", "MUV2", "PAH3", "P911", "PUM", "QIA",
+    "RHM", "RWE", "SAP", "SDF", "SHL", "SIE", "SY1", "VNA", "VW3", "ZAL",
 ]
 
 _HEADER_TARGETS = [
@@ -87,7 +95,7 @@ class DataEngine:
         s = s.split("[")[0]
         s = re.sub(r"\s+", "", s)
         s = s.encode("ascii", "ignore").decode()
-        return s.strip()
+        return s.strip().upper()
 
     def _is_ticker_like(self, s):
         s = self._clean_val(s)
@@ -285,7 +293,7 @@ class DataEngine:
             raise
 
     def normalizza_ticker_europeo(self, ticker_raw, default_suffix):
-        t = str(ticker_raw).strip().split()[0]
+        t = str(ticker_raw).strip().upper().split()[0]
         if "." in t:
             return t
         return t + default_suffix
@@ -301,14 +309,29 @@ class DataEngine:
                 t2 = t.replace('.', '-').strip()
                 if self._is_ticker_like(t2) and t2 not in clean:
                     clean.append(t2)
-            if len(clean) >= 20:
+            if len(clean) >= 90:
                 tickers = clean
                 self.add_debug(f"[wiki] NASDAQ-100: uso {len(tickers)} ticker da Wikipedia.", "success")
             else:
                 tickers = list(dict.fromkeys(NASDAQ100_STATIC))
-                self.add_debug(f"[wiki] NASDAQ-100: Wikipedia ha dato {len(clean)} ticker validi (<20) -> uso lista statica di riserva ({len(tickers)}).", "warning")
+                self.add_debug(f"[wiki] NASDAQ-100: Wikipedia ha dato {len(clean)} ticker validi (<90) -> uso lista statica di riserva ({len(tickers)}).", "warning")
         elif indice_scelto == "DAX (Germania)":
-            tickers = [self.normalizza_ticker_europeo(t, ".DE") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/DAX", headers)]
+            raw = [self.normalizza_ticker_europeo(t, ".DE") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/DAX", headers)]
+            seen = set()
+            uniq = []
+            for t in raw:
+                if t not in seen:
+                    seen.add(t)
+                    uniq.append(t)
+            if len(uniq) < 40:
+                self.add_debug(f"[wiki] DAX: Wikipedia parziale ({len(uniq)}/40) -> integro con lista statica.", "warning")
+                for t in DAX40_STATIC:
+                    tt = t + ".DE"
+                    if tt not in seen:
+                        seen.add(tt)
+                        uniq.append(tt)
+            tickers = uniq
+            self.add_debug(f"[wiki] DAX totale finale: {len(tickers)} ticker.", "info")
         elif indice_scelto == "CAC 40 (Francia)":
             tickers = [self.normalizza_ticker_europeo(t, ".PA") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/CAC_40", headers)]
         elif indice_scelto == "FTSE MIB (Italia)":
@@ -370,14 +393,9 @@ class DataEngine:
         return None
 
     # ===============================
-    # FUNDAMENTALS + HEALTH DATA (MODIFICATO)
+    # FUNDAMENTALS + HEALTH DATA
     # ===============================
     def get_ticker_fundamentals(self, ticker):
-        """
-        Recupera fondamentali, inclusi quelli per Health Check.
-        Aggiunto 'operatingCashflow' per il nuovo criterio.
-        Salva in cache 14 giorni.
-        """
         now = datetime.datetime.now()
         if ticker in self.fundamentals_cache:
             cache_entry = self.fundamentals_cache[ticker]
@@ -401,10 +419,9 @@ class DataEngine:
             if not mcap:
                 mcap = info.get('marketCap', 0)
 
-            # --- dati per Health Check ---
             net_income = None
             revenue_growth = None
-            operating_cf = info.get('operatingCashflow', None)   # <-- nuovo
+            operating_cf = info.get('operatingCashflow', None)
             try:
                 fin = t.financials
                 if fin is not None and not fin.empty and 'Net Income' in fin.index:
@@ -431,7 +448,7 @@ class DataEngine:
                 "returnOnEquity": info.get('returnOnEquity', None),
                 "netIncome": net_income,
                 "revenueGrowth": revenue_growth,
-                "operatingCashflow": operating_cf,          # nuovo
+                "operatingCashflow": operating_cf,
                 "last_updated": now.isoformat()
             }
             self.fundamentals_cache[ticker] = entry
@@ -481,28 +498,17 @@ class DataEngine:
         self.save_cache()
 
     def compute_health_check(self, ticker):
-        """
-        Valutazione assoluta salute finanziaria (0-4) - CRITERI ALLARGATI.
-        - Operating Cash Flow > 0 (sostituisce FCF)
-        - Crescita Ricavi YoY > -5% (invece di >0)
-        - Utile Netto > 0
-        - Debito/Equity < 3.0 (invece di 1.5)
-        """
         fund = self.fundamentals_cache.get(ticker, {})
         score = 0
-        # Operating Cash Flow > 0
         opcf = fund.get("operatingCashflow")
         if opcf is not None and opcf > 0:
             score += 1
-        # Crescita Ricavi > -5%
         rev_g = fund.get("revenueGrowth")
         if rev_g is not None and rev_g > -0.05:
             score += 1
-        # Utile Netto > 0
         ni = fund.get("netIncome")
         if ni is not None and ni > 0:
             score += 1
-        # D/E < 3.0
         de = fund.get("debtToEquity")
         if de is not None and de < 3.0:
             score += 1
@@ -666,44 +672,41 @@ class DataEngine:
         return {"vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2), "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1), "convergence_count": convergence_count, "convergence_label": conv_label}
 
     def compute_poc_with_zone(self, hist, start_idx, end_idx, n_bins=60):
-        """
-        Calcola il POC e la relativa zona (poc_low, poc_high).
-        Restituisce (poc_price, poc_low, poc_high) oppure (None, None, None).
-        """
+        """Calcola POC e zona (poc_low, poc_high). Ritorna (poc_price, poc_low, poc_high)."""
         segment = hist.iloc[start_idx:end_idx]
         if len(segment) < 2:
             return None, None, None
-        
+
         low = segment["Low"].to_numpy(dtype=float)
         high = segment["High"].to_numpy(dtype=float)
         volume = segment["Volume"].to_numpy(dtype=float)
         price_min = float(np.nanmin(low))
         price_max = float(np.nanmax(high))
-        
+
         if price_max <= price_min:
             return None, None, None
-        
+
         bins = np.linspace(price_min, price_max, n_bins + 1)
         bin_centers = (bins[:-1] + bins[1:]) / 2
         bw = bins[1] - bins[0]
-        
+
         bar_range = high - low
         valid = (bar_range > 0) & np.isfinite(bar_range) & np.isfinite(volume)
         if not valid.any():
             return None, None, None
-        
+
         low = low[valid]
         high = high[valid]
         volume = volume[valid]
         bar_range = bar_range[valid]
-        
+
         b_lo = np.clip(np.searchsorted(bins, low, side='right') - 1, 0, n_bins - 1)
         b_hi = np.clip(np.searchsorted(bins, high, side='left') - 1, 0, n_bins - 1)
-        
+
         acc = np.zeros(n_bins)
         same = (b_lo == b_hi)
         np.add.at(acc, b_lo[same], volume[same])
-        
+
         multi = ~same
         if multi.any():
             lo = b_lo[multi]
@@ -719,31 +722,25 @@ class DataEngine:
             np.add.at(events, lo + 1, unit)
             np.add.at(events, hi, -unit)
             acc += np.cumsum(events)[:n_bins]
-        
+
         poc_idx = int(np.argmax(acc))
         poc_price = float(bin_centers[poc_idx])
-        
-        # Calcolo della zona
+
+        # Zona: estensione dai bin adiacenti sopra soglia relativa e floor LVN
         poc_volume = acc[poc_idx]
         max_volume = float(acc.max())
         threshold_rel = ZONE_MIN_PCT * poc_volume
         threshold_abs = (LVN_FLOOR_PCT * max_volume) if USE_LVN_EDGE else -np.inf
         threshold = max(threshold_rel, threshold_abs)
-        
-        # Estensione verso il basso
+
         lo_idx = poc_idx
         while lo_idx - 1 >= 0 and acc[lo_idx - 1] >= threshold:
             lo_idx -= 1
-        
-        # Estensione verso l'alto
         hi_idx = poc_idx
         while hi_idx + 1 < n_bins and acc[hi_idx + 1] >= threshold:
             hi_idx += 1
-        
-        poc_low = float(bin_centers[lo_idx])
-        poc_high = float(bin_centers[hi_idx])
-        
-        return poc_price, poc_low, poc_high
+
+        return poc_price, float(bin_centers[lo_idx]), float(bin_centers[hi_idx])
 
     def get_pocs_from_hist(self, hist, n_bins=60):
         if hist.empty or len(hist) < 10:
@@ -752,19 +749,19 @@ class DataEngine:
         total_bars = len(hist)
         current_year = datetime.datetime.now().year
         pocs = []
-        
+
         for bar_pos, low_price, drop, anchor_date in structural_lows:
             poc_price, poc_low, poc_high = self.compute_poc_with_zone(hist, bar_pos, total_bars, n_bins=n_bins)
             if poc_price is None:
                 continue
-            
+
             years_ago = max(current_year - anchor_date.year, 0)
             age_weight = 1.0 + np.log1p(years_ago)
             drop_weight = 1.0 + (drop / 50.0)
             segment_bars = total_bars - bar_pos
             bar_weight = 1.0 + np.log1p(segment_bars / BARS_PER_YEAR)
             raw_weight = age_weight * drop_weight * bar_weight
-            
+
             pocs.append({
                 "anchor_year": int(anchor_date.year),
                 "anchor_date": anchor_date,
@@ -774,7 +771,7 @@ class DataEngine:
                 "poc_high": round(float(poc_high), 4),
                 "weight": float(raw_weight)
             })
-        
+
         if pocs:
             max_w = max(p["weight"] for p in pocs)
             min_w = min(p["weight"] for p in pocs)
@@ -783,7 +780,7 @@ class DataEngine:
                     p["weight_norm"] = round(1 + 9 * (p["weight"] - min_w) / (max_w - min_w), 1)
                 else:
                     p["weight_norm"] = 5.0
-        
+
         return pocs
 
     def closest_poc(self, pocs, current_price, max_dist_pct=MAX_POC_DIST_PCT):
@@ -804,25 +801,19 @@ class DataEngine:
         return best_poc, round(float(best_dist), 2)
 
     def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT, merge_pct=POC_MERGE_PCT):
-        """I `n` POC operativi (entro max_dist_pct) più STRUTTURALI, ma MUTUAMENTE
-        distanti almeno merge_pct: così un cluster di POC quasi identici collassa in
-        uno solo (il più forte del gruppo), mentre POC davvero separati restano.
-        Greedy per weight_norm decrescente. NON usato per l'alert (quello è closest_poc)."""
+        """I `n` POC operativi più strutturali, mutuamente distanti >= merge_pct. Include zone."""
         ops = []
         for poc in pocs:
             poc_price = float(poc["poc_price"])
             dist = (current_price - poc_price) / poc_price * 100
             if abs(dist) <= max_dist_pct:
                 ops.append((
-                    float(poc.get("weight_norm", 0.0)),
-                    abs(dist),
-                    poc_price,
-                    float(poc.get("poc_low", poc_price)),
-                    float(poc.get("poc_high", poc_price)),
+                    float(poc.get("weight_norm", 0.0)), abs(dist), poc_price,
+                    float(poc.get("poc_low", poc_price)), float(poc.get("poc_high", poc_price)),
                     int(poc["anchor_year"])
                 ))
-        
-        ops.sort(key=lambda x: x[0], reverse=True)  # prima i più strutturali
+
+        ops.sort(key=lambda x: x[0], reverse=True)
         chosen = []
         for wn, d, price, low, high, yr in ops:
             if all(abs(price - c["poc_price"]) / c["poc_price"] * 100 > merge_pct for c in chosen):
@@ -844,14 +835,14 @@ class DataEngine:
         volume = hist['Volume'].astype(float)
         score = 0
         dettagli = []
-        
+
         roc = close.pct_change(periods=WIN_ROC) * 100
         roc_current = roc.iloc[-1]
         roc_before = roc.iloc[-WIN_ROC_COMPARE] if len(roc) >= WIN_ROC_COMPARE else roc_current
         if not pd.isna(roc_current) and not pd.isna(roc_before) and roc_current > roc_before:
             score += 1
             dettagli.append(f"Decelerazione (ROC: {roc_current:.1f}% > {roc_before:.1f}%)")
-        
+
         exp1 = close.ewm(span=12, adjust=False).mean()
         exp2 = close.ewm(span=26, adjust=False).mean()
         macd = exp1 - exp2
@@ -860,33 +851,32 @@ class DataEngine:
         if len(histogram) >= 2 and histogram.iloc[-1] > histogram.iloc[-2]:
             score += 1
             dettagli.append("MACD Histogram in risalita")
-        
+
         try:
             pocs = self.get_pocs_from_hist(hist)
             vwap_info = self.compute_vwap_levels(hist)
             poc_op, dist_op = self.closest_poc(pocs, float(close.iloc[-1]))
-            
+
             if poc_op is not None:
                 wn = float(poc_op.get("weight_norm", 0.0))
                 mom_up = close.iloc[-1] > close.iloc[-min(WIN_MOM, len(close) - 1)]
                 poc_low = float(poc_op.get("poc_low", poc_op["poc_price"]))
                 poc_high = float(poc_op.get("poc_high", poc_op["poc_price"]))
                 price_now = float(close.iloc[-1])
-                
-                # Alert se prezzo dentro la zona o vicino al POC
+
                 in_zone = poc_low <= price_now <= poc_high
                 near_poc = abs(dist_op) < 3
-                
+
                 if (in_zone or near_poc) and wn >= MIN_POC_WEIGHT_NORM and mom_up:
                     score += 1
                     dettagli.append(f"Vicino/In zona POC ({abs(dist_op):.1f}%)")
-            
+
             if vwap_info["convergence_count"] >= 2:
                 score += 1
                 dettagli.append(f"Convergenza VWAP ({vwap_info['convergence_label']})")
         except Exception:
             pass
-        
+
         if len(volume) >= WIN_VOL + 1:
             vol_ultimo = volume.iloc[-1]
             vol_media = volume.iloc[-(WIN_VOL + 1):-1].mean()
@@ -896,7 +886,7 @@ class DataEngine:
                 if vol_media > 0 and vol_ultimo > 1.3 * vol_media and force_index > force_prev:
                     score += 1
                     dettagli.append("Volume e Forza in aumento")
-        
+
         return int(score), ", ".join(dettagli) if dettagli else "Nessun segnale"
 
     # ===============================
@@ -910,7 +900,7 @@ class DataEngine:
         except Exception as e:
             self.add_debug(f"Errore nel recupero dei ticker: {e}", "error")
             return [], []
-        
+
         problematic_tickers = ["INWH", "MRSH", "INW", "INVH", "MRNA", "REGN", "SPOT"]
         problematic_patterns = ["INVH", "MRSH", "INWH", "INW"]
         clean_tickers = []
@@ -924,79 +914,78 @@ class DataEngine:
                 skip = True
             if not skip:
                 clean_tickers.append(t)
-        
+
         self.add_debug(f"Ticker puliti per il download: {len(clean_tickers)}", "info")
         df_batch = self.download_prices_batch(clean_tickers)
         if df_batch.empty:
             self.add_debug("Nessun dato scaricato da yfinance. Verrà tentata l'analisi offline con la cache locale...", "warning")
-        
+
         candidates = []
         candidates_hist = {}
         self.add_debug("Calcolo drawdown e filtraggio preliminare...", "info")
-        
+
         for ticker in clean_tickers:
             hist = self.get_ticker_history_from_batch(df_batch, ticker)
             if hist is None or len(hist) < 10:
                 continue
-            
+
             close_series = hist['Close'].dropna()
             high_series = hist['High'].dropna()
-            
+
             if close_series.empty or high_series.empty:
                 continue
-            
+
             price_now = float(close_series.values[-1])
             ath_value = float(high_series.max())
             current_dd = ((price_now - ath_value) / ath_value) * 100
-            
+
             if current_dd <= -soglia_drawdown:
                 candidates.append(ticker)
                 candidates_hist[ticker] = {"hist": hist, "price_now": price_now, "current_dd": current_dd}
-        
+
         self.add_debug(f"Trovati {len(candidates)} candidati in forte drawdown (>= {soglia_drawdown}%).", "success")
         if not candidates:
             self.add_debug("Nessun candidato ha superato il filtro del drawdown.", "warning")
             return [], []
-        
+
         self.fetch_fundamentals_parallel(candidates)
         pre_filtered = []
         is_europe = indice_scelto in ["DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
-        
+
         for ticker in candidates:
             fund = self.fundamentals_cache.get(ticker, {})
             mcap = fund.get("marketCap", 0) or 0
             if not is_europe and mcap < min_market_cap:
                 continue
-            
+
             c_data = candidates_hist[ticker]
             hist = c_data["hist"]
             price_now = c_data["price_now"]
             current_dd = c_data["current_dd"]
-            
+
             poc_label, dist_label, alert_poc = "N/D", "N/D", ""
             poc_slots = {f"POC {k}": 0.0 for k in (1, 2, 3)}
             poc_low_slots = {f"POC {k} Low": 0.0 for k in (1, 2, 3)}
             poc_high_slots = {f"POC {k} High": 0.0 for k in (1, 2, 3)}
             poc_note_slots = {f"Nota POC {k}": "" for k in (1, 2, 3)}
-            
+
             try:
                 pocs = self.get_pocs_from_hist(hist)
                 poc_vicino, dist_poc_pct = self.closest_poc(pocs, price_now)
-                
+
                 if poc_vicino is not None:
                     poc_label = f"{poc_vicino['poc_price']:.2f} ({poc_vicino['anchor_year']})"
                     dist_label = f"{dist_poc_pct:+.1f}%"
                     wn_vicino = float(poc_vicino.get("weight_norm", 0.0))
-                    
-                    # Alert se prezzo dentro la zona o vicino al POC
+
                     poc_low = float(poc_vicino.get("poc_low", poc_vicino["poc_price"]))
                     poc_high = float(poc_vicino.get("poc_high", poc_vicino["poc_price"]))
                     in_zone = poc_low <= price_now <= poc_high
                     near_poc = abs(dist_poc_pct) <= soglia_poc_pct
-                    
+
                     if (in_zone or near_poc) and wn_vicino >= MIN_POC_WEIGHT_NORM:
                         alert_poc = "🎯 SU POC"
-                
+
                 top3 = self.top_operative_pocs(pocs, price_now, n=N_POC_WATCHLIST)
                 for k, item in enumerate(top3, start=1):
                     poc_slots[f"POC {k}"] = round(float(item["poc_price"]), 4)
@@ -1005,10 +994,10 @@ class DataEngine:
                     poc_note_slots[f"Nota POC {k}"] = f"POC {item['anchor_year']}"
             except Exception as e:
                 self.add_debug(f"Errore calcolo POC per {ticker}: {e}", "warning")
-            
+
             bottom_score, bottom_dettagli = self.calcola_segnali_bottom(hist)
             vwap_info = self.compute_vwap_levels(hist)
-            
+
             pre_filtered.append({
                 "Ticker": ticker,
                 "Indice": indice_scelto,
@@ -1029,20 +1018,19 @@ class DataEngine:
                 "Bottom Score (0-4)": bottom_score,
                 "Bottom Dettagli": bottom_dettagli,
             })
-        
+
         self.add_debug(f"Pre-filtrati rimasti dopo Market Cap: {len(pre_filtered)}", "info")
         if not pre_filtered:
             return [], []
-        
+
         macro_info = self.ottieni_bussola_argo()
         argo_bussola = macro_info["bussola"]
         final_list = []
         spostamenti_rilevati = []
-        
+
         for item in pre_filtered:
             ticker = item["Ticker"]
 
-            # --- NUOVO HEALTH CHECK con criteri allargati ---
             health_score, health_code = self.compute_health_check(ticker)
             item["Health"] = health_code
             item["Health_Score"] = health_score
@@ -1055,7 +1043,7 @@ class DataEngine:
             if final_size < 1.0:
                 final_size = 0.0
             item["Size Suggerita (%)"] = float(final_size)
-            
+
             dist_label = item["Distanza POC (%)"]
             if dist_label != "N/D":
                 try:
@@ -1070,13 +1058,13 @@ class DataEngine:
                     entry_mode = "🔍 VERIFICA MANUALE"
             else:
                 entry_mode = "🔍 VERIFICA MANUALE"
-            
+
             if argo_bussola['bias'] == "SHORT":
                 entry_mode = "⛔ SHORT (NON ENTRARE)" if final_size == 0 else "⏳ LIMITE (size ridotta)"
-            
+
             item["Entry Mode"] = str(entry_mode)
             status_precedente = self.screener_state.get(ticker, {}).get("status", None)
-            
+
             if item["Drawdown (%)"] <= -soglia_drawdown:
                 item["Stato"] = "Active"
                 if status_precedente == "Ripartito":
@@ -1091,14 +1079,14 @@ class DataEngine:
                     item["Stato"] = "Ripartito"
                 else:
                     item["Stato"] = "Nuovo"
-            
+
             final_list.append(item)
-        
+
         self.screener_database[indice_scelto] = final_list
         if "_last_scans" not in self.screener_database:
             self.screener_database["_last_scans"] = {}
         self.screener_database["_last_scans"][indice_scelto] = datetime.datetime.now().isoformat()
         self.save_all()
         self.add_debug(f"✅ Screening completato per {indice_scelto}. {len(final_list)} titoli registrati.", "success")
-        
+
         return final_list, spostamenti_rilevati
