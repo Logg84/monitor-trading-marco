@@ -129,29 +129,6 @@ div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding:
 .argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
 .argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
-
-/* Stile per righe native screening */
-.screening-row {
-    display: grid;
-    grid-template-columns: 120px 80px 80px 70px 70px 70px 180px 100px 80px 90px 80px 80px 90px 140px 80px 40px;
-    gap: 4px;
-    padding: 8px 10px;
-    border-bottom: 1px solid #141d2e;
-    align-items: center;
-    font-size: 12px;
-    transition: background .12s ease;
-}
-.screening-row:hover {
-    background: rgba(56,189,248,.08) !important;
-}
-.screening-row:nth-child(even) {
-    background: rgba(255,255,255,.018);
-}
-.screening-row > div {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -848,6 +825,86 @@ def interpreta_bottom_score(score, dettagli):
 
 
 # ---------------------------------------------------------------
+# RENDER RIGA NATIVA (pulsante ticker in tabella)
+# ---------------------------------------------------------------
+_COL_WIDTHS = [1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4]
+_HEADER_LABELS = ["Ticker", "Indice", "Prezzo", "DD%", "Health", "Bottom", "Segnali", "POC", "dPOC%", "VWAP", "dVWAP%", "🎯", "MCap", "Operazione", "Stato", "TW"]
+
+
+def render_riga_screening(row, key_prefix):
+    ticker = str(row["Ticker"])
+    is_selected = st.session_state.get("decel_ticker") == ticker
+
+    cols_row = st.columns(_COL_WIDTHS)
+
+    btn_type = "primary" if is_selected else "secondary"
+    if cols_row[0].button(f"📊 {ticker}", key=f"{key_prefix}_{ticker}", use_container_width=True, type=btn_type):
+        if is_selected:
+            st.session_state["decel_ticker"] = None
+        else:
+            st.session_state["decel_ticker"] = ticker
+        st.rerun()
+
+    cols_row[1].markdown(str(row.get("Indice", "")))
+    cols_row[2].markdown(_fmt2(row.get("Prezzo")))
+    cols_row[3].markdown(_fmt2(row.get("Drawdown (%)")))
+
+    health_score = row.get("Health_Score")
+    if health_score is not None and not pd.isna(health_score):
+        try:
+            cols_row[4].markdown(f"<div style='{_health_style(int(health_score))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{str(row.get('Health')).strip()}</div>", unsafe_allow_html=True)
+        except (ValueError, TypeError):
+            cols_row[4].markdown("—")
+    else:
+        cols_row[4].markdown("—")
+
+    bs = row.get("Bottom Score (0-4)")
+    try:
+        bsf = float(bs)
+    except (TypeError, ValueError):
+        bsf = None
+    if bsf is not None and not pd.isna(bsf):
+        cols_row[5].markdown(f"<div style='{_score_bg('Bottom', bsf)};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{int(bsf)}</div>", unsafe_allow_html=True)
+    else:
+        cols_row[5].markdown("—")
+
+    cols_row[6].markdown(f"<div style='font-size:11px;max-height:40px;overflow:hidden;'>{html.escape(str(row.get('Bottom Dettagli', '—')))}</div>", unsafe_allow_html=True)
+    cols_row[7].markdown(str(row.get("POC più vicino", "—")))
+    cols_row[8].markdown(str(row.get("Distanza POC (%)", "—")))
+
+    vwap_val = row.get("VWAP vicino")
+    try:
+        vwap_f = float(vwap_val)
+    except (TypeError, ValueError):
+        vwap_f = 0.0
+    if vwap_f and vwap_f > 0:
+        tf = str(row.get("_vwap_tf", ""))
+        cols_row[9].markdown(f"{vwap_f:.2f}<span style='font-size:9px;color:#64748b;'>{html.escape(tf)}</span>", unsafe_allow_html=True)
+    else:
+        cols_row[9].markdown("—")
+
+    cols_row[10].markdown(str(row.get("Distanza VWAP (%)", "—")))
+    cols_row[11].markdown(_alert_cell(row.get("🎯 Alert", ""), row), unsafe_allow_html=True)
+    cols_row[12].markdown(_fmt2(row.get("Market Cap (B)")))
+    cols_row[13].markdown(_entry_cell(row.get("Entry Mode")), unsafe_allow_html=True)
+    cols_row[14].markdown(_stato_cell(row.get("Stato")), unsafe_allow_html=True)
+
+    tw_url = str(row.get("Grafico TW", ""))
+    if tw_url and tw_url != "nan":
+        cols_row[15].markdown(f"<a href='{html.escape(tw_url, quote=True)}' target='_blank' style='text-decoration:none;font-size:16px;'>📈</a>", unsafe_allow_html=True)
+    else:
+        cols_row[15].markdown("—")
+
+
+def render_tabella_nativa(df, key_prefix):
+    cols_header = st.columns(_COL_WIDTHS)
+    for col, label in zip(cols_header, _HEADER_LABELS):
+        col.markdown(f"**{label}**")
+    for _, row in df.iterrows():
+        render_riga_screening(row, key_prefix)
+
+
+# ---------------------------------------------------------------
 # CORPO
 # ---------------------------------------------------------------
 st.subheader("📋 Lista Titoli Screening")
@@ -896,6 +953,7 @@ if has_data_to_show:
     if "Grafico TW" not in df_total.columns:
         df_total["Grafico TW"] = df_total["Ticker"].apply(genera_url_tradingview)
     df_total = arricchisci(df_total, soglia_poc_pct)
+    df_total = df_total.drop_duplicates(subset=["Ticker"], keep="last").reset_index(drop=True)
 
     t_sconto, t_poc = st.tabs(["🔥 AZIENDE IN SCONTO (Health)", "🎯 ALERT POC / VWAP"])
 
@@ -905,68 +963,7 @@ if has_data_to_show:
         if not df_attivi.empty:
             scol, sasc = render_sort_bar("sconto", "Bottom")
             df_attivi = _apply_sort(df_attivi, scol, sasc)
-            
-            # Header tabella
-            cols_header = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
-            header_labels = ["Ticker", "Indice", "Prezzo", "DD%", "Health", "Bottom", "Segnali", "POC", "dPOC%", "VWAP", "dVWAP%", "🎯", "MCap", "Operazione", "Stato", "TW"]
-            for col, label in zip(cols_header, header_labels):
-                col.markdown(f"**{label}**", unsafe_allow_html=False)
-            
-            # Righe tabella con pulsanti ticker
-            for _, row in df_attivi.iterrows():
-                ticker = row["Ticker"]
-                is_selected = st.session_state.get("decel_ticker") == ticker
-                
-                cols_row = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
-                
-                # Colonna 1: Pulsante ticker cliccabile
-                btn_type = "primary" if is_selected else "secondary"
-                if cols_row[0].button(f"📊 {ticker}", key=f"ticker_btn_{ticker}_{_}", use_container_width=True, type=btn_type):
-                    if is_selected:
-                        st.session_state["decel_ticker"] = None
-                    else:
-                        st.session_state["decel_ticker"] = ticker
-                    st.rerun()
-                
-                # Altre colonne
-                cols_row[1].markdown(row.get("Indice", ""))
-                cols_row[2].markdown(f"{_fmt2(row.get('Prezzo'))}")
-                cols_row[3].markdown(f"{_fmt2(row.get('Drawdown (%)'))}%")
-                
-                health_score = row.get("Health_Score")
-                if pd.notna(health_score):
-                    cols_row[4].markdown(f"<div style='{_health_style(int(health_score))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{row.get('Health')}</div>", unsafe_allow_html=True)
-                else:
-                    cols_row[4].markdown("—")
-                
-                bs = row.get("Bottom Score (0-4)")
-                if pd.notna(bs):
-                    cols_row[5].markdown(f"<div style='{_score_bg('Bottom', float(bs))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{int(float(bs))}</div>", unsafe_allow_html=True)
-                else:
-                    cols_row[5].markdown("—")
-                
-                cols_row[6].markdown(f"<div style='font-size:11px;max-height:40px;overflow:hidden;'>{row.get('Bottom Dettagli', '—')}</div>", unsafe_allow_html=True)
-                cols_row[7].markdown(row.get("POC più vicino", "—"))
-                cols_row[8].markdown(row.get("Distanza POC (%)", "—"))
-                
-                vwap_val = row.get("VWAP vicino")
-                if pd.notna(vwap_val) and float(vwap_val) > 0:
-                    tf = row.get("_vwap_tf", "")
-                    cols_row[9].markdown(f"{float(vwap_val):.2f}<span style='font-size:9px;color:#64748b;'>{tf}</span>", unsafe_allow_html=True)
-                else:
-                    cols_row[9].markdown("—")
-                
-                cols_row[10].markdown(row.get("Distanza VWAP (%)", "—"))
-                cols_row[11].markdown(_alert_cell(row.get("🎯 Alert", ""), row), unsafe_allow_html=True)
-                cols_row[12].markdown(_fmt2(row.get("Market Cap (B)")))
-                cols_row[13].markdown(_entry_cell(row.get("Entry Mode")), unsafe_allow_html=True)
-                cols_row[14].markdown(_stato_cell(row.get("Stato")), unsafe_allow_html=True)
-                
-                tw_url = row.get("Grafico TW", "")
-                if tw_url:
-                    cols_row[15].markdown(f"<a href='{tw_url}' target='_blank' style='text-decoration:none;font-size:16px;'>📈</a>", unsafe_allow_html=True)
-                else:
-                    cols_row[15].markdown("—")
+            render_tabella_nativa(df_attivi, "tkbtn_s")
         else:
             st.info("💡 Nessun titolo in forte sconto trovato.")
 
@@ -976,80 +973,19 @@ if has_data_to_show:
         if not df_poc.empty:
             pcol, pasc = render_sort_bar("poc", "dPOC%")
             df_poc = _apply_sort(df_poc, pcol, pasc)
-            
-            # Header tabella
-            cols_header = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
-            header_labels = ["Ticker", "Indice", "Prezzo", "DD%", "Health", "Bottom", "Segnali", "POC", "dPOC%", "VWAP", "dVWAP%", "🎯", "MCap", "Operazione", "Stato", "TW"]
-            for col, label in zip(cols_header, header_labels):
-                col.markdown(f"**{label}**", unsafe_allow_html=False)
-            
-            # Righe tabella con pulsanti ticker
-            for _, row in df_poc.iterrows():
-                ticker = row["Ticker"]
-                is_selected = st.session_state.get("decel_ticker") == ticker
-                
-                cols_row = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
-                
-                # Colonna 1: Pulsante ticker cliccabile
-                btn_type = "primary" if is_selected else "secondary"
-                if cols_row[0].button(f"📊 {ticker}", key=f"ticker_btn_{ticker}_{_}", use_container_width=True, type=btn_type):
-                    if is_selected:
-                        st.session_state["decel_ticker"] = None
-                    else:
-                        st.session_state["decel_ticker"] = ticker
-                    st.rerun()
-                
-                # Altre colonne
-                cols_row[1].markdown(row.get("Indice", ""))
-                cols_row[2].markdown(f"{_fmt2(row.get('Prezzo'))}")
-                cols_row[3].markdown(f"{_fmt2(row.get('Drawdown (%)'))}%")
-                
-                health_score = row.get("Health_Score")
-                if pd.notna(health_score):
-                    cols_row[4].markdown(f"<div style='{_health_style(int(health_score))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{row.get('Health')}</div>", unsafe_allow_html=True)
-                else:
-                    cols_row[4].markdown("—")
-                
-                bs = row.get("Bottom Score (0-4)")
-                if pd.notna(bs):
-                    cols_row[5].markdown(f"<div style='{_score_bg('Bottom', float(bs))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{int(float(bs))}</div>", unsafe_allow_html=True)
-                else:
-                    cols_row[5].markdown("—")
-                
-                cols_row[6].markdown(f"<div style='font-size:11px;max-height:40px;overflow:hidden;'>{row.get('Bottom Dettagli', '—')}</div>", unsafe_allow_html=True)
-                cols_row[7].markdown(row.get("POC più vicino", "—"))
-                cols_row[8].markdown(row.get("Distanza POC (%)", "—"))
-                
-                vwap_val = row.get("VWAP vicino")
-                if pd.notna(vwap_val) and float(vwap_val) > 0:
-                    tf = row.get("_vwap_tf", "")
-                    cols_row[9].markdown(f"{float(vwap_val):.2f}<span style='font-size:9px;color:#64748b;'>{tf}</span>", unsafe_allow_html=True)
-                else:
-                    cols_row[9].markdown("—")
-                
-                cols_row[10].markdown(row.get("Distanza VWAP (%)", "—"))
-                cols_row[11].markdown(_alert_cell(row.get("🎯 Alert", ""), row), unsafe_allow_html=True)
-                cols_row[12].markdown(_fmt2(row.get("Market Cap (B)")))
-                cols_row[13].markdown(_entry_cell(row.get("Entry Mode")), unsafe_allow_html=True)
-                cols_row[14].markdown(_stato_cell(row.get("Stato")), unsafe_allow_html=True)
-                
-                tw_url = row.get("Grafico TW", "")
-                if tw_url:
-                    cols_row[15].markdown(f"<a href='{tw_url}' target='_blank' style='text-decoration:none;font-size:16px;'>📈</a>", unsafe_allow_html=True)
-                else:
-                    cols_row[15].markdown("—")
+            render_tabella_nativa(df_poc, "tkbtn_p")
         else:
             st.info("💡 Nessun titolo attualmente in zona POC / VWAP.")
 
     st.markdown("---")
 
     # ---------------------------------------------------------------
-    # GRAFICO DECELERAZIONE (ora sotto le tabelle, attivato da click su ticker)
+    # GRAFICO DECELERAZIONE (sotto le tabelle, attivato dal click sul ticker in tabella)
     # ---------------------------------------------------------------
     _sel = st.session_state.get("decel_ticker")
-    if _sel:
+    if _sel and _sel in set(str(t) for t in df_total["Ticker"]):
         st.subheader(f"📉 Analisi di Decelerazione: {_sel}")
-        
+
         c_top, c_spacer = st.columns([1, 6])
         with c_top:
             if st.button("✖ Chiudi analisi", key="decel_close"):
@@ -1100,7 +1036,7 @@ if has_data_to_show:
                     '<div style="color:' + score_color + ';font-weight:800;font-size:22px;line-height:1.1;">' + str(bottom_score) + '<span style="font-size:13px;color:#64748b;">/4</span></div></div></div></div>'
                     '<div style="margin-bottom:6px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
                     '<div style="display:flex;gap:0;">' + bar_html + '</div></div>'
-                    '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + bottom_dettagli + '</div>'
+                    '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + html.escape(bottom_dettagli) + '</div>'
                     '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
                 st.markdown(card_html, unsafe_allow_html=True)
                 legenda_html = ('<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:11px;color:#94a3b8;">'
