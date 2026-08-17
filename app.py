@@ -12,6 +12,7 @@ from PIL import Image
 import base64
 from nav import render_navbar, section_header
 from theme import get_theme
+from data_engine import zona_poc_effettiva
 
 MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
 
@@ -247,7 +248,7 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
         raise RuntimeError(f"Groq ha fallito su tutti i modelli vision: {ultimo_err}")
 
     text = response.choices[0].message.content or ""
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    text = re.sub(r".*?</think>", "", text, flags=re.DOTALL)
     text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
     if "{" in text and "}" in text:
@@ -274,7 +275,9 @@ COLONNE_ATTESE = [
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
     "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
     "Screenshot", "Origine",
-    "POC 1", "Nota POC 1", "POC 2", "Nota POC 2", "POC 3", "Nota POC 3",
+    "POC 1", "POC 1 Low", "POC 1 High", "Nota POC 1",
+    "POC 2", "POC 2 Low", "POC 2 High", "Nota POC 2",
+    "POC 3", "POC 3 Low", "POC 3 High", "Nota POC 3",
     "Auto_Indice",
 ]
 
@@ -331,9 +334,15 @@ ALIAS_COLONNE = {
     "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
     "origine": "Origine",
     "POC": "POC 1", "poc": "POC 1",
-    "Nota POC": "POC 1", "nota poc": "POC 1",
+    "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
     "auto_indice": "Auto_Indice",
 }
+
+_COLONNE_NUMERICHE = [
+    "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3",
+    "POC 1", "POC 1 Low", "POC 1 High", "POC 2", "POC 2 Low", "POC 2 High",
+    "POC 3", "POC 3 Low", "POC 3 High",
+]
 
 def _read_watchlist_github() -> pd.DataFrame | None:
     if not GITHUB_TOKEN or not GITHUB_REPO:
@@ -371,9 +380,16 @@ def carica_watchlist() -> pd.DataFrame:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
     df["Origine"] = df["Origine"].replace("", "manuale")
-    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
+    for col in _COLONNE_NUMERICHE:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
+    # Migrazione zone: POC punto senza Low/High -> zona derivata (valore POC intatto)
+    for k in (1, 2, 3):
+        mask = (df[f"POC {k}"] != 0) & ((df[f"POC {k} Low"] == 0) | (df[f"POC {k} High"] == 0))
+        if mask.any():
+            lo, hi = zip(*[zona_poc_effettiva(p, 0, 0) for p in df.loc[mask, f"POC {k}"]])
+            df.loc[mask, f"POC {k} Low"] = lo
+            df.loc[mask, f"POC {k} High"] = hi
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     return df
@@ -414,7 +430,9 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
             "Livello 1": l1, "Nota 1": n1, "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
             "VWAP 1": v1, "Nota VWAP 1": nv1, "VWAP 2": v2, "Nota VWAP 2": nv2, "VWAP 3": v3, "Nota VWAP 3": nv3,
             "Screenshot": screenshot_path or "", "Origine": "manuale",
-            "POC 1": 0, "Nota POC 1": "", "POC 2": 0, "Nota POC 2": "", "POC 3": 0, "Nota POC 3": "",
+            "POC 1": 0, "POC 1 Low": 0, "POC 1 High": 0, "Nota POC 1": "",
+            "POC 2": 0, "POC 2 Low": 0, "POC 2 High": 0, "Nota POC 2": "",
+            "POC 3": 0, "POC 3 Low": 0, "POC 3 High": 0, "Nota POC 3": "",
             "Auto_Indice": "",
         }])
         df = pd.concat([df, nuova_riga], ignore_index=True)
@@ -669,10 +687,14 @@ else:
     if df_visualizzata.empty:
         st.caption("Nessun ticker corrisponde alla ricerca.")
 
-    def badge(valore, classe, nota=""):
+    def badge(valore, classe, nota="", zona=None):
         if pd.isna(valore) or valore == 0:
             return f'<span class="wl-badge empty">—</span>'
-        title = f' title="{nota}"' if nota else ""
+        t = ""
+        if zona and zona[0] > 0 and zona[1] > 0:
+            t = f"zona {zona[0]:g}–{zona[1]:g}"
+        combo = " · ".join(x for x in [nota, t] if x)
+        title = f' title="{combo}"' if combo else ""
         icona = " 📝" if nota else ""
         return f'<span class="wl-badge {classe}"{title}>{valore:g}{icona}</span>'
 
@@ -687,6 +709,15 @@ else:
         ticker_riga = r["Ticker"]
         origine_riga = str(r.get("Origine", "manuale")).strip().lower()
 
+        # Zone POC effettive (auto = reali; manuale/punto = derivate)
+        zone_poc = {}
+        for k in (1, 2, 3):
+            p = float(r.get(f"POC {k}", 0) or 0)
+            if p != 0:
+                zone_poc[k] = zona_poc_effettiva(p, r.get(f"POC {k} Low"), r.get(f"POC {k} High"))
+            else:
+                zone_poc[k] = (0.0, 0.0)
+
         if st.session_state["editing_ticker"] == ticker_riga:
             c = st.columns(COLS)
             nuovo_nome_ticker = c[0].text_input("Ticker", value=ticker_riga, key=f"edit_ticker_{ticker_riga}_{_}", label_visibility="collapsed")
@@ -696,9 +727,9 @@ else:
             nv1 = c[4].number_input("V1", value=float(r["VWAP 1"]), key=f"edit_v1_{ticker_riga}_{_}", label_visibility="collapsed")
             nv2 = c[5].number_input("V2", value=float(r["VWAP 2"]), key=f"edit_v2_{ticker_riga}_{_}", label_visibility="collapsed")
             nv3 = c[6].number_input("V3", value=float(r["VWAP 3"]), key=f"edit_v3_{ticker_riga}_{_}", label_visibility="collapsed")
-            c[7].markdown(badge(r["POC 1"], "p1"), unsafe_allow_html=True)
-            c[8].markdown(badge(r["POC 2"], "p2"), unsafe_allow_html=True)
-            c[9].markdown(badge(r["POC 3"], "p3"), unsafe_allow_html=True)
+            c[7].markdown(badge(r["POC 1"], "p1", zona=zone_poc[1]), unsafe_allow_html=True)
+            c[8].markdown(badge(r["POC 2"], "p2", zona=zone_poc[2]), unsafe_allow_html=True)
+            c[9].markdown(badge(r["POC 3"], "p3", zona=zone_poc[3]), unsafe_allow_html=True)
             c[10].write("")
             if c[11].button("💾", key=f"save_{ticker_riga}_{_}"):
                 nota_1 = st.session_state.get(f"edit_n1_{ticker_riga}_{_}", r["Nota 1"])
@@ -738,9 +769,9 @@ else:
             c[4].markdown(badge(r["VWAP 1"], "v1", r["Nota VWAP 1"]), unsafe_allow_html=True)
             c[5].markdown(badge(r["VWAP 2"], "v2", r["Nota VWAP 2"]), unsafe_allow_html=True)
             c[6].markdown(badge(r["VWAP 3"], "v3", r["Nota VWAP 3"]), unsafe_allow_html=True)
-            c[7].markdown(badge(r["POC 1"], "p1", r["Nota POC 1"]), unsafe_allow_html=True)
-            c[8].markdown(badge(r["POC 2"], "p2", r["Nota POC 2"]), unsafe_allow_html=True)
-            c[9].markdown(badge(r["POC 3"], "p3", r["Nota POC 3"]), unsafe_allow_html=True)
+            c[7].markdown(badge(r["POC 1"], "p1", r["Nota POC 1"], zona=zone_poc[1]), unsafe_allow_html=True)
+            c[8].markdown(badge(r["POC 2"], "p2", r["Nota POC 2"], zona=zone_poc[2]), unsafe_allow_html=True)
+            c[9].markdown(badge(r["POC 3"], "p3", r["Nota POC 3"], zona=zone_poc[3]), unsafe_allow_html=True)
 
             prezzo_riga = prezzi_condivisi.get(ticker_riga)
             if prezzo_riga is not None:
@@ -796,7 +827,7 @@ else:
             st.caption(f"💾 Spazio repo: {dim_mb:.0f} MB / ~1000 MB")
 
     # ================================================================
-    # GRAFICO TICKER SELEZIONATO (colori tema-aware)
+    # GRAFICO TICKER SELEZIONATO (colori tema-aware + bande zona POC)
     # ================================================================
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
         st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
@@ -804,7 +835,6 @@ else:
     riga = df[df["Ticker"] == ticker_selezionato].iloc[0]
     livelli = [float(riga[f"Livello {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"Livello {i}"]) and riga[f"Livello {i}"] != 0]
     vwap = [float(riga[f"VWAP {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"VWAP {i}"]) and riga[f"VWAP {i}"] != 0]
-    poc_liv = [float(riga[f"POC {i}"]) for i in (1, 2, 3) if pd.notna(riga[f"POC {i}"]) and riga[f"POC {i}"] != 0]
 
     import json as _json
 
@@ -850,9 +880,23 @@ else:
         linee_vwap_js = "\n".join(
             f'candleSeries.createPriceLine({{price: {v}, color: "{c_vw}", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
             for i, v in enumerate(vwap))
-        linee_poc_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {p}, color: "{c_poc}", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
-            for i, p in enumerate(poc_liv))
+        # POC come zone: linea centrale tratteggiata + bordi dotted della banda
+        parti_poc = []
+        for k in (1, 2, 3):
+            p = float(riga[f"POC {k}"]) if pd.notna(riga[f"POC {k}"]) else 0.0
+            if p != 0:
+                lo, hi = zona_poc_effettiva(p, riga[f"POC {k} Low"], riga[f"POC {k} High"])
+                parti_poc.append(
+                    f'candleSeries.createPriceLine({{price: {p}, color: "{c_poc}", lineWidth: 2, lineStyle: 2, title: "POC{k}: {p:g} [{lo:g}–{hi:g}]"}});'
+                )
+                if hi > lo:
+                    parti_poc.append(
+                        f'candleSeries.createPriceLine({{price: {lo}, color: "{c_poc}", lineWidth: 1, lineStyle: 1, title: ""}});'
+                    )
+                    parti_poc.append(
+                        f'candleSeries.createPriceLine({{price: {hi}, color: "{c_poc}", lineWidth: 1, lineStyle: 1, title: ""}});'
+                    )
+        linee_poc_js = "\n".join(parti_poc)
 
         chart_html = f"""
         <div id="chart_container" style="width:100%; height:600px; border:1px solid {TH['border']}; border-radius:10px; overflow:hidden;"></div>
