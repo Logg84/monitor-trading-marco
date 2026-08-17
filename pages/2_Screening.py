@@ -16,6 +16,7 @@ import traceback
 from data_engine import DataEngine, MAX_POC_DIST_PCT
 from nav import render_navbar, section_header
 from metric_guide import render_metric_guide
+from theme import render_theme_toggle, get_theme, theme_css
 
 st.set_page_config(page_title="ARGO Screening", layout="wide", page_icon="🎛️")
 
@@ -36,110 +37,65 @@ except ImportError:
 if _HAS_AUTOREFRESH:
     st_autorefresh(interval=600000, key="argo_screening_refresh")
 
+render_theme_toggle()
+st.markdown(theme_css(), unsafe_allow_html=True)
+TH = get_theme()
+
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .block-container { padding-top: 1.5rem; padding-bottom: 1rem; padding-left: 1.25rem; padding-right: 1.25rem; max-width: 100%; }
-h1 { font-size: 1.6rem !important; margin-bottom: 0.2rem !important; letter-spacing: -0.02em; }
-div[data-testid="stButton"] button { transition: all .15s ease; }
-
-section[data-testid="stSidebar"] { width: 250px !important; min-width: 250px !important; }
-section[data-testid="stSidebar"] > div { width: 250px !important; }
+h1 { font-size: 1.7rem !important; margin-bottom: 0.2rem !important; }
+section[data-testid="stSidebar"] { width: 260px !important; min-width: 260px !important; }
+section[data-testid="stSidebar"] > div { width: 260px !important; }
 
 .argo-report {
     position: relative; overflow: hidden;
-    background: linear-gradient(135deg, #0f172a 0%, #13203a 100%);
-    border: 1px solid #1e3a5f; border-left: 5px solid #38bdf8;
-    border-radius: 10px; padding: 16px 18px; margin: 4px 0 18px 0;
-    box-shadow: 0 8px 30px -18px rgba(56,189,248,.45);
+    background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-panel2) 100%);
+    border: 1px solid var(--border); border-left: 5px solid var(--accent);
+    border-radius: 12px; padding: 16px 18px; margin: 4px 0 18px 0;
 }
-.argo-report::before {
-    content: ""; position: absolute; inset: 0;
-    background: radial-gradient(600px 120px at 0% 0%, rgba(56,189,248,.10), transparent 70%);
-    pointer-events: none;
-}
-.argo-report .ar-head { position: relative; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #38bdf8; margin-bottom: 12px; }
+.argo-report .ar-head { position: relative; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
 .argo-report .ar-chips { position: relative; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.argo-report .ar-chip { background: #0b1220; border: 1px solid #243049; border-radius: 8px; padding: 7px 12px; min-width: 92px; text-align: left; transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease; }
-.argo-report .ar-chip:hover { transform: translateY(-2px); border-color: #38bdf8; box-shadow: 0 6px 18px -10px rgba(56,189,248,.6); }
+.argo-report .ar-chip { background: var(--bg-base); border: 1px solid var(--border-strong); border-radius: 8px; padding: 7px 12px; min-width: 92px; text-align: left; }
 .argo-report .ar-num { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; }
-.argo-report .ar-lab { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7c8aa3; margin-top: 4px; }
-.argo-report .ar-note { position: relative; font-size: 12.5px; color: #cbd5e1; line-height: 1.5; }
-.argo-report .ar-note b { color: #f8fafc; }
+.argo-report .ar-lab { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt3); margin-top: 4px; }
+.argo-report .ar-note { position: relative; font-size: 13px; color: var(--txt2); line-height: 1.55; }
+.argo-report .ar-note b { color: var(--txt1); }
 .argo-report .ar-add { color: #22c55e; }
 .argo-report .ar-upd { color: #60a5fa; }
 .argo-report .ar-vw { color: #38bdf8; }
 .argo-report .ar-rm { color: #f59e0b; }
-.argo-report .ar-tags { position: relative; margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; flex-direction: column; gap: 9px; }
+.argo-report .ar-tags { position: relative; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 9px; }
 .argo-report .ar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .argo-report .ar-glabel { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-right: 2px; }
-.argo-report .ar-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent; background: #0b1220; cursor: default; transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease; }
-.argo-report .ar-tag:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 6px 16px -10px rgba(56,189,248,.7); }
+.argo-report .ar-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent; background: var(--bg-base); }
 .argo-report .ar-tag.ar-add { color: #86efac; border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.10); }
-.argo-report .ar-tag.ar-add:hover { border-color: #22c55e; }
 .argo-report .ar-tag.ar-upd { color: #93c5fd; border-color: rgba(96,165,250,.45); background: rgba(96,165,250,.10); }
-.argo-report .ar-tag.ar-upd:hover { border-color: #60a5fa; }
 .argo-report .ar-tag.ar-vw { color: #67e8f9; border-color: rgba(56,189,248,.45); background: rgba(56,189,248,.10); }
-.argo-report .ar-tag.ar-vw:hover { border-color: #38bdf8; }
 .argo-report .ar-tag.ar-rm { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.10); }
-.argo-report .ar-tag.ar-rm:hover { border-color: #ef4444; }
-.argo-report .ar-tag.ar-tag-more { color: #7c8aa3; border-color: #243049; }
+.argo-report .ar-tag.ar-tag-more { color: var(--txt3); border-color: var(--border-strong); }
 
-.sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin: 2px 0 6px 0; }
-div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
+.sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--txt3); margin: 2px 0 6px 0; }
 
-.argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
-.argo-tbl-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
-.argo-tbl-wrap::-webkit-scrollbar-track { background: transparent; }
-.argo-tbl-wrap::-webkit-scrollbar-thumb { background: #243049; border-radius: 8px; border: 2px solid #0a0f1a; }
-.argo-tbl-wrap::-webkit-scrollbar-thumb:hover { background: #334155; }
-.argo-tbl-wrap::-webkit-scrollbar-corner { background: #0a0f1a; }
-.argo-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-.argo-tbl thead th {
-    position: sticky; top: 0; z-index: 3; background: #0b1220; color: #7c8aa3;
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .06em;
-    text-transform: uppercase; padding: 11px 10px; text-align: left;
-    border-bottom: 1px solid #243049; white-space: nowrap;
-}
-.argo-tbl thead th.r { text-align: right; }
-.argo-tbl thead th.c { text-align: center; }
-.argo-tbl tbody td {
-    padding: 9px 10px; border-bottom: 1px solid #141d2e; color: #cbd5e1;
-    vertical-align: middle; white-space: nowrap; transition: background .12s ease, color .12s ease;
-}
-.argo-tbl tbody tr:nth-child(even) td { background: rgba(255,255,255,.018); }
-.argo-tbl tbody tr:hover td { background: rgba(56,189,248,.14) !important; color: #f8fafc !important; }
-.argo-tbl thead th:first-child, .argo-tbl tbody td:first-child { position: sticky; left: 0; z-index: 2; }
-.argo-tbl thead th:first-child { z-index: 4; background: #0b1220; box-shadow: 2px 0 6px -2px rgba(0,0,0,.6); }
-.argo-tbl tbody td:first-child { background: #0a0f1a; box-shadow: 2px 0 6px -2px rgba(0,0,0,.5); }
-.argo-tbl tbody tr:nth-child(even) td:first-child { background: #0d1320; }
-.argo-tbl tbody tr:hover td:first-child { background: rgba(56,189,248,.14) !important; box-shadow: inset 3px 0 0 #38bdf8, 2px 0 6px -2px rgba(0,0,0,.5); }
-.argo-tbl td.r { text-align: right; }
-.argo-tbl td.c { text-align: center; }
-.argo-tbl td.num { font-family: 'IBM Plex Mono', monospace; }
-.argo-tbl td.tk { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #f1f5f9; }
-.argo-tbl td.idx { color: #7c8aa3; font-size: 11px; }
-.argo-tbl td.dd { color: #fca5a5; }
-.argo-tbl td.muted { color: #475569; }
-.argo-tbl td.det { max-width: 360px; white-space: normal; line-height: 1.35; color: #94a3b8; }
-.argo-tbl td.score { text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 700; }
-.argo-tbl .tf { font-size: 9px; color: #64748b; margin-left: 4px; font-family: 'IBM Plex Mono', monospace; }
-.argo-tbl .sub { display: block; font-size: 9.5px; color: #94a3b8; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; letter-spacing: .02em; }
-.argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
-.argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
-.argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
+/* RIGHE NATIVE: niente tagli, testo completo e leggibile */
+.screening-row { border-bottom: 1px solid var(--border); padding: 6px 0; }
+.screening-row > div { white-space: normal !important; overflow: visible !important; }
+.screening-row .cell-txt { font-size: 12.5px; color: var(--txt2); line-height: 1.45; }
+.screening-row .cell-num { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--txt1); }
+.screening-row .cell-muted { color: var(--muted); }
+.screening-row .hdr { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt3); }
+.screening-row .det-full { font-size: 12px; color: var(--txt3); line-height: 1.5; white-space: normal !important; }
 
 .decel-inline {
-    border: 1px solid #1e3a5f; border-left: 4px solid #38bdf8;
-    background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(10,15,26,.9));
-    border-radius: 10px; padding: 12px 14px; margin: 6px 0 10px 0;
+    border: 1px solid var(--border); border-left: 4px solid var(--accent);
+    background: var(--bg-panel);
+    border-radius: 12px; padding: 14px 16px; margin: 8px 0 12px 0;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------
-# MOTORE (prima della navbar, per il chip Regime)
+# MOTORE
 # ---------------------------------------------------------------
 if "engine" not in st.session_state:
     st.session_state["engine"] = DataEngine()
@@ -158,12 +114,6 @@ with st.expander("ℹ️ Legenda Health Check", expanded=False):
     - 🔹 **Crescita Ricavi** YoY > 0 → fatturato in espansione
     - 🔹 **Utile Netto** > 0 → redditività positiva
     - 🔹 **Debito / Patrimonio Netto** < 1.5 → indebitamento contenuto
-
-    | Punteggio | Simbolo | Significato |
-    |-----------|---------|-------------|
-    | 4/4 | ✅ | Tutti i criteri superati – azienda solida |
-    | 2-3/4 | ⚠️ | Qualche debolezza – attenzione |
-    | 0-1/4 | ❌ | Criteri largamente non soddisfatti – fragile |
     """)
 
 if "screener_database" not in st.session_state:
@@ -272,32 +222,17 @@ def check_state_change():
 
 check_state_change()
 
-if st.session_state.get("argo_state_changed", False):
-    old_stato = st.session_state.get("argo_old_stato", "N/D")
-    new_stato = st.session_state.get("argo_new_stato", "N/D")
-    old_color = st.session_state.get("argo_old_color", "slate")
-    new_color = st.session_state.get("argo_new_color", "slate")
-    color_map_hex = {"emerald": "#10b981", "rose": "#f43f5e", "amber": "#f59e0b", "indigo": "#6366f1", "orange": "#f97316", "slate": "#64748b"}
-    st.markdown(f"""
-    <div class="state-change-banner" style="border-left-color: {color_map_hex.get(new_color, '#fbbf24')};">
-        <strong>⚠️ CAMBIO REGIME RILEVATO!</strong> <br>
-        <span style="color: {color_map_hex.get(old_color, '#94a3b8')};"><b>{old_stato}</b></span>
-        ➜
-        <span style="color: {color_map_hex.get(new_color, '#fbbf24')};"><b>{new_stato}</b></span>
-    </div>
-    """, unsafe_allow_html=True)
-
 color_map = {"emerald": "#10b981", "rose": "#f43f5e", "amber": "#f59e0b", "indigo": "#6366f1", "orange": "#f97316", "slate": "#64748b"}
 st.markdown(f"""
-<div style="background-color: #1e293b; border-left: 5px solid {color_map[argo_bussola['color']]}; padding: 6px 12px; border-radius: 6px; margin-bottom: 15px; margin-top: 5px;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+<div style="background: var(--bg-panel); border: 1px solid var(--border); border-left: 5px solid {color_map[argo_bussola['color']]}; padding: 8px 14px; border-radius: 8px; margin-bottom: 15px; margin-top: 5px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
         <div>
-            <span style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #94a3b8;">Direttiva Tattica</span>
-            <h5 style="margin: 0; color: #f8fafc; font-weight: 800; font-size: 1.1rem;">{argo_bussola['stato']}</h5>
-            <p style="margin: 0; font-size: 11px; color: #cbd5e1; font-weight: 500;">{argo_bussola['desc']}</p>
+            <span style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: var(--txt3);">Direttiva Tattica</span>
+            <h5 style="margin: 0; color: var(--txt1); font-weight: 800; font-size: 1.15rem;">{argo_bussola['stato']}</h5>
+            <p style="margin: 0; font-size: 12px; color: var(--txt2); font-weight: 500;">{argo_bussola['desc']}</p>
         </div>
-        <div style="background-color: #0f172a; border: 1px solid #334155; padding: 4px 10px; border-radius: 4px; text-align: center;">
-            <span style="font-size: 8px; font-weight: bold; color: #64748b; text-transform: uppercase;">BIAS</span>
+        <div style="background: var(--bg-base); border: 1px solid var(--border-strong); padding: 6px 12px; border-radius: 6px; text-align: center;">
+            <span style="font-size: 8px; font-weight: bold; color: var(--txt3); text-transform: uppercase;">BIAS</span>
             <h4 style="margin: 0; color: {color_map[argo_bussola['color']]}; font-weight: 900; font-size: 1.1rem;">{argo_bussola['bias']}</h4>
         </div>
     </div>
@@ -317,18 +252,14 @@ with st.sidebar:
     min_market_cap = st.number_input("Market Cap Minima (Miliardi): ", value=default_cap, step=0.5) * 1e9
     soglia_drawdown = st.number_input("Soglia Minima di Drawdown dall'ATH (%) ", value=25.0, step=5.0)
     st.markdown("---")
-    soglia_poc_pct = st.number_input("Soglia Vicinanza POC / VWAP (%) ", value=2.0, step=0.5, help="Segnala (🎯 Alert) il titolo se il prezzo è dentro una zona POC, oppure entro questa % da un POC o VWAP.")
+    soglia_poc_pct = st.number_input("Soglia Vicinanza POC / VWAP (%) ", value=2.0, step=0.5)
     st.markdown("---")
-    soglia_promo_pct = st.number_input(
-        "Soglia promozione auto in watchlist (%) ", value=2.5, step=0.5,
-        help="Un titolo ENTRA da solo in watchlist (🤖) se il prezzo è dentro una zona POC, oppure entro questa % da POC o VWAP."
-    )
+    soglia_promo_pct = st.number_input("Soglia promozione auto in watchlist (%) ", value=2.5, step=0.5)
     st.markdown("---")
     st.caption("💡  Health Check (0-4):  salute finanziaria assoluta.")
     st.caption("📉  Bottom Score (0-4):  segnali di inversione.")
-    st.caption("🧹  POC operativi:  nel grafico solo POC entro il " + f"{MAX_POC_DIST_PCT:.0f}% dal prezzo.")
-    st.caption("⚖️  Operazione Potenziale:  lettura non vincolante, rischio a carico dell'utente.")
-    st.caption("⏰  Screening automatico:  21:30 UTC. AVVIA = override manuale.")
+    st.caption("⚖️  Operazione Potenziale:  lettura non vincolante.")
+    st.caption("⏰  Screening automatico:  21:30 UTC.")
 
     st.markdown("---")
     st.subheader("🕒 Stato Scansioni")
@@ -397,7 +328,7 @@ with st.sidebar:
         for entry in _live_log[-50:]:
             level = entry["level"]
             color = {"info": "#60a5fa", "success": "#22c55e", "error": "#ef4444", "warning": "#eab308"}.get(level, "#94a3b8")
-            st.markdown(f"<div style='font-size:11px; color:{color};'>[{entry['time']}] {entry['msg']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:11.5px; color:{color};'>[{entry['time']}] {entry['msg']}</div>", unsafe_allow_html=True)
     else:
         st.caption("Nessun evento di debug registrato.")
 
@@ -412,7 +343,7 @@ if rep is not None:
         f'<div class="ar-chip"><div class="ar-num ar-upd">{rep["aggiornati"]}</div><div class="ar-lab">🔄 Auto aggiornati</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-vw">{rep["vwappati"]}</div><div class="ar-lab">🔃 VWAP rinfrescati</div></div>'
         f'<div class="ar-chip"><div class="ar-num ar-rm">{rep["rimossi"]}</div><div class="ar-lab">🗑️ Usciti (no sconto)</div></div>'
-        f'<div class="ar-chip"><div class="ar-num" style="color:#e2e8f0">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
+        f'<div class="ar-chip"><div class="ar-num" style="color:var(--txt1)">{rep["in_zona"]}</div><div class="ar-lab">🎯 In zona (≤{soglia_rep:g}%)</div></div>'
     )
 
     def _pills(names, cls, maxn=8):
@@ -464,29 +395,8 @@ if rep is not None:
 render_metric_guide()
 
 # ---------------------------------------------------------------
-# RENDERER TABELLA
+# HELPER CELLE (tema-aware, alto contrasto)
 # ---------------------------------------------------------------
-_HDR = {
-    "Ticker": ("Ticker", "Ticker"),
-    "Indice": ("Indice", "Indice di appartenenza"),
-    "Prezzo": ("Prezzo", "Prezzo attuale"),
-    "Drawdown (%)": ("DD %", "Drawdown dall'ATH (%)"),
-    "Health": ("Health", "Health Check (0-4)"),
-    "Bottom Score (0-4)": ("Bottom", "Bottom Score (0-4)"),
-    "Bottom Dettagli": ("Segnali", "Segnali tecnici attivi"),
-    "POC più vicino": ("POC vicino", "POC operativo più vicino"),
-    "Distanza POC (%)": ("dPOC %", "📍 in zona se dentro area POC"),
-    "VWAP vicino": ("VWAP vicino", "VWAP (3M/1Y/4Y) più vicino"),
-    "Distanza VWAP (%)": ("dVWAP %", "Distanza % dal VWAP più vicino"),
-    "🎯 Alert": ("🎯 Alert", "Tocco POC / VWAP entro soglia"),
-    "Market Cap (B)": ("MCap", "Capitalizzazione (miliardi)"),
-    "Entry Mode": ("Operazione Potenziale", "Lettura non vincolante: decisione e rischio a carico dell'utente"),
-    "Stato": ("Stato", "Stato del titolo"),
-    "Grafico TW": ("TW", "Apri su TradingView"),
-}
-_RIGHT = {"Prezzo", "Drawdown (%)", "Market Cap (B)", "Distanza POC (%)", "VWAP vicino", "Distanza VWAP (%)"}
-_CENTER = {"Health", "Bottom Score (0-4)", "🎯 Alert", "Grafico TW", "Stato"}
-
 _CHIPS = ["Ticker", "Prezzo", "DD%", "Health", "Bottom", "MCap", "dPOC%", "dVWAP%"]
 _CHIP2COL = {
     "Ticker": "Ticker", "Prezzo": "Prezzo", "DD%": "Drawdown (%)",
@@ -601,154 +511,66 @@ def _fmt2(v):
         return html.escape(str(v))
 
 
-def _score_bg(col, v):
-    if col.startswith("Bottom"):
-        if v >= 4: return "background:#065f46;color:#a7f3d0"
-        if v >= 3: return "background:#143524;color:#86efac"
-        if v >= 2: return "background:#3a2408;color:#fde68a"
-        return "background:#3a1414;color:#fca5a5"
-    if v >= 3: return "background:#065f46;color:#a7f3d0"
-    if v >= 2: return "background:#143524;color:#86efac"
-    return "background:#3a1414;color:#fca5a5"
-
-
-def _pill(text, bg, fg):
-    return f'<span class="pill" style="background:{bg};color:{fg}">{html.escape(str(text))}</span>'
+def _pill(text, key):
+    bg, fg = TH["pills"][key]
+    return f'<span style="background:{bg};color:{fg};padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;">{html.escape(str(text))}</span>'
 
 
 def _entry_cell(v):
     s = str(v)
-    if s.startswith("🚀"): return _pill(s, "rgba(34,197,94,.16)", "#86efac")
-    if s.startswith("⏳"): return _pill(s, "rgba(245,158,11,.16)", "#fcd34d")
-    if s.startswith("⛔"): return _pill(s, "rgba(239,68,68,.16)", "#fca5a5")
-    if s.startswith("📈"): return _pill(s, "rgba(96,165,250,.16)", "#93c5fd")
-    return _pill(s, "rgba(148,163,184,.12)", "#cbd5e1")
+    if s.startswith("🚀"): return _pill(s, "green")
+    if s.startswith("⏳"): return _pill(s, "amber")
+    if s.startswith("⛔"): return _pill(s, "red")
+    if s.startswith("📈"): return _pill(s, "blue")
+    return _pill(s, "gray")
 
 
 def _stato_cell(v):
     s = str(v).strip()
-    if s == "Active": return _pill(s, "rgba(34,197,94,.16)", "#86efac")
-    if s == "Ripartito": return _pill(s, "rgba(245,158,11,.16)", "#fcd34d")
-    if s == "Nuovo": return _pill(s, "rgba(96,165,250,.16)", "#93c5fd")
-    return _pill(s or "—", "rgba(148,163,184,.12)", "#94a3b8")
+    if s == "Active": return _pill(s, "green")
+    if s == "Ripartito": return _pill(s, "amber")
+    if s == "Nuovo": return _pill(s, "blue")
+    return _pill(s or "—", "gray")
 
 
 def _alert_cell(val, row):
     label = str(val).strip()
     if not label:
-        return '<span class="muted">—</span>'
+        return '<span class="cell-muted">—</span>'
     detail = str(row.get("_alert_detail", "")).strip() if row is not None else ""
     if "POC+VWAP" in label:
-        bg, fg = "rgba(167,139,250,.20)", "#d8b4fe"
+        key = "violet"
     elif "IN ZONA" in label:
-        bg, fg = "rgba(34,197,94,.20)", "#86efac"
+        key = "green"
     elif "SU POC" in label:
-        bg, fg = "rgba(244,63,94,.20)", "#fda4af"
+        key = "red"
     else:
-        bg, fg = "rgba(0,180,216,.20)", "#67e8f9"
-    inner = _pill(label, bg, fg)
+        key = "cyan"
+    inner = _pill(label, key)
     if detail:
-        inner += f'<span class="sub">{html.escape(detail)}</span>'
+        inner += f'<div class="det-full" style="margin-top:3px;">{html.escape(detail)}</div>'
     return inner
 
 
-def _health_style(score):
+def _health_div(score, label):
+    sc = TH["score"]
     if score == 4:
-        return "background:#065f46; color:#a7f3d0"
+        bg, fg = sc["hi"]
     elif score >= 2:
-        return "background:#78350f; color:#fde68a"
+        bg, fg = sc["health_mid"]
     else:
-        return "background:#7f1d1d; color:#fca5a5"
+        bg, fg = sc["health_low"]
+    return f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:6px;font-weight:800;font-family:\'IBM Plex Mono\',monospace;">{html.escape(str(label))}</span>'
 
 
-def _td(col, val, row=None):
-    na = _isna(val)
-    raw = "" if na else str(val).strip()
-    if col == "Ticker":
-        return ("tk", "", html.escape(raw) or "—")
-    if col == "Indice":
-        return ("idx", "", html.escape(raw))
-    if col == "Grafico TW":
-        url = "" if na else str(val)
-        inner = f'<a class="tw" href="{html.escape(url, quote=True)}" target="_blank" rel="noopener">📈</a>' if url else "—"
-        return ("c", "", inner)
-    if col == "Health":
-        score = row.get("Health_Score") if row is not None else None
-        if score is None or pd.isna(score):
-            return ("score", "", "—")
-        try:
-            score_int = int(score)
-        except (ValueError, TypeError):
-            return ("score", "", str(val))
-        return ("score", _health_style(score_int), str(val).strip())
-    if col == "Bottom Score (0-4)":
-        try:
-            v = float(val)
-        except Exception:
-            v = None
-        if v is None or pd.isna(v):
-            return ("score", "", "—")
-        disp = str(int(v)) if float(v).is_integer() else f"{float(v):.1f}"
-        return ("score", _score_bg(col, v), disp)
-    if col == "Bottom Dettagli":
-        return ("det", "", html.escape(raw) or "—")
-    if col == "Entry Mode":
-        return ("", "", _entry_cell(val))
-    if col == "Stato":
-        return ("c", "", _stato_cell(val))
-    if col == "🎯 Alert":
-        return ("c", "", _alert_cell(val, row))
-    if col == "VWAP vicino":
-        tf = str(row.get("_vwap_tf", "")).strip() if row is not None else ""
-        if na or float(val or 0) == 0:
-            return ("r num muted", "", "—")
-        return ("r num", "", f'{float(val):.2f}<span class="tf">{html.escape(tf)}</span>')
-    if col == "Distanza VWAP (%)":
-        if na:
-            return ("r num muted", "", "—")
-        return ("r num", "", f'{float(val):+.1f}%')
-    if col == "Distanza POC (%)":
-        if str(val).strip() == "📍 in zona":
-            return ("r num", "background:rgba(34,197,94,.20);color:#86efac;font-weight:700", "📍 in zona")
-        d = row.get("_dist_poc_num") if row is not None else np.nan
-        if d is None or (isinstance(d, float) and pd.isna(d)):
-            return ("r num muted", "", "N/D")
-        return ("r num", "", f'{float(d):+.1f}%')
-    if col == "Prezzo":
-        return ("r num", "", _fmt2(val))
-    if col == "Market Cap (B)":
-        return ("r num", "", _fmt2(val))
-    if col == "Drawdown (%)":
-        return ("r num dd", "", _fmt2(val))
-    if col == "POC più vicino":
-        if raw in ("", "nan", "None"):
-            return ("num muted", "", "—")
-        if raw == "N/D":
-            return ("num muted", "", "N/D")
-        return ("num", "", html.escape(raw))
-    return ("", "", html.escape(raw) or "—")
-
-
-def _th_class(col):
-    if col in _RIGHT: return "r"
-    if col in _CENTER: return "c"
-    return ""
-
-
-def _screening_table_html(df, columns):
-    head = "".join(
-        f'<th class="{_th_class(c)}" title="{html.escape(_HDR.get(c, (c, c))[1], quote=True)}">'
-        f'{html.escape(_HDR.get(c, (c, c))[0])}</th>' for c in columns)
-    rows = []
-    for _, r in df.iterrows():
-        cells = []
-        for c in columns:
-            cls, style, inner = _td(c, r.get(c), r)
-            st_attr = f' style="{style}"' if style else ""
-            cells.append(f'<td class="{cls}"{st_attr}>{inner}</td>')
-        rows.append("<tr>" + "".join(cells) + "</tr>")
-    return (f'<div class="argo-tbl-wrap"><table class="argo-tbl"><thead><tr>{head}</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table></div>')
+def _bottom_div(v):
+    sc = TH["score"]
+    if v >= 4: bg, fg = sc["hi"]
+    elif v >= 3: bg, fg = sc["mid"]
+    elif v >= 2: bg, fg = sc["warn"]
+    else: bg, fg = sc["low"]
+    disp = str(int(v)) if float(v).is_integer() else f"{float(v):.1f}"
+    return f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:6px;font-weight:800;font-family:\'IBM Plex Mono\',monospace;">{disp}</span>'
 
 
 def render_sort_bar(key, default_chip):
@@ -774,7 +596,7 @@ def _apply_sort(df, col, asc):
 
 
 # ---------------------------------------------------------------
-# GRAFICO DECELERAZIONE
+# GRAFICO DECELERAZIONE (alto contrasto, tema-aware)
 # ---------------------------------------------------------------
 @st.cache_data(ttl=600)
 def get_hist_for_ticker(ticker):
@@ -792,6 +614,7 @@ def get_hist_for_ticker(ticker):
 def grafico_decelerazione(hist, ticker):
     if hist is None or len(hist) < 30:
         return None
+    ch = TH["chart"]
     hist_full = hist.copy()
     df = hist.tail(250).copy()
     roc = df['Close'].pct_change(periods=20) * 100
@@ -802,50 +625,79 @@ def grafico_decelerazione(hist, ticker):
     for p in pocs:
         p["poc_price"] = float(p["poc_price"]); p["weight_norm"] = float(p.get("weight_norm", 5.0))
         p["dist_pct"] = round((price_now - p["poc_price"]) / p["poc_price"] * 100, 2)
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.65, 0.35], vertical_spacing=0.06,
-        subplot_titles=(f"{ticker} — Prezzo & POC operativi (≤{MAX_POC_DIST_PCT:.0f}% dal prezzo)",
-                        "🌡️ Velocità di Discesa (ROC smoothed) — verde = decelerazione in corso"))
-    fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name='Prezzo', line=dict(color='#e2e8f0', width=2.5), hovertemplate='<b>%{x|%d %b %Y}</b><br>Prezzo: %{y:.2f}<extra></extra>'), row=1, col=1)
+
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.65, 0.35], vertical_spacing=0.07)
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df['Close'], mode='lines', name='Prezzo',
+        line=dict(color=ch["price"], width=2.6),
+        hovertemplate='<b>%{x|%d %b %Y}</b><br>Prezzo: <b>%{y:.2f}</b><extra></extra>'), row=1, col=1)
+
     for i in range(1, len(df)):
-        color = 'rgba(34,197,94,0.12)' if roc_rising.iloc[i] else 'rgba(239,68,68,0.10)'
+        color = ch["vrect_up"] if roc_rising.iloc[i] else ch["vrect_down"]
         fig.add_vrect(x0=df.index[i-1], x1=df.index[i], fillcolor=color, opacity=1, layer="below", line_width=0, row=1, col=1)
+
     for p in pocs:
         if abs(p["dist_pct"]) > MAX_POC_DIST_PCT:
             continue
         wn = float(p.get("weight_norm", 5.0)); poc_price = float(p["poc_price"])
-        if wn >= 8: lcolor, lwidth, dash = '#ef4444', 2.5, 'solid'
-        elif wn >= 5: lcolor, lwidth, dash = '#f97316', 1.8, 'dash'
-        else: lcolor, lwidth, dash = '#64748b', 1.0, 'dot'
-        importance_label = "🔴 STRUTTURALE" if wn >= 8 else ("🟠 MEDIO" if wn >= 5 else "⚫ MINORE")
-        fig.add_hline(y=poc_price, line=dict(color=lcolor, width=lwidth, dash=dash), opacity=0.85, annotation_text=f"POC {p['anchor_year']} | {poc_price:.2f} | {importance_label} (peso {wn:.0f}/10)", annotation_position="top right", annotation_font=dict(size=9, color=lcolor), row=1, col=1)
+        if wn >= 8:
+            lcolor, lwidth, dash = ch["poc_strong"], 3.0, 'solid'
+            importance_label = "🔴 STRUTTURALE"
+        elif wn >= 5:
+            lcolor, lwidth, dash = ch["poc_mid"], 2.2, 'dash'
+            importance_label = "🟠 MEDIO"
+        else:
+            lcolor, lwidth, dash = ch["poc_min"], 1.4, 'dot'
+            importance_label = "⚫ MINORE"
+        fig.add_hline(y=poc_price, line=dict(color=lcolor, width=lwidth, dash=dash), opacity=0.95,
+            annotation_text=f"POC {p['anchor_year']} · {poc_price:.2f} · {importance_label} (peso {wn:.0f}/10)",
+            annotation_position="top right",
+            annotation_font=dict(size=10, color=lcolor, family="IBM Plex Mono"),
+            row=1, col=1)
+
     for i in range(1, len(roc_smoothed)):
         if (not pd.isna(roc_smoothed.iloc[i]) and not pd.isna(roc_smoothed.iloc[i-1]) and roc_smoothed.iloc[i-1] < 0 and roc_smoothed.iloc[i] >= 0):
-            fig.add_trace(go.Scatter(x=[df.index[i]], y=[df['Close'].iloc[i]], mode='markers+text', marker=dict(symbol='triangle-up', size=14, color='#22c55e', line=dict(color='white', width=1)), text=["↑ ROC+"], textposition="top center", textfont=dict(size=9, color='#22c55e'), name='Segnale ROC+', showlegend=False, hovertemplate=f'<b>Crossover ROC positivo</b><br>{df.index[i].strftime("%d %b %Y")}<extra></extra>'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=roc_smoothed.index, y=roc_smoothed, mode='lines', name='Velocità discesa', line=dict(color='#a78bfa', width=2), fill='tozeroy', fillcolor='rgba(167,139,250,0.15)', hovertemplate='<b>%{x|%d %b %Y}</b><br>Velocità: %{y:.1f}%<extra></extra>'), row=2, col=1)
-    fig.add_hline(y=0, line_dash="solid", line_color="#475569", opacity=0.8, row=2, col=1)
-    fig.add_hrect(y0=-5, y1=5, fillcolor="rgba(250,204,21,0.08)", line=dict(color="rgba(250,204,21,0.3)", width=1, dash="dot"), annotation_text="⚡ Zona inversione (±5%)", annotation_position="top right", annotation_font=dict(size=9, color="#fbbf24"), row=2, col=1)
-    fig.update_layout(template="plotly_dark", height=620, margin=dict(l=0, r=0, t=45, b=0), hovermode='x unified', showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,1)')
-    fig.update_yaxes(title_text="Prezzo", row=1, col=1, color='#94a3b8', gridcolor='#1e222d')
-    fig.update_yaxes(title_text="Velocità (%)", row=2, col=1, color='#94a3b8', gridcolor='#1e222d', zeroline=False)
-    fig.update_xaxes(gridcolor='#1e222d', row=1, col=1)
-    fig.update_xaxes(title_text="Data", gridcolor='#1e222d', row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=[df.index[i]], y=[df['Close'].iloc[i]], mode='markers+text',
+                marker=dict(symbol='triangle-up', size=15, color=ch["marker_roc"], line=dict(color=ch["price"], width=1.5)),
+                text=["ROC+"], textposition="top center",
+                textfont=dict(size=10, color=ch["marker_roc"], family="IBM Plex Mono"),
+                name='Segnale ROC+', showlegend=False,
+                hovertemplate=f'<b>Crossover ROC positivo</b><br>{df.index[i].strftime("%d %b %Y")}<br>Prezzo: %{{y:.2f}}<extra></extra>'), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=roc_smoothed.index, y=roc_smoothed, mode='lines', name='Velocità discesa',
+        line=dict(color=ch["roc"], width=2.4), fill='tozeroy', fillcolor=ch["roc_fill"],
+        hovertemplate='<b>%{x|%d %b %Y}</b><br>Velocità: <b>%{y:.1f}%</b><extra></extra>'), row=2, col=1)
+    fig.add_hline(y=0, line_dash="solid", line_color=ch["axis"], opacity=0.9, row=2, col=1)
+    fig.add_hrect(y0=-5, y1=5, fillcolor=ch["zone_fill"], line=dict(color=ch["zone"], width=1.5, dash="dot"),
+        annotation_text="⚡ ZONA INVERSIONE (±5%)", annotation_position="top right",
+        annotation_font=dict(size=10, color=ch["zone"], family="IBM Plex Mono"), row=2, col=1)
+
+    fig.update_layout(
+        template=ch["template"], height=660, margin=dict(l=10, r=10, t=50, b=10),
+        hovermode='x unified', showlegend=False,
+        paper_bgcolor=ch["paper"], plot_bgcolor=ch["plot"],
+        font=dict(family="IBM Plex Mono, monospace", size=11.5, color=ch["text"]),
+    )
+    fig.update_yaxes(title_text="PREZZO", row=1, col=1, color=ch["axis"], gridcolor=ch["grid"], title_font=dict(size=10, family="IBM Plex Mono"))
+    fig.update_yaxes(title_text="VELOCITÀ (%)", row=2, col=1, color=ch["axis"], gridcolor=ch["grid"], zeroline=False, title_font=dict(size=10, family="IBM Plex Mono"))
+    fig.update_xaxes(gridcolor=ch["grid"], row=1, col=1)
+    fig.update_xaxes(title_text="DATA", gridcolor=ch["grid"], row=2, col=1, title_font=dict(size=10, family="IBM Plex Mono"))
     return fig
 
 
 def interpreta_bottom_score(score, dettagli):
     if score >= 4:
-        return {"semaforo": "🟢", "titolo": "FORTE INVERSIONE", "colore": "#22c55e", "operazione": "✅ Pronto per l'ingresso. Il titolo è tecnicamente pronto a ripartire. Valutare l'acquisto con stop loss sotto il POC."}
+        return {"semaforo": "🟢", "titolo": "FORTE INVERSIONE", "colore": TH["chart"]["up"], "operazione": "✅ Pronto per l'ingresso. Il titolo è tecnicamente pronto a ripartire. Valutare l'acquisto con stop loss sotto il POC."}
     elif score == 3:
-        return {"semaforo": "🟡", "titolo": "SEGNALI INIZIALI", "colore": "#eab308", "operazione": "🔍 Monitoraggio. La decelerazione è iniziata, ma manca ancora la conferma del volume o del POC."}
+        return {"semaforo": "🟡", "titolo": "SEGNALI INIZIALI", "colore": TH["chart"]["zone"], "operazione": "🔍 Monitoraggio. La decelerazione è iniziata, ma manca ancora la conferma del volume o del POC."}
     elif score == 2:
-        return {"semaforo": "🟡", "titolo": "ESAURIMENTO VENDITA", "colore": "#eab308", "operazione": "⏳ Pazienza. La discesa sta rallentando, ma non ci sono ancora segnali di acquisto attivi."}
+        return {"semaforo": "🟡", "titolo": "ESAURIMENTO VENDITA", "colore": TH["chart"]["zone"], "operazione": "⏳ Pazienza. La discesa sta rallentando, ma non ci sono ancora segnali di acquisto attivi."}
     else:
-        return {"semaforo": "🔴", "titolo": "NESSUNA INVERSIONE", "colore": "#ef4444", "operazione": "🚫 Non entrare. Il titolo non mostra ancora segnali di inversione. La discesa potrebbe continuare."}
+        return {"semaforo": "🔴", "titolo": "NESSUNA INVERSIONE", "colore": TH["chart"]["down"], "operazione": "🚫 Non entrare. Il titolo non mostra ancora segnali di inversione. La discesa potrebbe continuare."}
 
 
-# ---------------------------------------------------------------
-# ANALISI INLINE (riga che si allarga)
-# ---------------------------------------------------------------
 def render_analisi_decelerazione(ticker, df_total, key_prefix):
     rows = df_total[df_total["Ticker"] == ticker]
     if rows.empty:
@@ -884,36 +736,35 @@ def render_analisi_decelerazione(ticker, df_total, key_prefix):
     health_val = row.get('Health', 'N/D')
     interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
     score_pct = min(int((bottom_score / 4) * 100), 100)
-    thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
+    thresholds = [(25, TH["chart"]["down"], '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, TH["chart"]["zone"], '🟡 Segnali iniziali'), (100, TH["chart"]["up"], '🟢 Pronto a invertire')]
     bar_segments = []
     for thr, col, lbl in thresholds:
         filled = score_pct >= thr
-        bg = col if filled else '#1e293b'; bord = col if filled else '#334155'; tcol = col if filled else '#94a3b8'
-        bar_segments.append('<div style="flex:1;text-align:center;"><div style="height:12px;background:' + bg + ';border-radius:3px;border:1px solid ' + bord + ';margin:0 2px;"></div><div style="font-size:9px;color:' + tcol + ';margin-top:3px;line-height:1.2;">' + lbl + '</div></div>')
+        bg = col if filled else TH["bg_base"]; bord = col if filled else TH["border_strong"]; tcol = col if filled else TH["txt3"]
+        bar_segments.append('<div style="flex:1;text-align:center;"><div style="height:12px;background:' + bg + ';border-radius:3px;border:1px solid ' + bord + ';margin:0 2px;"></div><div style="font-size:10px;color:' + tcol + ';margin-top:3px;line-height:1.2;">' + lbl + '</div></div>')
     bar_html = ''.join(bar_segments)
     col_border = interpretazione['colore']; semaforo = interpretazione['semaforo']; titolo = interpretazione['titolo']; operazione = interpretazione['operazione']; score_color = interpretazione['colore']
-    card_html = ('<div style="background-color:#0f172a;border-left:5px solid ' + col_border + ';padding:14px 16px;border-radius:8px;margin-top:10px;">'
-        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div style="font-size:26px;">' + semaforo + '</div>'
-        '<div style="flex:1;"><div style="font-size:15px;font-weight:700;color:' + score_color + ';">' + titolo + '</div>'
-        '<div style="font-size:12px;color:#f8fafc;margin-top:2px;">' + operazione + '</div></div>'
-        '<div style="background:#1e293b;padding:6px 14px;border-radius:10px;text-align:center;min-width:72px;"><div style="color:#94a3b8;font-size:10px;text-transform:uppercase;">Score</div>'
-        '<div style="color:' + score_color + ';font-weight:800;font-size:22px;line-height:1.1;">' + str(bottom_score) + '<span style="font-size:13px;color:#64748b;">/4</span></div></div></div></div>'
-        '<div style="margin-bottom:6px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
+    card_html = ('<div style="background:var(--bg-base);border:1px solid var(--border);border-left:5px solid ' + col_border + ';padding:14px 16px;border-radius:10px;margin-top:10px;">'
+        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div style="font-size:28px;">' + semaforo + '</div>'
+        '<div style="flex:1;"><div style="font-size:16px;font-weight:800;color:' + score_color + ';font-family:var(--font-head);">' + titolo + '</div>'
+        '<div style="font-size:12.5px;color:var(--txt1);margin-top:2px;">' + operazione + '</div></div>'
+        '<div style="background:var(--bg-panel);border:1px solid var(--border-strong);padding:6px 14px;border-radius:10px;text-align:center;min-width:76px;"><div style="color:var(--txt3);font-size:10px;text-transform:uppercase;">Score</div>'
+        '<div style="color:' + score_color + ';font-weight:800;font-size:22px;line-height:1.1;">' + str(bottom_score) + '<span style="font-size:13px;color:var(--txt3);">/4</span></div></div></div></div>'
+        '<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--txt3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
         '<div style="display:flex;gap:0;">' + bar_html + '</div></div>'
-        '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + html.escape(bottom_dettagli) + '</div>'
-        '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
+        '<div style="margin-top:10px;font-size:12px;color:var(--txt2);border-top:1px solid var(--border);padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + html.escape(bottom_dettagli) + '</div>'
+        '<div style="font-size:11.5px;color:var(--txt3);margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
     st.markdown(card_html, unsafe_allow_html=True)
-    legenda_html = ('<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:11px;color:#94a3b8;">'
-        '<b style="color:#e2e8f0;">📖 Come leggere i pannelli:</b><br>'
-        '<b style="color:#e2e8f0;">① Prezzo &amp; POC</b> — Sfondo verde = la discesa rallenta; rosso = prosegue. ▲ verde = crossover velocità. Linee POC: <span style="color:#ef4444;">■ rosso = strutturale</span>, <span style="color:#f97316;">■ arancio = medio</span>, <span style="color:#64748b;">■ grigio = minore</span>.<br>'
-        '<b style="color:#e2e8f0;">② Velocità di Discesa</b> — linea viola sopra lo zero e fuori dalla zona gialla ⚡ = decelerazione confermata.</div>')
+    legenda_html = ('<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-top:8px;font-size:12px;color:var(--txt2);display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+        '<div><b style="color:var(--txt1);">① Prezzo &amp; POC</b><br>Sfondo <span style="color:' + TH["chart"]["up"] + ';">verde</span> = discesa rallenta; <span style="color:' + TH["chart"]["down"] + ';">rosso</span> = prosegue. ▲ = crossover velocità. POC: <span style="color:' + TH["chart"]["poc_strong"] + ';">■ strutturale</span>, <span style="color:' + TH["chart"]["poc_mid"] + ';">■ medio</span>, <span style="color:' + TH["chart"]["poc_min"] + ';">■ minore</span>.</div>'
+        '<div><b style="color:var(--txt1);">② Velocità di Discesa</b><br>Linea <span style="color:' + TH["chart"]["roc"] + ';">fucsia</span> sopra lo zero e fuori dalla zona <span style="color:' + TH["chart"]["zone"] + ';">gialla ⚡</span> = decelerazione confermata.</div></div>')
     st.markdown(legenda_html, unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------
-# RENDER RIGA NATIVA (pulsante ticker in tabella)
+# RIGA NATIVA (testo completo, niente tagli)
 # ---------------------------------------------------------------
 _COL_WIDTHS = [1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4]
 _HEADER_LABELS = ["Ticker", "Indice", "Prezzo", "DD%", "Health", "Bottom", "Segnali", "POC", "dPOC%", "VWAP", "dVWAP%", "🎯", "MCap", "Operazione", "Stato", "TW"]
@@ -933,18 +784,18 @@ def render_riga_screening(row, key_prefix):
             st.session_state["decel_ticker"] = ticker
         st.rerun()
 
-    cols_row[1].markdown(str(row.get("Indice", "")))
-    cols_row[2].markdown(_fmt2(row.get("Prezzo")))
-    cols_row[3].markdown(_fmt2(row.get("Drawdown (%)")))
+    cols_row[1].markdown(f'<div class="cell-txt">{html.escape(str(row.get("Indice", "")))}</div>', unsafe_allow_html=True)
+    cols_row[2].markdown(f'<div class="cell-num">{_fmt2(row.get("Prezzo"))}</div>', unsafe_allow_html=True)
+    cols_row[3].markdown(f'<div class="cell-num" style="color:{TH["chart"]["down"]};">{_fmt2(row.get("Drawdown (%)"))}</div>', unsafe_allow_html=True)
 
     health_score = row.get("Health_Score")
     if health_score is not None and not pd.isna(health_score):
         try:
-            cols_row[4].markdown(f"<div style='{_health_style(int(health_score))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{str(row.get('Health')).strip()}</div>", unsafe_allow_html=True)
+            cols_row[4].markdown(_health_div(int(health_score), str(row.get('Health')).strip()), unsafe_allow_html=True)
         except (ValueError, TypeError):
-            cols_row[4].markdown("—")
+            cols_row[4].markdown('<div class="cell-muted">—</div>', unsafe_allow_html=True)
     else:
-        cols_row[4].markdown("—")
+        cols_row[4].markdown('<div class="cell-muted">—</div>', unsafe_allow_html=True)
 
     bs = row.get("Bottom Score (0-4)")
     try:
@@ -952,13 +803,14 @@ def render_riga_screening(row, key_prefix):
     except (TypeError, ValueError):
         bsf = None
     if bsf is not None and not pd.isna(bsf):
-        cols_row[5].markdown(f"<div style='{_score_bg('Bottom', bsf)};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{int(bsf)}</div>", unsafe_allow_html=True)
+        cols_row[5].markdown(_bottom_div(bsf), unsafe_allow_html=True)
     else:
-        cols_row[5].markdown("—")
+        cols_row[5].markdown('<div class="cell-muted">—</div>', unsafe_allow_html=True)
 
-    cols_row[6].markdown(f"<div style='font-size:11px;max-height:40px;overflow:hidden;'>{html.escape(str(row.get('Bottom Dettagli', '—')))}</div>", unsafe_allow_html=True)
-    cols_row[7].markdown(str(row.get("POC più vicino", "—")))
-    cols_row[8].markdown(str(row.get("Distanza POC (%)", "—")))
+    # SEGNALE COMPLETO, senza troncamenti
+    cols_row[6].markdown(f'<div class="det-full">{html.escape(str(row.get("Bottom Dettagli", "—")))}</div>', unsafe_allow_html=True)
+    cols_row[7].markdown(f'<div class="cell-num">{html.escape(str(row.get("POC più vicino", "—")))}</div>', unsafe_allow_html=True)
+    cols_row[8].markdown(f'<div class="cell-num">{html.escape(str(row.get("Distanza POC (%)", "—")))}</div>', unsafe_allow_html=True)
 
     vwap_val = row.get("VWAP vicino")
     try:
@@ -967,27 +819,27 @@ def render_riga_screening(row, key_prefix):
         vwap_f = 0.0
     if vwap_f and vwap_f > 0:
         tf = str(row.get("_vwap_tf", ""))
-        cols_row[9].markdown(f"{vwap_f:.2f}<span style='font-size:9px;color:#64748b;'>{html.escape(tf)}</span>", unsafe_allow_html=True)
+        cols_row[9].markdown(f'<div class="cell-num">{vwap_f:.2f}<span style="font-size:10px;color:var(--txt3);"> {html.escape(tf)}</span></div>', unsafe_allow_html=True)
     else:
-        cols_row[9].markdown("—")
+        cols_row[9].markdown('<div class="cell-muted">—</div>', unsafe_allow_html=True)
 
-    cols_row[10].markdown(str(row.get("Distanza VWAP (%)", "—")))
+    cols_row[10].markdown(f'<div class="cell-num">{html.escape(str(row.get("Distanza VWAP (%)", "—")))}</div>', unsafe_allow_html=True)
     cols_row[11].markdown(_alert_cell(row.get("🎯 Alert", ""), row), unsafe_allow_html=True)
-    cols_row[12].markdown(_fmt2(row.get("Market Cap (B)")))
+    cols_row[12].markdown(f'<div class="cell-num">{_fmt2(row.get("Market Cap (B)"))}</div>', unsafe_allow_html=True)
     cols_row[13].markdown(_entry_cell(row.get("Entry Mode")), unsafe_allow_html=True)
     cols_row[14].markdown(_stato_cell(row.get("Stato")), unsafe_allow_html=True)
 
     tw_url = str(row.get("Grafico TW", ""))
     if tw_url and tw_url != "nan":
-        cols_row[15].markdown(f"<a href='{html.escape(tw_url, quote=True)}' target='_blank' style='text-decoration:none;font-size:16px;'>📈</a>", unsafe_allow_html=True)
+        cols_row[15].markdown(f"<a href='{html.escape(tw_url, quote=True)}' target='_blank' style='text-decoration:none;font-size:17px;'>📈</a>", unsafe_allow_html=True)
     else:
-        cols_row[15].markdown("—")
+        cols_row[15].markdown('<div class="cell-muted">—</div>', unsafe_allow_html=True)
 
 
 def render_tabella_nativa(df, key_prefix, df_total):
     cols_header = st.columns(_COL_WIDTHS)
     for col, label in zip(cols_header, _HEADER_LABELS):
-        col.markdown(f"**{label}**")
+        col.markdown(f'<div class="hdr">{label}</div>', unsafe_allow_html=True)
     for _, row in df.iterrows():
         ticker = str(row["Ticker"])
         render_riga_screening(row, key_prefix)
