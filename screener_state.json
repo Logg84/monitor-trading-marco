@@ -1082,5 +1082,13 @@
     "SDF.DE": {
         "status": "Active",
         "indice": "DAX (Germania)"
+    },
+    "JKHY": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "PGR": {
+        "status": "Active",
+        "indice": "S&P 500"
     }
 }
