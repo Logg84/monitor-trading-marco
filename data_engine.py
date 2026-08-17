@@ -12,14 +12,15 @@ import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # === MANOPOLE "POC OPERATIVO" (ritoccale qui) ===
-MAX_POC_DIST_PCT = 50.0
-MIN_POC_WEIGHT_NORM = 5.0
-POC_MERGE_PCT = 2.5
+MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un relitto: ignorato
+MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
+POC_MERGE_PCT = 2.5         # POC della watchlist entro questa % l'uno dall'altro vengono accorpati
 
 # === MANOPOLE ZONE POC (aree, non punti) ===
-ZONE_MIN_PCT = 0.60
-LVN_FLOOR_PCT = 0.15
-USE_LVN_EDGE = True
+ZONE_MIN_PCT = 0.60         # bin adiacenti >= 60% del volume del POC -> zona
+LVN_FLOOR_PCT = 0.15        # floor assoluto rispetto al max del profilo
+USE_LVN_EDGE = True         # ferma l'estensione al LVN
+MANUAL_POC_ZONE_PCT = 1.0   # semi-ampiezza % della zona derivata per POC inseriti come punto (manuali/legacy)
 
 # === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
 BARS_PER_YEAR = 252
@@ -34,6 +35,24 @@ WIN_MOM = 5
 # === NUMERO DI POC PORTATI IN WATCHLIST ===
 N_POC_WATCHLIST = 3
 
+
+def zona_poc_effettiva(poc, low, high, manual_pct=MANUAL_POC_ZONE_PCT):
+    """
+    Concetto unico: un POC è SEMPRE una zona.
+    - se low/high presenti e validi -> la zona è quella (POC auto)
+    - se il POC è un punto (manuale/legacy) -> zona derivata ±manual_pct%
+    Ritorna (low, high). Se POC assente -> (0.0, 0.0).
+    """
+    p = float(poc or 0)
+    if p <= 0:
+        return 0.0, 0.0
+    lo = float(low or 0)
+    hi = float(high or 0)
+    if lo > 0 and hi > 0:
+        return lo, hi
+    return round(p * (1 - manual_pct / 100.0), 4), round(p * (1 + manual_pct / 100.0), 4)
+
+
 NASDAQ100_STATIC = [
     "AAPL", "ADBE", "ADI", "ADSK", "ADP", "ABNB", "ALNY", "AMAT", "AMD", "AMGN",
     "AMZN", "ANSS", "AEP", "APP", "ASML", "AVGO", "AXON", "BKR", "BIIB", "BKNG",
@@ -47,6 +66,7 @@ NASDAQ100_STATIC = [
     "TMUS", "TSLA", "TXN", "TRI", "VRTX", "WBD", "WDC", "WDAY", "XEL", "ZS",
 ]
 
+# === DAX 40 STATICO (riserva: integra Wikipedia se parziale) ===
 DAX40_STATIC = [
     "ADS", "AIR", "ALV", "BAS", "BAYN", "BEI", "BNR", "BMW", "CBK", "CON",
     "COV", "DB1", "DBK", "DHL", "DTE", "DTG", "EOAN", "FME", "FRE", "HEI",
@@ -1169,14 +1189,8 @@ class DataEngine:
     # MOTORE MULTI-INDICE (usato dal cron — UN solo download prezzi per tutti gli indici)
     # ===============================
     def perform_screening_multi(self, indici, min_market_cap, soglia_drawdown, soglia_poc_pct):
-        """
-        Screening di più indici in un'unica passata.
-        Ritorna dict {indice: (final_list, spostamenti_rilevati)}.
-        Risparmio vs chiamate singole: 1 download prezzi invece di N.
-        """
         self.add_debug(f"🚀 Screening MULTI-INDICE su {len(indici)} indici...", "info")
 
-        # 1. Raccogli ticker per ogni indice + set globale deduplicato
         tickers_per_indice = {}
         global_set = set()
         problematic_tickers = ["INWH", "MRSH", "INW", "INVH", "MRNA", "REGN", "SPOT"]
@@ -1205,7 +1219,6 @@ class DataEngine:
         global_tickers = sorted(global_set)
         self.add_debug(f"[multi] Totale ticker unici da scaricare: {len(global_tickers)}", "success")
 
-        # 2. UN solo download prezzi per tutti i ticker
         if not global_tickers:
             return {idx: ([], []) for idx in indici}
 
@@ -1213,7 +1226,6 @@ class DataEngine:
         if df_batch.empty:
             self.add_debug("[multi] Batch prezzi vuoto — proseguo con cache storica.", "warning")
 
-        # 3. Per ogni indice: filtra candidati, fondamentali, POC/VWAP, Entry Mode
         results = {}
         macro_info = self.ottieni_bussola_argo()
         argo_bussola = macro_info["bussola"]
