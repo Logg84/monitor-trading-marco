@@ -184,16 +184,16 @@ def main():
     tot = {"aggiunti": 0, "aggiornati": 0, "vwappati": 0, "rimossi": 0, "in_zona": 0, "legacy": 0}
     ticker_globali = set()
 
+    # --- Chiamata MULTI-INDICE: UN solo download prezzi per tutti i 5 indici ---
+    results_multi = engine.perform_screening_multi(
+        INDICI, MIN_MARKET_CAP, SOGLIA_DRAWDOWN, SOGLIA_POC_PCT
+    )
+
     for idx in INDICI:
-        print(f"--- Screening: {idx} ---")
-        try:
-            result, spost = engine.perform_screening(idx, MIN_MARKET_CAP, SOGLIA_DRAWDOWN, SOGLIA_POC_PCT)
-        except Exception as e:
-            print(f"ERRORE screening {idx}: {e}")
-            continue
+        result, spost = results_multi.get(idx, ([], []))
         df_scr = pd.DataFrame(result) if result else pd.DataFrame()
         n_trovati = len(df_scr) if not df_scr.empty else 0
-        print(f"    titoli in sconto: {n_trovati}")
+        print(f"    [{idx}] titoli in sconto: {n_trovati}")
         ticker_corr = set(str(t).strip().upper() for t in df_scr["Ticker"]) if (not df_scr.empty and "Ticker" in df_scr.columns) else set()
         ticker_globali |= ticker_corr
 
@@ -203,7 +203,7 @@ def main():
         for k in ("aggiunti", "aggiornati", "vwappati", "in_zona"):
             tot[k] += stats.get(k, 0)
         tot["rimossi"] += zomb
-        print(f"    reconcile: +{stats['aggiunti']} agg={stats['aggiornati']} vwappati={stats['vwappati']} | in_zona={stats['in_zona']} zombie={zomb}")
+        print(f"    [{idx}] reconcile: +{stats['aggiunti']} agg={stats['aggiornati']} vwappati={stats['vwappati']} | in_zona={stats['in_zona']} zombie={zomb}")
 
     df_wl, leg = legacy_cleanup(df_wl, ticker_globali)
     tot["legacy"] = leg
