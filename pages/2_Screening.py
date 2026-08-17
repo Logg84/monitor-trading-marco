@@ -129,6 +129,12 @@ div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding:
 .argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
 .argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
+
+.decel-inline {
+    border: 1px solid #1e3a5f; border-left: 4px solid #38bdf8;
+    background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(10,15,26,.9));
+    border-radius: 10px; padding: 12px 14px; margin: 6px 0 10px 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -770,6 +776,19 @@ def _apply_sort(df, col, asc):
 # ---------------------------------------------------------------
 # GRAFICO DECELERAZIONE
 # ---------------------------------------------------------------
+@st.cache_data(ttl=600)
+def get_hist_for_ticker(ticker):
+    try:
+        hist = yf.download(ticker, period="10y", interval="1d", progress=False)
+        if hist.empty:
+            return None
+        if isinstance(hist.columns, pd.MultiIndex):
+            hist.columns = hist.columns.droplevel(-1)
+        return hist
+    except Exception:
+        return None
+
+
 def grafico_decelerazione(hist, ticker):
     if hist is None or len(hist) < 30:
         return None
@@ -822,6 +841,75 @@ def interpreta_bottom_score(score, dettagli):
         return {"semaforo": "🟡", "titolo": "ESAURIMENTO VENDITA", "colore": "#eab308", "operazione": "⏳ Pazienza. La discesa sta rallentando, ma non ci sono ancora segnali di acquisto attivi."}
     else:
         return {"semaforo": "🔴", "titolo": "NESSUNA INVERSIONE", "colore": "#ef4444", "operazione": "🚫 Non entrare. Il titolo non mostra ancora segnali di inversione. La discesa potrebbe continuare."}
+
+
+# ---------------------------------------------------------------
+# ANALISI INLINE (riga che si allarga)
+# ---------------------------------------------------------------
+def render_analisi_decelerazione(ticker, df_total, key_prefix):
+    rows = df_total[df_total["Ticker"] == ticker]
+    if rows.empty:
+        return
+    row = rows.iloc[0]
+
+    st.markdown('<div class="decel-inline">', unsafe_allow_html=True)
+
+    c_top, c_spacer = st.columns([1, 6])
+    with c_top:
+        if st.button("✖ Chiudi analisi", key=f"decel_close_{key_prefix}"):
+            st.session_state["decel_ticker"] = None
+            st.rerun()
+
+    hist = get_hist_for_ticker(ticker)
+    if hist is None or hist.empty:
+        st.warning(f"Impossibile scaricare i dati storici per {ticker}.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    fig_decel = grafico_decelerazione(hist, ticker)
+    if not fig_decel:
+        st.warning("Dati insufficienti per generare il grafico.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    st.plotly_chart(fig_decel, use_container_width=True)
+
+    raw_bs = row.get('Bottom Score (0-4)', 0)
+    try:
+        bottom_score = int(float(str(raw_bs)))
+    except (ValueError, TypeError):
+        bottom_score = 0
+    bottom_dettagli = str(row.get('Bottom Dettagli', 'Nessun segnale'))
+    dd_val = row.get('Drawdown (%)', 'N/D')
+    health_val = row.get('Health', 'N/D')
+    interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
+    score_pct = min(int((bottom_score / 4) * 100), 100)
+    thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
+    bar_segments = []
+    for thr, col, lbl in thresholds:
+        filled = score_pct >= thr
+        bg = col if filled else '#1e293b'; bord = col if filled else '#334155'; tcol = col if filled else '#94a3b8'
+        bar_segments.append('<div style="flex:1;text-align:center;"><div style="height:12px;background:' + bg + ';border-radius:3px;border:1px solid ' + bord + ';margin:0 2px;"></div><div style="font-size:9px;color:' + tcol + ';margin-top:3px;line-height:1.2;">' + lbl + '</div></div>')
+    bar_html = ''.join(bar_segments)
+    col_border = interpretazione['colore']; semaforo = interpretazione['semaforo']; titolo = interpretazione['titolo']; operazione = interpretazione['operazione']; score_color = interpretazione['colore']
+    card_html = ('<div style="background-color:#0f172a;border-left:5px solid ' + col_border + ';padding:14px 16px;border-radius:8px;margin-top:10px;">'
+        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div style="font-size:26px;">' + semaforo + '</div>'
+        '<div style="flex:1;"><div style="font-size:15px;font-weight:700;color:' + score_color + ';">' + titolo + '</div>'
+        '<div style="font-size:12px;color:#f8fafc;margin-top:2px;">' + operazione + '</div></div>'
+        '<div style="background:#1e293b;padding:6px 14px;border-radius:10px;text-align:center;min-width:72px;"><div style="color:#94a3b8;font-size:10px;text-transform:uppercase;">Score</div>'
+        '<div style="color:' + score_color + ';font-weight:800;font-size:22px;line-height:1.1;">' + str(bottom_score) + '<span style="font-size:13px;color:#64748b;">/4</span></div></div></div></div>'
+        '<div style="margin-bottom:6px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
+        '<div style="display:flex;gap:0;">' + bar_html + '</div></div>'
+        '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + html.escape(bottom_dettagli) + '</div>'
+        '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
+    st.markdown(card_html, unsafe_allow_html=True)
+    legenda_html = ('<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:11px;color:#94a3b8;">'
+        '<b style="color:#e2e8f0;">📖 Come leggere i pannelli:</b><br>'
+        '<b style="color:#e2e8f0;">① Prezzo &amp; POC</b> — Sfondo verde = la discesa rallenta; rosso = prosegue. ▲ verde = crossover velocità. Linee POC: <span style="color:#ef4444;">■ rosso = strutturale</span>, <span style="color:#f97316;">■ arancio = medio</span>, <span style="color:#64748b;">■ grigio = minore</span>.<br>'
+        '<b style="color:#e2e8f0;">② Velocità di Discesa</b> — linea viola sopra lo zero e fuori dalla zona gialla ⚡ = decelerazione confermata.</div>')
+    st.markdown(legenda_html, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------
@@ -896,12 +984,15 @@ def render_riga_screening(row, key_prefix):
         cols_row[15].markdown("—")
 
 
-def render_tabella_nativa(df, key_prefix):
+def render_tabella_nativa(df, key_prefix, df_total):
     cols_header = st.columns(_COL_WIDTHS)
     for col, label in zip(cols_header, _HEADER_LABELS):
         col.markdown(f"**{label}**")
     for _, row in df.iterrows():
+        ticker = str(row["Ticker"])
         render_riga_screening(row, key_prefix)
+        if st.session_state.get("decel_ticker") == ticker:
+            render_analisi_decelerazione(ticker, df_total, key_prefix)
 
 
 # ---------------------------------------------------------------
@@ -963,7 +1054,7 @@ if has_data_to_show:
         if not df_attivi.empty:
             scol, sasc = render_sort_bar("sconto", "Bottom")
             df_attivi = _apply_sort(df_attivi, scol, sasc)
-            render_tabella_nativa(df_attivi, "tkbtn_s")
+            render_tabella_nativa(df_attivi, "tkbtn_s", df_total)
         else:
             st.info("💡 Nessun titolo in forte sconto trovato.")
 
@@ -973,80 +1064,10 @@ if has_data_to_show:
         if not df_poc.empty:
             pcol, pasc = render_sort_bar("poc", "dPOC%")
             df_poc = _apply_sort(df_poc, pcol, pasc)
-            render_tabella_nativa(df_poc, "tkbtn_p")
+            render_tabella_nativa(df_poc, "tkbtn_p", df_total)
         else:
             st.info("💡 Nessun titolo attualmente in zona POC / VWAP.")
 
     st.markdown("---")
-
-    # ---------------------------------------------------------------
-    # GRAFICO DECELERAZIONE (sotto le tabelle, attivato dal click sul ticker in tabella)
-    # ---------------------------------------------------------------
-    _sel = st.session_state.get("decel_ticker")
-    if _sel and _sel in set(str(t) for t in df_total["Ticker"]):
-        st.subheader(f"📉 Analisi di Decelerazione: {_sel}")
-
-        c_top, c_spacer = st.columns([1, 6])
-        with c_top:
-            if st.button("✖ Chiudi analisi", key="decel_close"):
-                st.session_state["decel_ticker"] = None
-                st.rerun()
-
-        @st.cache_data(ttl=600)
-        def get_hist_for_ticker(ticker):
-            try:
-                hist = yf.download(ticker, period="10y", interval="1d", progress=False)
-                if hist.empty:
-                    return None
-                if isinstance(hist.columns, pd.MultiIndex):
-                    hist.columns = hist.columns.droplevel(-1)
-                return hist
-            except Exception:
-                return None
-
-        hist = get_hist_for_ticker(_sel)
-        if hist is not None and not hist.empty:
-            fig_decel = grafico_decelerazione(hist, _sel)
-            if fig_decel:
-                st.plotly_chart(fig_decel, use_container_width=True)
-                row = df_total[df_total["Ticker"] == _sel].iloc[0]
-                raw_bs = row.get('Bottom Score (0-4)', 0)
-                try:
-                    bottom_score = int(float(str(raw_bs)))
-                except (ValueError, TypeError):
-                    bottom_score = 0
-                bottom_dettagli = str(row.get('Bottom Dettagli', 'Nessun segnale'))
-                dd_val = row.get('Drawdown (%)', 'N/D')
-                health_val = row.get('Health', 'N/D')
-                interpretazione = interpreta_bottom_score(bottom_score, bottom_dettagli)
-                score_pct = min(int((bottom_score / 4) * 100), 100)
-                thresholds = [(25, '#ef4444', '🔴 Nessuna inversione'), (50, '#f97316', '🟠 Esaurimento vendita'), (75, '#eab308', '🟡 Segnali iniziali'), (100, '#22c55e', '🟢 Pronto a invertire')]
-                bar_segments = []
-                for thr, col, lbl in thresholds:
-                    filled = score_pct >= thr
-                    bg = col if filled else '#1e293b'; bord = col if filled else '#334155'; tcol = col if filled else '#94a3b8'
-                    bar_segments.append('<div style="flex:1;text-align:center;"><div style="height:12px;background:' + bg + ';border-radius:3px;border:1px solid ' + bord + ';margin:0 2px;"></div><div style="font-size:9px;color:' + tcol + ';margin-top:3px;line-height:1.2;">' + lbl + '</div></div>')
-                bar_html = ''.join(bar_segments)
-                col_border = interpretazione['colore']; semaforo = interpretazione['semaforo']; titolo = interpretazione['titolo']; operazione = interpretazione['operazione']; score_color = interpretazione['colore']
-                card_html = ('<div style="background-color:#0f172a;border-left:5px solid ' + col_border + ';padding:14px 16px;border-radius:8px;margin-top:10px;">'
-                    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div style="font-size:26px;">' + semaforo + '</div>'
-                    '<div style="flex:1;"><div style="font-size:15px;font-weight:700;color:' + score_color + ';">' + titolo + '</div>'
-                    '<div style="font-size:12px;color:#f8fafc;margin-top:2px;">' + operazione + '</div></div>'
-                    '<div style="background:#1e293b;padding:6px 14px;border-radius:10px;text-align:center;min-width:72px;"><div style="color:#94a3b8;font-size:10px;text-transform:uppercase;">Score</div>'
-                    '<div style="color:' + score_color + ';font-weight:800;font-size:22px;line-height:1.1;">' + str(bottom_score) + '<span style="font-size:13px;color:#64748b;">/4</span></div></div></div></div>'
-                    '<div style="margin-bottom:6px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Termometro di inversione</div>'
-                    '<div style="display:flex;gap:0;">' + bar_html + '</div></div>'
-                    '<div style="margin-top:10px;font-size:11px;color:#94a3b8;border-top:1px solid #1e293b;padding-top:8px;">🔍 <b>Segnali attivi:</b> ' + html.escape(bottom_dettagli) + '</div>'
-                    '<div style="font-size:11px;color:#64748b;margin-top:3px;">📊 Drawdown: ' + str(dd_val) + '% &nbsp;|&nbsp; Health: ' + str(health_val) + '</div></div>')
-                st.markdown(card_html, unsafe_allow_html=True)
-                legenda_html = ('<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:11px;color:#94a3b8;">'
-                    '<b style="color:#e2e8f0;">📖 Come leggere i pannelli:</b><br>'
-                    '<b style="color:#e2e8f0;">① Prezzo &amp; POC</b> — Sfondo verde = la discesa rallenta; rosso = prosegue. ▲ verde = crossover velocità. Linee POC: <span style="color:#ef4444;">■ rosso = strutturale</span>, <span style="color:#f97316;">■ arancio = medio</span>, <span style="color:#64748b;">■ grigio = minore</span>.<br>'
-                    '<b style="color:#e2e8f0;">② Velocità di Discesa</b> — linea viola sopra lo zero e fuori dalla zona gialla ⚡ = decelerazione confermata.</div>')
-                st.markdown(legenda_html, unsafe_allow_html=True)
-            else:
-                st.warning("Dati insufficienti per generare il grafico.")
-        else:
-            st.warning(f"Impossibile scaricare i dati storici per {_sel}.")
 else:
     st.info(f"📊 Nessun dato disponibile per '{indice_scelto}'. Il run automatico delle 21:30 UTC popola questa tabella; premi 'AVVIA SCREENING QUALITY (v2)' per un giro manuale immediato.")
