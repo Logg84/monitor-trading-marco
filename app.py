@@ -11,6 +11,7 @@ import yfinance as yf
 from PIL import Image
 import base64
 from nav import render_navbar, section_header
+from theme import get_theme
 
 MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
 
@@ -28,142 +29,136 @@ MODEL_NAME = "qwen/qwen3.6-27b"
 
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
+TH = get_theme()
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-:root {
-  --bg-base: #0a0f1a;
-  --bg-panel: #0f172a;
-  --bg-panel-2: #111827;
-  --bg-hover: rgba(56, 189, 248, 0.08);
-  --border: #1e293b;
-  --border-strong: #334155;
-  --txt-1: #f8fafc;
-  --txt-2: #cbd5e1;
-  --txt-3: #94a3b8;
-  --txt-muted: #64748b;
-  --accent: #38bdf8;
-  --green: #22c55e;
-  --yellow: #f59e0b;
-  --red: #ef4444;
-  --violet: #a78bfa;
-  --cyan: #06b6d4;
-}
-
-html, body, [class*="css"] {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: var(--bg-base);
-  color: var(--txt-2);
-}
+html, body { font-family: 'Inter', system-ui, sans-serif; }
 
 .block-container { padding: 1.5rem 1.5rem 2rem 1.5rem; max-width: 100%; }
 
-h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif; color: var(--txt-1); letter-spacing: -0.01em; }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-head, 'Inter'), sans-serif; color: var(--txt-1); letter-spacing: -0.01em; }
 
 h3 {
-  font-size: 1.1rem !important; font-weight: 700 !important;
-  color: var(--accent) !important; text-transform: uppercase;
-  letter-spacing: 0.08em !important; margin-top: 0.5rem !important;
+    font-size: 1.1rem !important; font-weight: 700 !important;
+    color: var(--accent) !important; text-transform: uppercase;
+    letter-spacing: 0.08em !important; margin-top: 0.5rem !important;
 }
 
 hr { margin: 1.5rem 0 !important; border-color: var(--border) !important; border-top-width: 1px !important; }
 
 .wl-badge {
-  font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
-  padding: 4px 11px; border-radius: 7px; display: inline-block;
-  border: 1px solid transparent; white-space: nowrap;
-  transition: transform .12s ease, box-shadow .15s ease;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 600;
+    padding: 4px 11px; border-radius: 7px; display: inline-block;
+    border: 1px solid transparent; white-space: nowrap;
+    transition: transform .12s ease, box-shadow .15s ease;
 }
 .wl-badge:hover { transform: translateY(-1px); }
-.wl-badge.l1 { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.35); }
-.wl-badge.l2 { color: #86efac; background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
-.wl-badge.l3 { color: #fca5a5; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
-.wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: #67e8f9; background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.35); }
-.wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: #c4b5fd; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); }
-.wl-badge.empty { color: var(--txt-muted); background: transparent; border: 1px dashed var(--border-strong); }
+.wl-badge.l1 { color: var(--fg-l1); background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.35); }
+.wl-badge.l2 { color: var(--fg-l2); background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
+.wl-badge.l3 { color: var(--fg-l3); background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
+.wl-badge.v1, .wl-badge.v2, .wl-badge.v3 { color: var(--fg-v); background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.35); }
+.wl-badge.p1, .wl-badge.p2, .wl-badge.p3 { color: var(--fg-p); background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); }
+.wl-badge.empty { color: var(--fg-empty); background: transparent; border: 1px dashed var(--border-strong); }
 
 .wl-header {
-  font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.1em; color: var(--txt-muted);
-  padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--txt-muted);
+    padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
 }
 
 div[data-testid="stButton"] button {
-  border: 1px solid var(--border-strong); background: var(--bg-panel); color: var(--txt-2);
-  border-radius: 7px; font-weight: 500; transition: all 0.15s ease;
+    border: 1px solid var(--border-strong); background: var(--bg-panel); color: var(--txt-2);
+    border-radius: 7px; font-weight: 500; transition: all 0.15s ease;
 }
 div[data-testid="stButton"] button:hover {
-  border-color: var(--accent); color: var(--accent); background: var(--bg-hover); transform: translateY(-1px);
+    border-color: var(--accent); color: var(--accent); background: var(--bg-hover); transform: translateY(-1px);
 }
 
 div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button {
-  color: var(--txt-1); font-family: 'IBM Plex Mono', monospace; font-weight: 700;
-  text-align: left; border: none; background: transparent; padding-left: 0; font-size: 0.92rem;
+    color: var(--txt-1); font-family: 'IBM Plex Mono', monospace; font-weight: 700;
+    text-align: left; border: none; background: transparent; padding-left: 0; font-size: 0.92rem;
 }
 div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] button:hover {
-  color: var(--accent); background: transparent; border: none;
+    color: var(--accent); background: transparent; border: none;
 }
 
 div[data-testid="stFileUploaderDropzone"] {
-  border: 1px dashed var(--border-strong); background: var(--bg-panel);
-  border-radius: 12px; padding: 1.5rem !important;
-  transition: border-color .15s ease, background .15s ease;
+    border: 1px dashed var(--border-strong); background: var(--bg-panel);
+    border-radius: 12px; padding: 1.5rem !important;
+    transition: border-color .15s ease, background .15s ease;
 }
 div[data-testid="stFileUploaderDropzone"]:hover { border-color: var(--accent); background: var(--bg-hover); }
 
 div[data-testid="stInput"] input, div[data-testid="stNumberInput"] input {
-  background: var(--bg-panel); border: 1px solid var(--border); color: var(--txt-1);
-  font-family: 'IBM Plex Mono', monospace; border-radius: 7px;
+    background: var(--bg-panel); border: 1px solid var(--border); color: var(--txt-1);
+    font-family: 'IBM Plex Mono', monospace; border-radius: 7px;
 }
 div[data-testid="stInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
-  border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
+    border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
 }
 
 .wl-card {
-  background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-panel-2) 100%);
-  border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
-  margin-bottom: 12px; box-shadow: 0 4px 20px -10px rgba(0,0,0,.5);
+    background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-panel-2) 100%);
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+    margin-bottom: 12px; box-shadow: 0 4px 20px -10px rgba(0,0,0,.15);
 }
 .wl-card-head {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
 }
 
 .wl-price {
-  font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 0.95rem;
-  color: var(--txt-1); padding: 3px 8px; background: rgba(56,189,248,0.08);
-  border-radius: 6px; display: inline-block;
+    font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 0.95rem;
+    color: var(--txt-1); padding: 3px 8px; background: rgba(56,189,248,0.08);
+    border-radius: 6px; display: inline-block;
 }
 
 .wl-origin {
-  display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700;
-  letter-spacing: 0.05em; padding: 2px 7px; border-radius: 999px; margin-left: 4px; vertical-align: middle;
+    display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700;
+    letter-spacing: 0.05em; padding: 2px 7px; border-radius: 999px; margin-left: 4px; vertical-align: middle;
 }
-.wl-origin.auto { color: #67e8f9; background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.35); }
-.wl-origin.man { color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.30); }
+.wl-origin.auto { color: var(--fg-v); background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.35); }
+.wl-origin.man { color: var(--fg-origin-man); background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.30); }
 
 .wl-ai-box {
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-  border: 1px solid #4c1d95; border-left: 4px solid var(--violet);
-  border-radius: 10px; padding: 12px 14px; margin: 10px 0; font-size: 12px; color: #e0e7ff;
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+    border: 1px solid #4c1d95; border-left: 4px solid var(--violet, #a78bfa);
+    border-radius: 10px; padding: 12px 14px; margin: 10px 0; font-size: 12px; color: #e0e7ff;
 }
 .wl-ai-box b { color: #c4b5fd; }
 
 .wl-chart-head {
-  display: flex; align-items: center; gap: 12px; padding: 8px 14px;
-  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px;
 }
 .wl-chart-ticker {
-  font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 800;
-  color: var(--txt-1); letter-spacing: -0.02em;
+    font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 800;
+    color: var(--txt-1); letter-spacing: -0.02em;
 }
 .wl-chart-label {
-  font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--txt-muted);
-  text-transform: uppercase; letter-spacing: .1em;
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--txt-muted);
+    text-transform: uppercase; letter-spacing: .1em;
 }
 
 div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# Variabili foreground tema-dipendenti (contrasto badge/origini in chiaro e scuro)
+st.markdown(f"""
+<style>
+:root {{
+  --fg-l1: {TH['pills']['amber'][1]};
+  --fg-l2: {TH['pills']['green'][1]};
+  --fg-l3: {TH['pills']['red'][1]};
+  --fg-v: {TH['pills']['cyan'][1]};
+  --fg-p: {TH['pills']['violet'][1]};
+  --fg-empty: {TH['muted']};
+  --fg-origin-man: {TH['txt3']};
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -227,7 +222,6 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
             ],
         },
     ]
-
     modelli = ["qwen/qwen3.6-27b"]
     response = None
     ultimo_err = None
@@ -435,7 +429,7 @@ def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="",
 st.markdown(
     '<div class="wl-card">'
     '<div class="wl-card-head">🤖 Automazione watchlist</div>'
-    '<div style="font-size:12.5px;line-height:1.55;color:#cbd5e1">'
+    '<div style="font-size:12.5px;line-height:1.55;color:var(--txt-2)">'
     'I titoli dello <b>screener</b> che toccano un POC o un VWAP entrano <b>da soli</b> nella watchlist '
     'con origine <span class="wl-origin auto">🤖 AUTO</span> e vengono rimossi quando escono dalla zona. '
     'I titoli che inserisci o modifichi a mano qui hanno origine <span class="wl-origin man">👤 MAN</span> '
@@ -522,7 +516,7 @@ with col_result:
                 st.rerun()
     else:
         st.markdown(
-            '<div class="wl-card" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:#64748b;text-align:center">'
+            '<div class="wl-card" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--txt-muted);text-align:center">'
             '<div><div style="font-size:36px;opacity:.5">📸</div>'
             '<div style="font-size:12px;margin-top:8px">Carica uno screenshot a sinistra<br>per estrarre ticker, livelli e VWAP</div>'
             '</div></div>',
@@ -752,7 +746,7 @@ else:
             if prezzo_riga is not None:
                 c[10].markdown(f'<span class="wl-price">{prezzo_riga:.2f}</span>', unsafe_allow_html=True)
             else:
-                c[10].markdown('<span style="color:#4a5568;">—</span>', unsafe_allow_html=True)
+                c[10].markdown('<span style="color:var(--txt-muted);">—</span>', unsafe_allow_html=True)
 
             ticker_td_riga = mappa_ticker_twelvedata(ticker_riga)
             tv_symbol = ticker_td_riga.replace('/', '')
@@ -802,7 +796,7 @@ else:
             st.caption(f"💾 Spazio repo: {dim_mb:.0f} MB / ~1000 MB")
 
     # ================================================================
-    # GRAFICO TICKER SELEZIONATO
+    # GRAFICO TICKER SELEZIONATO (colori tema-aware)
     # ================================================================
     if "ticker_grafico" not in st.session_state or st.session_state["ticker_grafico"] not in df["Ticker"].values:
         st.session_state["ticker_grafico"] = df["Ticker"].iloc[0]
@@ -845,42 +839,47 @@ else:
              "open": round(r["Open"], 4), "high": round(r["High"], 4), "low": round(r["Low"], 4), "close": round(r["Close"], 4)}
             for idx, r in storico.iterrows()
         ]
+        # Colori linee tema-aware
+        c_l1, c_l2, c_l3 = TH["chart"]["poc_mid"], TH["chart"]["up"], TH["chart"]["down"]
+        c_vw = TH["accent"]
+        c_poc = TH["pills"]["violet"][1]
+        c_up, c_down = TH["chart"]["up"], TH["chart"]["down"]
         linee_livelli_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {liv}, color: "{["#fbbf24", "#86efac", "#fca5a5"][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
+            f'candleSeries.createPriceLine({{price: {liv}, color: "{[c_l1, c_l2, c_l3][i % 3]}", lineWidth: 2, lineStyle: 0, title: "L{i+1}: {liv}"}});'
             for i, liv in enumerate(livelli))
         linee_vwap_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {v}, color: "#67e8f9", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
+            f'candleSeries.createPriceLine({{price: {v}, color: "{c_vw}", lineWidth: 2, lineStyle: 2, title: "V{i+1}: {v}"}});'
             for i, v in enumerate(vwap))
         linee_poc_js = "\n".join(
-            f'candleSeries.createPriceLine({{price: {p}, color: "#c4b5fd", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
+            f'candleSeries.createPriceLine({{price: {p}, color: "{c_poc}", lineWidth: 2, lineStyle: 2, title: "POC{i+1}: {p}"}});'
             for i, p in enumerate(poc_liv))
 
         chart_html = f"""
-        <div id="chart_container" style="width:100%; height:600px; border:1px solid #1e293b; border-radius:10px; overflow:hidden;"></div>
+        <div id="chart_container" style="width:100%; height:600px; border:1px solid {TH['border']}; border-radius:10px; overflow:hidden;"></div>
         <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
         <script>
           const container = document.getElementById('chart_container');
           const chart = LightweightCharts.createChart(container, {{
             width: container.clientWidth, height: 600,
             layout: {{
-              background: {{ type: 'solid', color: '#0a0f1a' }},
-              textColor: '#cbd5e1',
+              background: {{ type: 'solid', color: '{TH['bg_panel']}' }},
+              textColor: '{TH['txt2']}',
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: 11,
             }},
-            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }}, horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
-            timeScale: {{ borderColor: '#334155', timeVisible: {str(usa_timestamp).lower()} }},
-            rightPriceScale: {{ borderColor: '#334155' }},
+            grid: {{ vertLines: {{ color: '{TH['chart']['grid']}' }}, horzLines: {{ color: '{TH['chart']['grid']}' }} }},
+            timeScale: {{ borderColor: '{TH['border_strong']}', timeVisible: {str(usa_timestamp).lower()} }},
+            rightPriceScale: {{ borderColor: '{TH['border_strong']}' }},
             crosshair: {{
               mode: 1,
-              vertLine: {{ color: '#38bdf8', width: 1, style: 2 }},
-              horzLine: {{ color: '#38bdf8', width: 1, style: 2 }},
+              vertLine: {{ color: '{TH['accent']}', width: 1, style: 2 }},
+              horzLine: {{ color: '{TH['accent']}', width: 1, style: 2 }},
             }},
           }});
           const candleSeries = chart.addCandlestickSeries({{
-            upColor: '#22c55e', downColor: '#ef4444',
+            upColor: '{c_up}', downColor: '{c_down}',
             borderVisible: false,
-            wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+            wickUpColor: '{c_up}', wickDownColor: '{c_down}',
           }});
           candleSeries.setData({_json.dumps(candele)});
           {linee_livelli_js}
