@@ -87,13 +87,7 @@ section[data-testid="stSidebar"] > div { width: 250px !important; }
 .argo-report .ar-tag.ar-tag-more { color: #7c8aa3; border-color: #243049; }
 
 .sk-cap { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin: 2px 0 6px 0; }
-div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
-
-/* chip ticker analisi */
-.decel-chips div[data-testid="stButton"] button {
-    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600;
-    padding: 4px 2px; border-radius: 7px;
-}
+div[data-testid="stVerticalBlock"] div[data-testid="stButton"] button { padding: 5px 4px !important; font-size: 11px !important; font-family: 'IBM Plex Mono', monospace !important; }
 
 .argo-tbl-wrap { max-height: 74vh; overflow: auto; border: 1px solid #1e293b; border-radius: 12px; background: #0a0f1a; box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
 .argo-tbl-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -135,6 +129,29 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] button { paddin
 .argo-tbl .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .argo-tbl a.tw { text-decoration: none; font-size: 14px; filter: grayscale(.2); transition: transform .12s ease, filter .12s ease; display: inline-block; }
 .argo-tbl a.tw:hover { transform: scale(1.25); filter: none; }
+
+/* Stile per righe native screening */
+.screening-row {
+    display: grid;
+    grid-template-columns: 120px 80px 80px 70px 70px 70px 180px 100px 80px 90px 80px 80px 90px 140px 80px 40px;
+    gap: 4px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #141d2e;
+    align-items: center;
+    font-size: 12px;
+    transition: background .12s ease;
+}
+.screening-row:hover {
+    background: rgba(56,189,248,.08) !important;
+}
+.screening-row:nth-child(even) {
+    background: rgba(255,255,255,.018);
+}
+.screening-row > div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -888,7 +905,68 @@ if has_data_to_show:
         if not df_attivi.empty:
             scol, sasc = render_sort_bar("sconto", "Bottom")
             df_attivi = _apply_sort(df_attivi, scol, sasc)
-            st.markdown(_screening_table_html(df_attivi, ordine_colonne + ["Grafico TW"]), unsafe_allow_html=True)
+            
+            # Header tabella
+            cols_header = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
+            header_labels = ["Ticker", "Indice", "Prezzo", "DD%", "Health", "Bottom", "Segnali", "POC", "dPOC%", "VWAP", "dVWAP%", "🎯", "MCap", "Operazione", "Stato", "TW"]
+            for col, label in zip(cols_header, header_labels):
+                col.markdown(f"**{label}**", unsafe_allow_html=False)
+            
+            # Righe tabella con pulsanti ticker
+            for _, row in df_attivi.iterrows():
+                ticker = row["Ticker"]
+                is_selected = st.session_state.get("decel_ticker") == ticker
+                
+                cols_row = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
+                
+                # Colonna 1: Pulsante ticker cliccabile
+                btn_type = "primary" if is_selected else "secondary"
+                if cols_row[0].button(f"📊 {ticker}", key=f"ticker_btn_{ticker}_{_}", use_container_width=True, type=btn_type):
+                    if is_selected:
+                        st.session_state["decel_ticker"] = None
+                    else:
+                        st.session_state["decel_ticker"] = ticker
+                    st.rerun()
+                
+                # Altre colonne
+                cols_row[1].markdown(row.get("Indice", ""))
+                cols_row[2].markdown(f"{_fmt2(row.get('Prezzo'))}")
+                cols_row[3].markdown(f"{_fmt2(row.get('Drawdown (%)'))}%")
+                
+                health_score = row.get("Health_Score")
+                if pd.notna(health_score):
+                    cols_row[4].markdown(f"<div style='{_health_style(int(health_score))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{row.get('Health')}</div>", unsafe_allow_html=True)
+                else:
+                    cols_row[4].markdown("—")
+                
+                bs = row.get("Bottom Score (0-4)")
+                if pd.notna(bs):
+                    cols_row[5].markdown(f"<div style='{_score_bg('Bottom', float(bs))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{int(float(bs))}</div>", unsafe_allow_html=True)
+                else:
+                    cols_row[5].markdown("—")
+                
+                cols_row[6].markdown(f"<div style='font-size:11px;max-height:40px;overflow:hidden;'>{row.get('Bottom Dettagli', '—')}</div>", unsafe_allow_html=True)
+                cols_row[7].markdown(row.get("POC più vicino", "—"))
+                cols_row[8].markdown(row.get("Distanza POC (%)", "—"))
+                
+                vwap_val = row.get("VWAP vicino")
+                if pd.notna(vwap_val) and float(vwap_val) > 0:
+                    tf = row.get("_vwap_tf", "")
+                    cols_row[9].markdown(f"{float(vwap_val):.2f}<span style='font-size:9px;color:#64748b;'>{tf}</span>", unsafe_allow_html=True)
+                else:
+                    cols_row[9].markdown("—")
+                
+                cols_row[10].markdown(row.get("Distanza VWAP (%)", "—"))
+                cols_row[11].markdown(_alert_cell(row.get("🎯 Alert", ""), row), unsafe_allow_html=True)
+                cols_row[12].markdown(_fmt2(row.get("Market Cap (B)")))
+                cols_row[13].markdown(_entry_cell(row.get("Entry Mode")), unsafe_allow_html=True)
+                cols_row[14].markdown(_stato_cell(row.get("Stato")), unsafe_allow_html=True)
+                
+                tw_url = row.get("Grafico TW", "")
+                if tw_url:
+                    cols_row[15].markdown(f"<a href='{tw_url}' target='_blank' style='text-decoration:none;font-size:16px;'>📈</a>", unsafe_allow_html=True)
+                else:
+                    cols_row[15].markdown("—")
         else:
             st.info("💡 Nessun titolo in forte sconto trovato.")
 
@@ -898,41 +976,80 @@ if has_data_to_show:
         if not df_poc.empty:
             pcol, pasc = render_sort_bar("poc", "dPOC%")
             df_poc = _apply_sort(df_poc, pcol, pasc)
-            st.markdown(_screening_table_html(df_poc, ordine_colonne + ["Grafico TW"]), unsafe_allow_html=True)
+            
+            # Header tabella
+            cols_header = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
+            header_labels = ["Ticker", "Indice", "Prezzo", "DD%", "Health", "Bottom", "Segnali", "POC", "dPOC%", "VWAP", "dVWAP%", "🎯", "MCap", "Operazione", "Stato", "TW"]
+            for col, label in zip(cols_header, header_labels):
+                col.markdown(f"**{label}**", unsafe_allow_html=False)
+            
+            # Righe tabella con pulsanti ticker
+            for _, row in df_poc.iterrows():
+                ticker = row["Ticker"]
+                is_selected = st.session_state.get("decel_ticker") == ticker
+                
+                cols_row = st.columns([1.2, 0.8, 0.8, 0.7, 0.7, 0.7, 1.8, 1.0, 0.8, 0.9, 0.8, 0.8, 0.9, 1.4, 0.8, 0.4])
+                
+                # Colonna 1: Pulsante ticker cliccabile
+                btn_type = "primary" if is_selected else "secondary"
+                if cols_row[0].button(f"📊 {ticker}", key=f"ticker_btn_{ticker}_{_}", use_container_width=True, type=btn_type):
+                    if is_selected:
+                        st.session_state["decel_ticker"] = None
+                    else:
+                        st.session_state["decel_ticker"] = ticker
+                    st.rerun()
+                
+                # Altre colonne
+                cols_row[1].markdown(row.get("Indice", ""))
+                cols_row[2].markdown(f"{_fmt2(row.get('Prezzo'))}")
+                cols_row[3].markdown(f"{_fmt2(row.get('Drawdown (%)'))}%")
+                
+                health_score = row.get("Health_Score")
+                if pd.notna(health_score):
+                    cols_row[4].markdown(f"<div style='{_health_style(int(health_score))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{row.get('Health')}</div>", unsafe_allow_html=True)
+                else:
+                    cols_row[4].markdown("—")
+                
+                bs = row.get("Bottom Score (0-4)")
+                if pd.notna(bs):
+                    cols_row[5].markdown(f"<div style='{_score_bg('Bottom', float(bs))};padding:2px 8px;border-radius:4px;text-align:center;font-weight:700;'>{int(float(bs))}</div>", unsafe_allow_html=True)
+                else:
+                    cols_row[5].markdown("—")
+                
+                cols_row[6].markdown(f"<div style='font-size:11px;max-height:40px;overflow:hidden;'>{row.get('Bottom Dettagli', '—')}</div>", unsafe_allow_html=True)
+                cols_row[7].markdown(row.get("POC più vicino", "—"))
+                cols_row[8].markdown(row.get("Distanza POC (%)", "—"))
+                
+                vwap_val = row.get("VWAP vicino")
+                if pd.notna(vwap_val) and float(vwap_val) > 0:
+                    tf = row.get("_vwap_tf", "")
+                    cols_row[9].markdown(f"{float(vwap_val):.2f}<span style='font-size:9px;color:#64748b;'>{tf}</span>", unsafe_allow_html=True)
+                else:
+                    cols_row[9].markdown("—")
+                
+                cols_row[10].markdown(row.get("Distanza VWAP (%)", "—"))
+                cols_row[11].markdown(_alert_cell(row.get("🎯 Alert", ""), row), unsafe_allow_html=True)
+                cols_row[12].markdown(_fmt2(row.get("Market Cap (B)")))
+                cols_row[13].markdown(_entry_cell(row.get("Entry Mode")), unsafe_allow_html=True)
+                cols_row[14].markdown(_stato_cell(row.get("Stato")), unsafe_allow_html=True)
+                
+                tw_url = row.get("Grafico TW", "")
+                if tw_url:
+                    cols_row[15].markdown(f"<a href='{tw_url}' target='_blank' style='text-decoration:none;font-size:16px;'>📈</a>", unsafe_allow_html=True)
+                else:
+                    cols_row[15].markdown("—")
         else:
             st.info("💡 Nessun titolo attualmente in zona POC / VWAP.")
 
     st.markdown("---")
 
     # ---------------------------------------------------------------
-    # ANALISI DECELERAZIONE — chip ticker cliccabili (nativo, no reload)
+    # GRAFICO DECELERAZIONE (ora sotto le tabelle, attivato da click su ticker)
     # ---------------------------------------------------------------
-    st.subheader("📉 Analisi di Decelerazione")
-    ticker_list = sorted(str(t) for t in df_total["Ticker"].unique())
     _sel = st.session_state.get("decel_ticker")
-    if _sel not in ticker_list:
-        _sel = None
-
-    st.caption("🖱️ Clicca un ticker per aprire/chiudere il grafico. Nessun cambio pagina.")
-
-    clicked = None
-    per_row = 10
-    with st.container():
-        st.markdown('<div class="decel-chips">', unsafe_allow_html=True)
-        for i in range(0, len(ticker_list), per_row):
-            cols = st.columns(per_row, gap="small")
-            for j, tk in enumerate(ticker_list[i:i + per_row]):
-                if cols[j].button(tk, key=f"decel_chip_{tk}",
-                                  type="primary" if tk == _sel else "secondary",
-                                  use_container_width=True):
-                    clicked = tk
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    if clicked:
-        st.session_state["decel_ticker"] = clicked
-        st.rerun()
-
     if _sel:
+        st.subheader(f"📉 Analisi di Decelerazione: {_sel}")
+        
         c_top, c_spacer = st.columns([1, 6])
         with c_top:
             if st.button("✖ Chiudi analisi", key="decel_close"):
