@@ -12,14 +12,14 @@ import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # === MANOPOLE "POC OPERATIVO" (ritoccale qui) ===
-MAX_POC_DIST_PCT = 50.0     # oltre questa distanza dal prezzo, un POC è un relitto: ignorato
-MIN_POC_WEIGHT_NORM = 5.0   # l'alert SU POC scatta solo se il POC vicino ha peso >= questo
-POC_MERGE_PCT = 2.5         # POC della watchlist entro questa % l'uno dall'altro vengono accorpati
+MAX_POC_DIST_PCT = 50.0
+MIN_POC_WEIGHT_NORM = 5.0
+POC_MERGE_PCT = 2.5
 
 # === MANOPOLE ZONE POC (aree, non punti) ===
-ZONE_MIN_PCT = 0.60         # bin adiacenti >= 60% del volume del POC -> zona
-LVN_FLOOR_PCT = 0.15        # floor assoluto rispetto al max del profilo
-USE_LVN_EDGE = True         # ferma l'estensione al LVN
+ZONE_MIN_PCT = 0.60
+LVN_FLOOR_PCT = 0.15
+USE_LVN_EDGE = True
 
 # === FINESTRE TEMPORALI (in barre daily = giorni di trading) ===
 BARS_PER_YEAR = 252
@@ -47,7 +47,6 @@ NASDAQ100_STATIC = [
     "TMUS", "TSLA", "TXN", "TRI", "VRTX", "WBD", "WDC", "WDAY", "XEL", "ZS",
 ]
 
-# === DAX 40 STATICO (riserva: integra Wikipedia se parziale) ===
 DAX40_STATIC = [
     "ADS", "AIR", "ALV", "BAS", "BAYN", "BEI", "BNR", "BMW", "CBK", "CON",
     "COV", "DB1", "DBK", "DHL", "DTE", "DTG", "EOAN", "FME", "FRE", "HEI",
@@ -224,12 +223,6 @@ class DataEngine:
     # LETTURA LISTE INDICI DA GITHUB (fonte primaria mensile)
     # ===============================
     def _read_index_from_github(self, name, suffix=""):
-        """
-        Prova a leggere indices/{name}.csv da GitHub (URL raw pubblico, no token).
-        Ritorna lista di ticker normalizzati o None se fallisce.
-        I ticker provenienti da Wikipedia nel downloader sono già suffissati per
-        gli indici europei (.DE/.PA/.MI); se hanno già un punto, li conservo.
-        """
         repo = os.environ.get("GITHUB_REPO")
         if not repo:
             return None
@@ -250,7 +243,6 @@ class DataEngine:
                 tickers = [t if "." in t else t + suffix for t in raw]
             else:
                 tickers = raw
-            # Info di freshness (informativo: uso anche se >35gg, il workflow mensile lo aggiorna)
             source_label = "GitHub"
             fetched_label = "?"
             if "fetched_at" in df.columns:
@@ -262,7 +254,7 @@ class DataEngine:
                         age_days = (datetime.datetime.now() - dt).days
                         source_label += f" ({age_days}gg fa)"
                         if age_days > 40:
-                            self.add_debug(f"[indices] {name}: lista GitHub obsoleta ({age_days}gg), attendere cron mensile.", "warning")
+                            self.add_debug(f"[indices] {name}: lista GitHub obsoleta ({age_days}gg).", "warning")
                     except Exception:
                         pass
             if "source" in df.columns:
@@ -356,7 +348,6 @@ class DataEngine:
     def ottieni_tickers_indice(self, indice_scelto):
         headers = {'User-Agent': 'Mozilla/5.0'}
 
-        # ---- S&P 500: GitHub -> Wikipedia ----
         if indice_scelto == "S&P 500":
             from_gh = self._read_index_from_github("sp500", suffix="")
             if from_gh and len(from_gh) >= 100:
@@ -365,7 +356,6 @@ class DataEngine:
             tickers = [t.replace('.', '-') for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", headers)]
             return tickers
 
-        # ---- NASDAQ 100: GitHub -> Wikipedia -> STATIC ----
         elif indice_scelto == "NASDAQ 100":
             from_gh = self._read_index_from_github("nasdaq100", suffix="")
             if from_gh and len(from_gh) >= 90:
@@ -385,7 +375,6 @@ class DataEngine:
                 self.add_debug(f"[wiki] NASDAQ-100: Wikipedia ha dato {len(clean)} ticker validi (<90) -> uso lista statica di riserva ({len(tickers)}).", "warning")
             return tickers
 
-        # ---- DAX: GitHub -> Wikipedia + integrazione STATIC ----
         elif indice_scelto == "DAX (Germania)":
             from_gh = self._read_index_from_github("dax", suffix=".DE")
             if from_gh and len(from_gh) >= 40:
@@ -409,7 +398,6 @@ class DataEngine:
             self.add_debug(f"[wiki] DAX totale finale: {len(tickers)} ticker.", "info")
             return tickers
 
-        # ---- CAC 40: GitHub -> Wikipedia ----
         elif indice_scelto == "CAC 40 (Francia)":
             from_gh = self._read_index_from_github("cac40", suffix=".PA")
             if from_gh and len(from_gh) >= 30:
@@ -418,7 +406,6 @@ class DataEngine:
             tickers = [self.normalizza_ticker_europeo(t, ".PA") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/CAC_40", headers)]
             return tickers
 
-        # ---- FTSE MIB: GitHub -> Wikipedia ----
         elif indice_scelto == "FTSE MIB (Italia)":
             from_gh = self._read_index_from_github("ftsemib", suffix=".MI")
             if from_gh and len(from_gh) >= 30:
@@ -762,7 +749,6 @@ class DataEngine:
         return {"vwap_4y": round(vwap_4y, 2), "vwap_1y": round(vwap_1y, 2), "vwap_3m": round(vwap_3m, 2), "dist_4y_pct": round(dist_4y, 1), "dist_1y_pct": round(dist_1y, 1), "dist_3m_pct": round(dist_3m, 1), "convergence_count": convergence_count, "convergence_label": conv_label}
 
     def compute_poc_with_zone(self, hist, start_idx, end_idx, n_bins=60):
-        """Calcola POC e zona (poc_low, poc_high). Ritorna (poc_price, poc_low, poc_high)."""
         segment = hist.iloc[start_idx:end_idx]
         if len(segment) < 2:
             return None, None, None
@@ -816,7 +802,6 @@ class DataEngine:
         poc_idx = int(np.argmax(acc))
         poc_price = float(bin_centers[poc_idx])
 
-        # Zona: estensione dai bin adiacenti sopra soglia relativa e floor LVN
         poc_volume = acc[poc_idx]
         max_volume = float(acc.max())
         threshold_rel = ZONE_MIN_PCT * poc_volume
@@ -891,7 +876,6 @@ class DataEngine:
         return best_poc, round(float(best_dist), 2)
 
     def top_operative_pocs(self, pocs, current_price, n=N_POC_WATCHLIST, max_dist_pct=MAX_POC_DIST_PCT, merge_pct=POC_MERGE_PCT):
-        """I `n` POC operativi più strutturali, mutuamente distanti >= merge_pct. Include zone."""
         ops = []
         for poc in pocs:
             poc_price = float(poc["poc_price"])
@@ -980,7 +964,7 @@ class DataEngine:
         return int(score), ", ".join(dettagli) if dettagli else "Nessun segnale"
 
     # ===============================
-    # MOTORE DI SCREENING
+    # MOTORE DI SCREENING (singolo indice — usato dall'UI manuale)
     # ===============================
     def perform_screening(self, indice_scelto, min_market_cap, soglia_drawdown, soglia_poc_pct):
         self.add_debug(f"🚀 Avvio screening ottimizzato per {indice_scelto}...", "info")
@@ -1180,3 +1164,201 @@ class DataEngine:
         self.add_debug(f"✅ Screening completato per {indice_scelto}. {len(final_list)} titoli registrati.", "success")
 
         return final_list, spostamenti_rilevati
+
+    # ===============================
+    # MOTORE MULTI-INDICE (usato dal cron — UN solo download prezzi per tutti gli indici)
+    # ===============================
+    def perform_screening_multi(self, indici, min_market_cap, soglia_drawdown, soglia_poc_pct):
+        """
+        Screening di più indici in un'unica passata.
+        Ritorna dict {indice: (final_list, spostamenti_rilevati)}.
+        Risparmio vs chiamate singole: 1 download prezzi invece di N.
+        """
+        self.add_debug(f"🚀 Screening MULTI-INDICE su {len(indici)} indici...", "info")
+
+        # 1. Raccogli ticker per ogni indice + set globale deduplicato
+        tickers_per_indice = {}
+        global_set = set()
+        problematic_tickers = ["INWH", "MRSH", "INW", "INVH", "MRNA", "REGN", "SPOT"]
+        problematic_patterns = ["INVH", "MRSH", "INWH", "INW"]
+
+        for idx in indici:
+            try:
+                raw = self.ottieni_tickers_indice(idx)
+            except Exception as e:
+                self.add_debug(f"[multi] Errore ticker {idx}: {e}", "error")
+                raw = []
+            clean = []
+            for t in raw:
+                skip = False
+                for pat in problematic_patterns:
+                    if pat in t:
+                        skip = True
+                        break
+                if t in problematic_tickers or skip:
+                    continue
+                clean.append(t)
+            tickers_per_indice[idx] = clean
+            global_set.update(clean)
+            self.add_debug(f"[multi] {idx}: {len(clean)} ticker puliti", "info")
+
+        global_tickers = sorted(global_set)
+        self.add_debug(f"[multi] Totale ticker unici da scaricare: {len(global_tickers)}", "success")
+
+        # 2. UN solo download prezzi per tutti i ticker
+        if not global_tickers:
+            return {idx: ([], []) for idx in indici}
+
+        df_batch = self.download_prices_batch(global_tickers)
+        if df_batch.empty:
+            self.add_debug("[multi] Batch prezzi vuoto — proseguo con cache storica.", "warning")
+
+        # 3. Per ogni indice: filtra candidati, fondamentali, POC/VWAP, Entry Mode
+        results = {}
+        macro_info = self.ottieni_bussola_argo()
+        argo_bussola = macro_info["bussola"]
+
+        for idx in indici:
+            clean_tickers = tickers_per_indice[idx]
+            is_europe = idx in ["DAX (Germania)", "CAC 40 (Francia)", "FTSE MIB (Italia)"]
+
+            candidates = []
+            candidates_hist = {}
+            for ticker in clean_tickers:
+                hist = self.get_ticker_history_from_batch(df_batch, ticker)
+                if hist is None or len(hist) < 10:
+                    continue
+                close_s = hist['Close'].dropna()
+                high_s = hist['High'].dropna()
+                if close_s.empty or high_s.empty:
+                    continue
+                price_now = float(close_s.values[-1])
+                ath = float(high_s.max())
+                dd = ((price_now - ath) / ath) * 100
+                if dd <= -soglia_drawdown:
+                    candidates.append(ticker)
+                    candidates_hist[ticker] = {"hist": hist, "price_now": price_now, "current_dd": dd}
+
+            self.add_debug(f"[multi] {idx}: {len(candidates)} candidati in drawdown >= {soglia_drawdown}%", "info")
+            if not candidates:
+                self.screener_database[idx] = []
+                self.screener_database.setdefault("_last_scans", {})[idx] = datetime.datetime.now().isoformat()
+                results[idx] = ([], [])
+                continue
+
+            self.fetch_fundamentals_parallel(candidates)
+
+            pre_filtered = []
+            for ticker in candidates:
+                fund = self.fundamentals_cache.get(ticker, {})
+                mcap = fund.get("marketCap", 0) or 0
+                if not is_europe and mcap < min_market_cap:
+                    continue
+                c_data = candidates_hist[ticker]
+                hist = c_data["hist"]; price_now = c_data["price_now"]; current_dd = c_data["current_dd"]
+
+                poc_label, dist_label, alert_poc = "N/D", "N/D", ""
+                poc_slots = {f"POC {k}": 0.0 for k in (1, 2, 3)}
+                poc_low_slots = {f"POC {k} Low": 0.0 for k in (1, 2, 3)}
+                poc_high_slots = {f"POC {k} High": 0.0 for k in (1, 2, 3)}
+                poc_note_slots = {f"Nota POC {k}": "" for k in (1, 2, 3)}
+                try:
+                    pocs = self.get_pocs_from_hist(hist)
+                    poc_vicino, dist_poc_pct = self.closest_poc(pocs, price_now)
+                    if poc_vicino is not None:
+                        poc_label = f"{poc_vicino['poc_price']:.2f} ({poc_vicino['anchor_year']})"
+                        dist_label = f"{dist_poc_pct:+.1f}%"
+                        wn_vicino = float(poc_vicino.get("weight_norm", 0.0))
+                        poc_low = float(poc_vicino.get("poc_low", poc_vicino["poc_price"]))
+                        poc_high = float(poc_vicino.get("poc_high", poc_vicino["poc_price"]))
+                        in_zone = poc_low <= price_now <= poc_high
+                        near_poc = abs(dist_poc_pct) <= soglia_poc_pct
+                        if (in_zone or near_poc) and wn_vicino >= MIN_POC_WEIGHT_NORM:
+                            alert_poc = "🎯 SU POC"
+                    top3 = self.top_operative_pocs(pocs, price_now, n=N_POC_WATCHLIST)
+                    for k, item in enumerate(top3, start=1):
+                        poc_slots[f"POC {k}"] = round(float(item["poc_price"]), 4)
+                        poc_low_slots[f"POC {k} Low"] = round(float(item["poc_low"]), 4)
+                        poc_high_slots[f"POC {k} High"] = round(float(item["poc_high"]), 4)
+                        poc_note_slots[f"Nota POC {k}"] = f"POC {item['anchor_year']}"
+                except Exception as e:
+                    self.add_debug(f"[multi] Errore POC per {ticker}: {e}", "warning")
+
+                bottom_score, bottom_dettagli = self.calcola_segnali_bottom(hist)
+                vwap_info = self.compute_vwap_levels(hist)
+                pre_filtered.append({
+                    "Ticker": ticker, "Indice": idx,
+                    "Prezzo": round(price_now, 2), "Drawdown (%)": round(current_dd, 2),
+                    "Market Cap (B)": round(mcap / 1e9, 2) if mcap > 0 else 0.0,
+                    "POC più vicino": poc_label, "Distanza POC (%)": dist_label, "🎯 ALERT POC": alert_poc,
+                    **poc_slots, **poc_low_slots, **poc_high_slots, **poc_note_slots,
+                    "VWAP 4Y": vwap_info["vwap_4y"], "VWAP 1Y": vwap_info["vwap_1y"], "VWAP 3M": vwap_info["vwap_3m"],
+                    "Convergenza VWAP": vwap_info["convergence_label"],
+                    "Bottom Score (0-4)": bottom_score, "Bottom Dettagli": bottom_dettagli,
+                })
+
+            self.add_debug(f"[multi] {idx}: {len(pre_filtered)} pre-filtrati", "info")
+            if not pre_filtered:
+                self.screener_database[idx] = []
+                self.screener_database.setdefault("_last_scans", {})[idx] = datetime.datetime.now().isoformat()
+                results[idx] = ([], [])
+                continue
+
+            final_list = []
+            spostamenti_rilevati = []
+            for item in pre_filtered:
+                ticker = item["Ticker"]
+                hs, hc = self.compute_health_check(ticker)
+                item["Health"] = hc; item["Health_Score"] = hs
+                mv = item["Market Cap (B)"]
+                bs = 10.0 if mv >= 10.0 else (5.0 if mv >= 2.0 else 2.0)
+                sm = 1.2 if hs >= 3 else (1.0 if hs >= 2 else 0.6)
+                am = 0.3 if argo_bussola['bias'] == "SHORT" else (0.6 if argo_bussola['bias'] == "NEUTRO" else 1.0)
+                fs = round(bs * sm * am, 1)
+                if fs < 1.0:
+                    fs = 0.0
+                item["Size Suggerita (%)"] = float(fs)
+                dl = item["Distanza POC (%)"]
+                if dl != "N/D":
+                    try:
+                        dv = float(dl.replace("%", "").replace("+", ""))
+                        if abs(dv) <= 1.5:
+                            em = "🚀 MARKET (vicino POC)"
+                        elif dv < -1.5:
+                            em = "⏳ LIMITE (sotto POC, attendere)"
+                        else:
+                            em = "📈 LIMITE (sopra POC, pazienza)"
+                    except Exception:
+                        em = "🔍 VERIFICA MANUALE"
+                else:
+                    em = "🔍 VERIFICA MANUALE"
+                if argo_bussola['bias'] == "SHORT":
+                    em = "⛔ SHORT (NON ENTRARE)" if fs == 0 else "⏳ LIMITE (size ridotta)"
+                item["Entry Mode"] = str(em)
+
+                st_prec = self.screener_state.get(ticker, {}).get("status", None)
+                if item["Drawdown (%)"] <= -soglia_drawdown:
+                    item["Stato"] = "Active"
+                    if st_prec == "Ripartito":
+                        spostamenti_rilevati.append(f"⚠️ **{ticker}** ({idx}) è rientrata in Forte Sconto.")
+                    self.screener_state[ticker] = {"status": "Active", "indice": idx}
+                else:
+                    if st_prec == "Active":
+                        item["Stato"] = "Ripartito"
+                        spostamenti_rilevati.append(f"🚀 **{ticker}** ({idx}) è passata in Ripartenza.")
+                        self.screener_state[ticker] = {"status": "Ripartito", "indice": idx}
+                    elif st_prec == "Ripartito":
+                        item["Stato"] = "Ripartito"
+                    else:
+                        item["Stato"] = "Nuovo"
+                final_list.append(item)
+
+            self.screener_database[idx] = final_list
+            self.screener_database.setdefault("_last_scans", {})[idx] = datetime.datetime.now().isoformat()
+            results[idx] = (final_list, spostamenti_rilevati)
+            self.add_debug(f"[multi] ✅ {idx}: {len(final_list)} titoli registrati.", "success")
+
+        self.save_all()
+        total = sum(len(r[0]) for r in results.values())
+        self.add_debug(f"[multi] ✅ Screening multi completato: {total} titoli totali su {len(indici)} indici.", "success")
+        return results
