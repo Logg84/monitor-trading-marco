@@ -1,10 +1,10 @@
 """
-theme.py — gestione tema chiaro/scuro ARGO.
+theme.py v2 — gestione tema chiaro/scuro ARGO.
 Uso nelle pagine:
     from theme import render_theme_toggle, get_theme, theme_css
-    render_theme_toggle()                      # in sidebar
-    st.markdown(theme_css(), unsafe_allow_html=True)   # prima dei contenuti
-    th = get_theme()                           # colori per inline/grafici
+    render_theme_toggle()                            # in sidebar (prima o dopo navbar, indifferente)
+    st.markdown(theme_css(), unsafe_allow_html=True) # una volta per pagina
+    th = get_theme()                                 # colori per inline/grafici
 """
 import streamlit as st
 
@@ -17,6 +17,7 @@ THEMES = {
         "txt1": "#f8fafc", "txt2": "#cbd5e1", "txt3": "#94a3b8", "muted": "#64748b",
         "accent": "#38bdf8",
         "font_head": "'Space Grotesk', 'Inter', sans-serif",
+        "warn": {"bg": "rgba(245,158,11,0.08)", "fg": "#fcd34d", "strong": "#fef3c7"},
         "pills": {
             "green":  ("rgba(34,197,94,.16)",  "#86efac"),
             "amber":  ("rgba(245,158,11,.16)", "#fcd34d"),
@@ -55,6 +56,7 @@ THEMES = {
         "txt1": "#0f172a", "txt2": "#334155", "txt3": "#475569", "muted": "#8194a8",
         "accent": "#0284c7",
         "font_head": "'Space Grotesk', 'Inter', sans-serif",
+        "warn": {"bg": "rgba(217,119,6,.10)", "fg": "#92400e", "strong": "#78350f"},
         "pills": {
             "green":  ("rgba(22,163,74,.12)",  "#15803d"),
             "amber":  ("rgba(217,119,6,.12)",  "#b45309"),
@@ -103,24 +105,99 @@ def render_theme_toggle():
 
 def theme_css() -> str:
     th = get_theme()
+    w = th["warn"]
     return f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 :root {{
-  --bg-base: {th['bg_base']}; --bg-panel: {th['bg_panel']}; --bg-panel2: {th['bg_panel2']};
+  /* naming esteso (nav / app / metric_guide) */
+  --bg-base: {th['bg_base']}; --bg-panel: {th['bg_panel']}; --bg-panel-2: {th['bg_panel2']};
   --bg-hover: {th['bg_hover']}; --border: {th['border']}; --border-strong: {th['border_strong']};
-  --txt1: {th['txt1']}; --txt2: {th['txt2']}; --txt3: {th['txt3']}; --muted: {th['muted']};
-  --accent: {th['accent']}; --font-head: {th['font_head']};
+  --txt-1: {th['txt1']}; --txt-2: {th['txt2']}; --txt-3: {th['txt3']}; --txt-muted: {th['muted']};
+  --accent: {th['accent']};
+  --green: #22c55e; --yellow: #f59e0b; --red: #ef4444; --violet: #a78bfa; --cyan: #06b6d4;
+  --warn-bg: {w['bg']}; --warn-fg: {w['fg']}; --warn-strong: {w['strong']};
+  /* naming corto (screening) */
+  --bg-panel2: {th['bg_panel2']}; --txt1: {th['txt1']}; --txt2: {th['txt2']};
+  --txt3: {th['txt3']}; --muted: {th['muted']}; --font-head: {th['font_head']};
 }}
-html, body, [class*="css"] {{ font-family: 'Inter', system-ui, sans-serif; background: var(--bg-base); color: var(--txt2); }}
-h1, h2, h3, h4, h5, h6 {{ font-family: var(--font-head) !important; color: var(--txt1) !important; letter-spacing: -0.01em; }}
+
+/* === Sfondo reale dell'app (Streamlit moderno) === */
+html, body, .stApp, section.main, .main,
+[data-testid="stAppViewContainer"], [data-testid="stMainFrame"],
+[data-testid="stAppViewBlockContainer"], .block-container {{
+  background: var(--bg-base) !important;
+}}
+section[data-testid="stSidebar"] {{
+  background: var(--bg-panel) !important;
+  border-right: 1px solid var(--border);
+}}
+
+/* === Testo default (gli inline style vincono comunque) === */
+body, p, li, label, span[data-testid="stCaptionContainer"],
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p,
+.stMarkdown, .stRadio label, .stSelectbox label, .stTextInput label,
+.stNumberInput label, .stCheckbox label {{
+  color: var(--txt-2);
+}}
+h1, h2, h3, h4, h5, h6 {{
+  color: var(--txt-1) !important;
+  font-family: var(--font-head);
+}}
+hr {{ border-color: var(--border) !important; }}
+
+/* === Input / select / textarea === */
+div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input,
+div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+div[data-testid="stTextArea"] textarea {{
+  background: var(--bg-panel) !important;
+  color: var(--txt-1) !important;
+  border: 1px solid var(--border) !important;
+}}
+
+/* === Bottoni === */
 div[data-testid="stButton"] button {{
-  background: var(--bg-panel); color: var(--txt2); border: 1px solid var(--border-strong);
-  border-radius: 8px; transition: all .15s ease;
+  background: var(--bg-panel); color: var(--txt-2);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  transition: all .15s ease;
 }}
-div[data-testid="stButton"] button:hover {{ border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }}
-div[data-testid="stButton"] button[kind="primary"], div[data-testid="stButton"] button[type="primary"] {{
-  background: var(--accent); color: #fff; border-color: var(--accent);
+div[data-testid="stButton"] button:hover {{
+  border-color: var(--accent); color: var(--accent); background: var(--bg-hover);
+}}
+div[data-testid="stButton"] button[type="primary"], div[data-testid="stButton"] button[kind="primary"] {{
+  background: var(--accent) !important; color: #ffffff !important; border-color: var(--accent) !important;
+}}
+
+/* === Tabs === */
+button[data-testid="stTabButton"] {{ color: var(--txt-3); }}
+button[data-testid="stTabButton"][aria-selected="true"] {{
+  color: var(--accent); border-color: var(--accent);
+}}
+
+/* === Expander === */
+details[data-testid="stExpander"] {{
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+}}
+details[data-testid="stExpander"] summary {{ color: var(--txt-2); }}
+details[data-testid="stExpander"] summary p {{ color: var(--txt-2); }}
+
+/* === Alert box (info/warning/error/success) === */
+div[data-testid="stAlert"] {{ background: var(--bg-panel) !important; }}
+
+/* === Dataframe === */
+div[data-testid="stDataFrame"] {{ border: 1px solid var(--border); border-radius: 10px; }}
+[data-testid="stDataFrame"] [role="columnheader"] {{
+  background: var(--bg-panel) !important; color: var(--txt-3) !important;
+}}
+[data-testid="stDataFrame"] [role="gridcell"] {{ color: var(--txt-2); }}
+
+/* === Metric === */
+div[data-testid="stMetric"] label {{ color: var(--txt-3); }}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {{ color: var(--txt-1); }}
+
+/* === File uploader === */
+div[data-testid="stFileUploaderDropzone"] {{
+  background: var(--bg-panel); border: 1px dashed var(--border-strong);
 }}
 </style>
 """
