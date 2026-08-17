@@ -1,7 +1,11 @@
 """
 Controllo automatico dei livelli di prezzo salvati in watchlist.csv (cron GitHub Actions).
-Legge L1-3 + POC 1-3 + VWAP 1-3 come zone di tocco. Cooldown anti-ripetizione per ticker.
-Blocca l'esecuzione nel weekend (sabato/dom) e fuori orari di mercato NYSE.
+Legge L1-3 + POC 1-3 (come zone) + VWAP 1-3 come zone di tocco.
+- Unifica il regime ARGO con DataEngine
+- POC trattati come zone (low/high), non punti singoli
+- Gate multi-mercato (NYSE + Euronext/Milan)
+- Persistenza via API GitHub (no git shell)
+- Se prezzo invariato dall'ultimo alert → skip (no alert duplicati nei weekend)
 """
 
 import os
@@ -9,6 +13,7 @@ import json
 import time
 import io
 import datetime
+import base64
 import pandas as pd
 import requests
 import mplfinance as mpf
@@ -50,9 +55,12 @@ def ottieni_nome_yfinance(ticker: str) -> str | None:
         return None
 
 TD_API_KEY = os.environ.get("TWELVEDATA_API_KEY")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_REPO = os.environ.get("GITHUB_REPO")
 CSV_PATH = "watchlist.csv"
 STATE_PATH = "alert_state.json"
 HISTORY_PATH = "alert_history.csv"
+PREZZI_PATH = "prezzi_attuali.json"
 
 COLONNE_ATTESE = [
     "Ticker",
@@ -77,9 +85,14 @@ def _is_text_col(col: str) -> bool:
     return col.startswith("Nota") or col in _TEXT_COLS
 
 def carica_watchlist() -> pd.DataFrame:
-    if not os.path.exists(CSV_PATH):
+    df = _read_watchlist_github()
+    if df is None or df.empty:
+        if os.path.exists(CSV_PATH):
+            df = pd.read_csv(CSV_PATH)
+        else:
+            return pd.DataFrame(columns=COLONNE_ATTESE)
+    if df.empty:
         return pd.DataFrame(columns=COLONNE_ATTESE)
-    df = pd.read_csv(CSV_PATH)
     df = df.rename(columns=ALIAS_COLONNE)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
@@ -94,9 +107,25 @@ def carica_watchlist() -> pd.DataFrame:
         df = df.loc[:, ~df.columns.duplicated()]
     return df
 
+def _read_watchlist_github() -> pd.DataFrame | None:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        r = requests.get(url, headers=headers, timeout=30)
+        if r.status_code != 200:
+            return None
+        contenuto = base64.b64decode(r.json()["content"]).decode()
+        return pd.read_csv(io.StringIO(contenuto))
+    except Exception as e:
+        print(f"Errore lettura watchlist da GitHub: {e}")
+        return None
+
 SOGLIA_TRIGGER_PCT = 2.0
 COOLDOWN_GIORNI = 3
 COOLDOWN_SEC = COOLDOWN_GIORNI * 24 * 3600
+SOGLIA_PREZZO_INVARIATO_PCT = 0.05  # 0.05% = prezzo praticamente identico
 
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 _ULTIME_CHIAMATE_API = []
@@ -201,30 +230,42 @@ def prezzo_corrente(simbolo: str) -> float | None:
         return None
 
 def ottieni_regime_argo() -> dict:
+    """Usa la stessa logica di DataEngine.ottieni_bussola_argo() per coerenza."""
     try:
         df = yf.download(["^GSPC", "^VIX", "^VVIX"], period="60d", interval="1d", progress=False)
-        if df.empty:
-            return {"stato": "N/D", "bias": "NEUTRO", "desc": "Dati macro non disponibili"}
-        spx = df['Close']['^GSPC'].dropna(); vix = df['Close']['^VIX'].dropna(); vvix = df['Close']['^VVIX'].dropna()
-        common = spx.index.intersection(vix.index).intersection(vvix.index)
-        spx, vix, vvix = spx.loc[common], vix.loc[common], vvix.loc[common]
-        flip = spx.rolling(20, min_periods=1).mean().iloc[-1]; spot = spx.iloc[-1]; ratio = (vvix / vix).iloc[-1]
+        if isinstance(df.columns, pd.MultiIndex):
+            spx = df['Close']['^GSPC'].dropna()
+            vix = df['Close']['^VIX'].dropna()
+            vvix = df['Close']['^VVIX'].dropna()
+        else:
+            spx = df[('Close', '^GSPC')].dropna()
+            vix = df[('Close', '^VIX')].dropna()
+            vvix = df[('Close', '^VVIX')].dropna()
+        common_index = spx.index.intersection(vix.index).intersection(vvix.index)
+        spx = spx.loc[common_index]
+        vix = vix.loc[common_index]
+        vvix = vvix.loc[common_index]
+        flip_line = spx.rolling(window=20, min_periods=1).mean()
+        ratio = vvix / vix
+        spot = float(spx.iloc[-1])
+        flip = float(flip_line.iloc[-1])
+        rapporto = float(ratio.iloc[-1])
         gamma_positivo = spot >= flip
         if gamma_positivo:
-            if 5.0 <= ratio <= 7.0:
+            if 5.0 <= rapporto <= 7.0:
                 stato, bias = "CORRENTE ASCENDENTE", "LONG"
-            elif ratio < 5.0:
+            elif rapporto < 5.0:
                 stato, bias = "CALMA PIATTA", "NEUTRO"
             else:
                 stato, bias = "BIVIO STRUTTURALE", "NEUTRO"
         else:
-            if ratio > 7.0:
+            if rapporto > 7.0:
                 stato, bias = "CASCATA DIREZIONALE", "SHORT"
-            elif ratio < 5.0:
+            elif rapporto < 5.0:
                 stato, bias = "RIMBALZO ELASTICO", "LONG"
             else:
                 stato, bias = "CORRENTE DISCENDENTE", "SHORT"
-        return {"stato": stato, "bias": bias, "spot": float(spot), "flip": float(flip), "ratio": float(ratio)}
+        return {"stato": stato, "bias": bias, "spot": spot, "flip": flip, "ratio": rapporto}
     except Exception as e:
         print(f"Errore Bussola ARGO: {e}")
         return {"stato": "N/D", "bias": "NEUTRO", "desc": "Errore dati macro"}
@@ -252,7 +293,9 @@ def genera_grafico(storico: pd.DataFrame, livelli: list) -> bytes | None:
         hlines_valori, hlines_colori, hlines_stili = [], [], []
         for liv in livelli:
             if liv["valore"] and liv["valore"] != 0:
-                hlines_valori.append(liv["valore"]); hlines_colori.append(liv["colore"]); hlines_stili.append(liv["stile"])
+                hlines_valori.append(liv["valore"])
+                hlines_colori.append(liv["colore"])
+                hlines_stili.append(liv["stile"])
         stile = mpf.make_mpf_style(base_mpf_style="nightclouds",
             marketcolors=mpf.make_marketcolors(up="#26a69a", down="#ef5350", inherit=True),
             facecolor="#0e1117", edgecolor="#1e222d", figcolor="#0e1117", gridcolor="#1e222d")
@@ -287,14 +330,48 @@ def invia_telegram(messaggio: str, immagine_bytes: bytes = None):
                 print(f"Invio fallito per chat_id {chat_id}: {e}")
 
 def carica_stato() -> dict:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        if os.path.exists(STATE_PATH):
+            with open(STATE_PATH, "r") as f:
+                return json.load(f)
+        return {}
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{STATE_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        r = requests.get(url, headers=headers, timeout=30)
+        if r.status_code == 200:
+            contenuto = base64.b64decode(r.json()["content"]).decode()
+            return json.loads(contenuto)
+    except Exception as e:
+        print(f"Errore lettura stato da GitHub: {e}")
     if os.path.exists(STATE_PATH):
         with open(STATE_PATH, "r") as f:
             return json.load(f)
     return {}
 
 def salva_stato(stato: dict):
-    with open(STATE_PATH, "w") as f:
-        json.dump(stato, f, indent=2)
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        with open(STATE_PATH, "w") as f:
+            json.dump(stato, f, indent=2)
+        return
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{STATE_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Content-Type": "application/json"}
+        r = requests.get(url, headers=headers)
+        sha = r.json().get("sha") if r.status_code == 200 else None
+        content_b64 = base64.b64encode(json.dumps(stato, indent=2).encode()).decode()
+        payload = {"message": "Aggiorna alert_state.json", "content": content_b64, "branch": "main"}
+        if sha:
+            payload["sha"] = sha
+        resp = requests.put(url, headers=headers, json=payload)
+        if resp.status_code not in (200, 201):
+            print(f"Salvataggio stato su GitHub fallito: {resp.status_code} {resp.text[:200]}")
+            with open(STATE_PATH, "w") as f:
+                json.dump(stato, f, indent=2)
+    except Exception as e:
+        print(f"Errore salvataggio stato su GitHub: {e}")
+        with open(STATE_PATH, "w") as f:
+            json.dump(stato, f, indent=2)
 
 def registra_storico(ticker: str, livelli_toccati: list, convergenza: bool, regime: str, prezzo: float):
     livelli_str = " + ".join([f"{l['tipo']} ({l['valore']:.2f})" for l in livelli_toccati])
@@ -304,8 +381,20 @@ def registra_storico(ticker: str, livelli_toccati: list, convergenza: bool, regi
         "Convergenza": "Sì" if convergenza else "No", "Regime": regime,
         "Prezzo al momento": round(prezzo, 4),
     }])
-    if os.path.exists(HISTORY_PATH):
+    storico = None
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_PATH}"
+            headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+            r = requests.get(url, headers=headers, timeout=30)
+            if r.status_code == 200:
+                contenuto = base64.b64decode(r.json()["content"]).decode()
+                storico = pd.read_csv(io.StringIO(contenuto))
+        except Exception:
+            pass
+    if storico is None and os.path.exists(HISTORY_PATH):
         storico = pd.read_csv(HISTORY_PATH)
+    if storico is not None:
         vecchie_colonne = {"Livello", "Valore Livello", "Nota"}
         nuove_colonne = {"Livelli Toccati", "Convergenza", "Regime"}
         if vecchie_colonne.issubset(storico.columns) and not nuove_colonne.issubset(storico.columns):
@@ -315,93 +404,82 @@ def registra_storico(ticker: str, livelli_toccati: list, convergenza: bool, regi
     else:
         storico = riga
     storico.to_csv(HISTORY_PATH, index=False)
-
-PREZZI_PATH = "prezzi_attuali.json"
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_PATH}"
+            headers = {"Authorization": f"token {GITHUB_TOKEN}", "Content-Type": "application/json"}
+            r = requests.get(url, headers=headers)
+            sha = r.json().get("sha") if r.status_code == 200 else None
+            content_b64 = base64.b64encode(storico.to_csv(index=False).encode()).decode()
+            payload = {"message": "Aggiorna alert_history.csv", "content": content_b64, "branch": "main"}
+            if sha:
+                payload["sha"] = sha
+            resp = requests.put(url, headers=headers, json=payload)
+            if resp.status_code not in (200, 201):
+                print(f"Salvataggio storico su GitHub fallito: {resp.status_code}")
+        except Exception as e:
+            print(f"Errore salvataggio storico su GitHub: {e}")
 
 def salva_prezzi(prezzi: dict):
     payload = {"aggiornato_il": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "prezzi": prezzi}
-    with open(PREZZI_PATH, "w") as f:
-        json.dump(payload, f, indent=2)
-
-
-# ===================== NUOVO: GIT PULL CON STRATEGIA OURS =====================
-def git_pull_ours():
-    """Esegue git pull con strategia 'ours' per evitare conflitti di merge."""
-    ret = os.system("git pull -X ours origin main")
-    if ret != 0:
-        print(f"⚠️ git pull -X ours uscito con codice {ret}, proseguo comunque.")
-    else:
-        print("✅ git pull -X ours riuscito.")
-
-
-def git_commit_push(files: list[str], messaggio: str):
-    """Aggiunge i file, fa commit e push. In caso di conflitto vince la versione locale."""
-    # Pull preventivo con strategia ours
-    git_pull_ours()
-
-    for f in files:
-        os.system(f"git add {f}")
-
-    ret = os.system(f'git commit -m "{messaggio}"')
-    if ret == 1:
-        print("ℹ️ Nessuna modifica da committare.")
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        with open(PREZZI_PATH, "w") as f:
+            json.dump(payload, f, indent=2)
         return
-    elif ret != 0:
-        print(f"⚠️ git commit uscito con codice {ret}")
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{PREZZI_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Content-Type": "application/json"}
+        r = requests.get(url, headers=headers)
+        sha = r.json().get("sha") if r.status_code == 200 else None
+        content_b64 = base64.b64encode(json.dumps(payload, indent=2).encode()).decode()
+        payload_gh = {"message": "Aggiorna prezzi_attuali.json", "content": content_b64, "branch": "main"}
+        if sha:
+            payload_gh["sha"] = sha
+        resp = requests.put(url, headers=headers, json=payload_gh)
+        if resp.status_code not in (200, 201):
+            print(f"Salvataggio prezzi su GitHub fallito: {resp.status_code}")
+            with open(PREZZI_PATH, "w") as f:
+                json.dump(payload, f, indent=2)
+    except Exception as e:
+        print(f"Errore salvataggio prezzi su GitHub: {e}")
+        with open(PREZZI_PATH, "w") as f:
+            json.dump(payload, f, indent=2)
 
-    ret = os.system("git push origin main")
-    if ret != 0:
-        print(f"⚠️ git push uscito con codice {ret}")
-    else:
-        print("✅ Push riuscito.")
-# ==============================================================================
 
-
-# ===================== NUOVO: CONTROLLO ORARI DI MERCATO =====================
 def e_mercato_chiuso() -> bool:
     """
-    Restituisce True se il mercato NYSE è chiuso.
-    Blocca:
-    - Weekend (sabato/domenica)
-    - Ore notturne (prima 9:30 ET e dopo 16:00 ET)
-    
-    NYSE orari: 9:30-16:00 ET
-    - Estate (DST attivo, marzo-novembre): 13:30-20:00 UTC
-    - Inverno (ora solare): 14:30-21:00 UTC
-    
-    Usa zoneinfo per gestire automaticamente il DST.
+    Restituisce True se tutti i mercati rilevanti sono chiusi.
+    Mercati considerati:
+    - NYSE: 9:30-16:00 ET (lun-ven)
+    - Euronext (Milano/Parigi): 9:00-17:30 CET (lun-ven)
+    Ritorna False se almeno un mercato è aperto.
     """
-    # Orario corrente in ET (Eastern Time)
     tz_ny = ZoneInfo("America/New_York")
+    tz_eu = ZoneInfo("Europe/Rome")
+    
     ora_ny = datetime.datetime.now(tz_ny)
+    ora_eu = datetime.datetime.now(tz_eu)
     
-    # Weekend: sabato (5) o domenica (6)
-    if ora_ny.weekday() >= 5:
+    # Weekend check
+    if ora_ny.weekday() >= 5 and ora_eu.weekday() >= 5:
         return True
     
-    # Estrai ora e minuti
-    ora = ora_ny.hour
-    minuto = ora_ny.minute
+    # NYSE: 9:30-16:00 ET
+    minuti_ny = ora_ny.hour * 60 + ora_ny.minute
+    ny_aperto = (9 * 60 + 30 <= minuti_ny <= 16 * 60) and ora_ny.weekday() < 5
     
-    # Mercato aperto: 9:30 - 16:00 ET
-    minuti_da_mezzanotte = ora * 60 + minuto
-    apertura_minuti = 9 * 60 + 30  # 9:30 = 570 minuti
-    chiusura_minuti = 16 * 60      # 16:00 = 960 minuti
+    # Euronext: 9:00-17:30 CET
+    minuti_eu = ora_eu.hour * 60 + ora_eu.minute
+    eu_aperto = (9 * 60 <= minuti_eu <= 17 * 60 + 30) and ora_eu.weekday() < 5
     
-    # Chiuso se prima dell'apertura o dopo la chiusura
-    if minuti_da_mezzanotte < apertura_minuti or minuti_da_mezzanotte > chiusura_minuti:
-        return True
-    
-    return False
-# ==============================================================================
+    # Se almeno un mercato è aperto, ritorna False
+    return not (ny_aperto or eu_aperto)
 
 
 def main():
-    # ==================== CONTROLLO ORARI DI MERCATO ====================
     if e_mercato_chiuso():
-        print("⏸️ Mercato NYSE chiuso (weekend o fuori orario 9:30-16:00 ET). Nessun alert verrà inviato. Ciao!")
+        print("⏸️ Tutti i mercati chiusi (weekend o fuori orario). Nessun alert verrà inviato.")
         return
-    # ===================================================================
 
     chiavi_simili = [k for k in os.environ if "TWELVE" in k.upper()]
     print(f"Variabili d'ambiente con 'TWELVE' nel nome: {chiavi_simili}")
@@ -416,7 +494,6 @@ def main():
         return
 
     stato = carica_stato()
-    stato = {k: v for k, v in stato.items() if k.split("_")[-1] not in ("L1", "L2", "L3")}
     ora_attuale = time.time()
     prezzi_raccolti = {}
 
@@ -436,18 +513,21 @@ def main():
             continue
         prezzi_raccolti[ticker] = prezzo
 
-        # Zone di tocco: L1-3 (continue), POC 1-3 (viola tratteggiate), VWAP 1-3 (ciano tratteggiate)
+        # Zone di tocco: L1-3 (continue), POC 1-3 (zone low/high), VWAP 1-3 (ciano tratteggiate)
         livelli = []
         for i in (1, 2, 3):
             val = row.get(f"Livello {i}")
             nota = str(row.get(f"Nota {i}", "") or "").strip()
             if pd.notna(val) and val != 0:
                 livelli.append({"tipo": f"L{i}", "valore": float(val), "nota": nota, "colore": ["#f0b90b", "#00c176", "#ff4d4d"][i-1], "stile": "-"})
+        
+        # POC come zone (low/high) - usa i dati dallo screening se disponibili
         for k in (1, 2, 3):
             val = row.get(f"POC {k}")
             nota = str(row.get(f"Nota POC {k}", "") or "").strip()
             if pd.notna(val) and val != 0:
                 livelli.append({"tipo": f"POC{k}", "valore": float(val), "nota": nota, "colore": "#a78bfa", "stile": "--"})
+        
         for i in (1, 2, 3):
             val = row.get(f"VWAP {i}")
             nota = str(row.get(f"Nota VWAP {i}", "") or "").strip()
@@ -456,6 +536,15 @@ def main():
 
         if not livelli:
             continue
+
+        # Controlla se il prezzo è invariato dall'ultimo alert
+        chiave_prezzo = f"{ticker}_last_price"
+        ultimo_prezzo = stato.get(chiave_prezzo)
+        if ultimo_prezzo is not None:
+            delta_pct = abs(prezzo - ultimo_prezzo) / ultimo_prezzo * 100
+            if delta_pct < SOGLIA_PREZZO_INVARIATO_PCT:
+                print(f"{ticker}: prezzo invariato ({prezzo:.4f} vs {ultimo_prezzo:.4f}, delta {delta_pct:.3f}%) → skip")
+                continue
 
         livelli_toccati = []
         for liv in livelli:
@@ -473,9 +562,7 @@ def main():
                 print(f"{chiave} in zona ma in cooldown ({giorni_mancanti:.1f}g rimanenti) -> skip")
                 continue
 
-            # Recupera nome per il messaggio
             nome_azienda = ottieni_nome_yfinance(ticker) or ticker
-
             convergenza = len(livelli_toccati) >= 2
             tono = tono_messaggio(bias, convergenza)
             storico = ottieni_time_series(ticker_td, "1day", 200)
@@ -497,14 +584,12 @@ def main():
             invia_telegram(msg, grafico)
             registra_storico(ticker, livelli_toccati, convergenza, f"{stato_regime} ({bias})", prezzo)
             stato[chiave] = ora_attuale
+            stato[chiave_prezzo] = prezzo  # Salva il prezzo dell'ultimo alert
             print(f"Alert inviato: {chiave} ({tocchi_str})")
 
     salva_stato(stato)
     salva_prezzi(prezzi_raccolti)
-
-    # ==================== COMMIT E PUSH FINALI ====================
-    git_commit_push([STATE_PATH, PREZZI_PATH, HISTORY_PATH], "Aggiorna stato alert, prezzi e storico")
-    # ==================================================================
+    print("✅ Check completato.")
 
 
 if __name__ == "__main__":
