@@ -1,10 +1,10 @@
 """
-theme.py v2 — gestione tema chiaro/scuro ARGO.
+theme.py v3 — gestione tema chiaro/scuro ARGO.
+Il toggle vive nella navbar (nav.py): scelta globale per tutte le pagine.
 Uso nelle pagine:
-    from theme import render_theme_toggle, get_theme, theme_css
-    render_theme_toggle()                            # in sidebar (prima o dopo navbar, indifferente)
-    st.markdown(theme_css(), unsafe_allow_html=True) # una volta per pagina
-    th = get_theme()                                 # colori per inline/grafici
+    from theme import get_theme, theme_css
+    st.markdown(theme_css(), unsafe_allow_html=True)   # già iniettato da render_navbar()
+    th = get_theme()                                  # colori per inline/grafici
 """
 import streamlit as st
 
@@ -95,12 +95,8 @@ def get_theme() -> dict:
 
 
 def render_theme_toggle():
-    cur = st.session_state.get("argo_theme", "dark")
-    sel = st.sidebar.radio(
-        "🎨 Tema", ["🌙 Scuro", "☀️ Chiaro"],
-        index=0 if cur == "dark" else 1, horizontal=True,
-    )
-    st.session_state["argo_theme"] = "dark" if sel == "🌙 Scuro" else "light"
+    """DEPRECATO: il toggle ora vive nella navbar (nav.py). No-op di compatibilità."""
+    return None
 
 
 def theme_css() -> str:
