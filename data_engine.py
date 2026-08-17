@@ -221,6 +221,61 @@ class DataEngine:
         return None
 
     # ===============================
+    # LETTURA LISTE INDICI DA GITHUB (fonte primaria mensile)
+    # ===============================
+    def _read_index_from_github(self, name, suffix=""):
+        """
+        Prova a leggere indices/{name}.csv da GitHub (URL raw pubblico, no token).
+        Ritorna lista di ticker normalizzati o None se fallisce.
+        I ticker provenienti da Wikipedia nel downloader sono già suffissati per
+        gli indici europei (.DE/.PA/.MI); se hanno già un punto, li conservo.
+        """
+        repo = os.environ.get("GITHUB_REPO")
+        if not repo:
+            return None
+        url = f"https://raw.githubusercontent.com/{repo}/main/indices/{name}.csv"
+        headers = {'User-Agent': 'ARGO-DataEngine/1.0'}
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+            if r.status_code != 200:
+                self.add_debug(f"[indices] {name}: GitHub HTTP {r.status_code}", "warning")
+                return None
+            df = pd.read_csv(io.StringIO(r.text))
+            if "ticker" not in df.columns:
+                self.add_debug(f"[indices] {name}: CSV senza colonna 'ticker'", "warning")
+                return None
+            raw = df["ticker"].dropna().astype(str).str.strip().str.upper().tolist()
+            raw = [t for t in raw if t]
+            if suffix:
+                tickers = [t if "." in t else t + suffix for t in raw]
+            else:
+                tickers = raw
+            # Info di freshness (informativo: uso anche se >35gg, il workflow mensile lo aggiorna)
+            source_label = "GitHub"
+            fetched_label = "?"
+            if "fetched_at" in df.columns:
+                fa = df["fetched_at"].iloc[0]
+                if pd.notna(fa):
+                    fetched_label = str(fa)[:10]
+                    try:
+                        dt = datetime.datetime.fromisoformat(str(fa).replace("Z", ""))
+                        age_days = (datetime.datetime.now() - dt).days
+                        source_label += f" ({age_days}gg fa)"
+                        if age_days > 40:
+                            self.add_debug(f"[indices] {name}: lista GitHub obsoleta ({age_days}gg), attendere cron mensile.", "warning")
+                    except Exception:
+                        pass
+            if "source" in df.columns:
+                src = df["source"].iloc[0]
+                if pd.notna(src) and str(src).strip():
+                    source_label += f" via {src}"
+            self.add_debug(f"[indices] {name}: {len(tickers)} ticker da {source_label} (fetched: {fetched_label})", "success")
+            return tickers
+        except Exception as e:
+            self.add_debug(f"[indices] {name}: fallito GitHub ({e})", "warning")
+            return None
+
+    # ===============================
     # ESTRAZIONE TICKERS (multi-parser)
     # ===============================
     def estrai_ticker_wikipedia(self, url, headers=None):
@@ -300,9 +355,22 @@ class DataEngine:
 
     def ottieni_tickers_indice(self, indice_scelto):
         headers = {'User-Agent': 'Mozilla/5.0'}
+
+        # ---- S&P 500: GitHub -> Wikipedia ----
         if indice_scelto == "S&P 500":
+            from_gh = self._read_index_from_github("sp500", suffix="")
+            if from_gh and len(from_gh) >= 100:
+                return from_gh
+            self.add_debug("[sp500] Fallback Wikipedia...", "warning")
             tickers = [t.replace('.', '-') for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", headers)]
+            return tickers
+
+        # ---- NASDAQ 100: GitHub -> Wikipedia -> STATIC ----
         elif indice_scelto == "NASDAQ 100":
+            from_gh = self._read_index_from_github("nasdaq100", suffix="")
+            if from_gh and len(from_gh) >= 90:
+                return from_gh
+            self.add_debug("[nasdaq100] Fallback Wikipedia...", "warning")
             raw = self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/NASDAQ-100", headers)
             clean = []
             for t in raw:
@@ -315,7 +383,14 @@ class DataEngine:
             else:
                 tickers = list(dict.fromkeys(NASDAQ100_STATIC))
                 self.add_debug(f"[wiki] NASDAQ-100: Wikipedia ha dato {len(clean)} ticker validi (<90) -> uso lista statica di riserva ({len(tickers)}).", "warning")
+            return tickers
+
+        # ---- DAX: GitHub -> Wikipedia + integrazione STATIC ----
         elif indice_scelto == "DAX (Germania)":
+            from_gh = self._read_index_from_github("dax", suffix=".DE")
+            if from_gh and len(from_gh) >= 40:
+                return from_gh
+            self.add_debug("[dax] Fallback Wikipedia...", "warning")
             raw = [self.normalizza_ticker_europeo(t, ".DE") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/DAX", headers)]
             seen = set()
             uniq = []
@@ -332,13 +407,28 @@ class DataEngine:
                         uniq.append(tt)
             tickers = uniq
             self.add_debug(f"[wiki] DAX totale finale: {len(tickers)} ticker.", "info")
+            return tickers
+
+        # ---- CAC 40: GitHub -> Wikipedia ----
         elif indice_scelto == "CAC 40 (Francia)":
+            from_gh = self._read_index_from_github("cac40", suffix=".PA")
+            if from_gh and len(from_gh) >= 30:
+                return from_gh
+            self.add_debug("[cac40] Fallback Wikipedia...", "warning")
             tickers = [self.normalizza_ticker_europeo(t, ".PA") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/CAC_40", headers)]
+            return tickers
+
+        # ---- FTSE MIB: GitHub -> Wikipedia ----
         elif indice_scelto == "FTSE MIB (Italia)":
+            from_gh = self._read_index_from_github("ftsemib", suffix=".MI")
+            if from_gh and len(from_gh) >= 30:
+                return from_gh
+            self.add_debug("[ftsemib] Fallback Wikipedia...", "warning")
             tickers = [self.normalizza_ticker_europeo(t, ".MI") for t in self.estrai_ticker_wikipedia("https://en.wikipedia.org/wiki/FTSE_MIB", headers)]
+            return tickers
+
         else:
             raise ValueError(f"Indice non riconosciuto: {indice_scelto}")
-        return tickers
 
     # ===============================
     # DOWNLOAD PREZZI IN BATCH (GIORNALIERO)
@@ -896,7 +986,7 @@ class DataEngine:
         self.add_debug(f"🚀 Avvio screening ottimizzato per {indice_scelto}...", "info")
         try:
             tickers = self.ottieni_tickers_indice(indice_scelto)
-            self.add_debug(f"Trovati {len(tickers)} ticker su Wikipedia.", "info")
+            self.add_debug(f"Trovati {len(tickers)} ticker.", "info")
         except Exception as e:
             self.add_debug(f"Errore nel recupero dei ticker: {e}", "error")
             return [], []
