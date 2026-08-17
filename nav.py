@@ -1,4 +1,5 @@
 import streamlit as st
+from theme import theme_css
 
 _NAV_CSS = """
 <style>
@@ -175,17 +176,21 @@ def _hide_sidebar_css():
 def render_navbar(current: str, hide_sidebar: bool = False, bussola: dict | None = None):
     """
     Render della navbar globale ARGO.
+    - Inietta il CSS del tema (theme_css) -> la scelta vale per tutta la pagina
+    - Toggle tema (🌙/☀️) nell'ultima colonna -> globale per il portale
     Parametri:
      - current:       chiave della pagina attiva (watchlist|screening|regime|cot)
      - hide_sidebar:  se True, nasconde sidebar Streamlit (usato in COT/Regime)
      - bussola:       dict opzionale con chiavi 'color', 'bias', 'stato', 'rapporto'
-                      per mostrare il chip Regime in tempo reale.
     """
+    st.markdown(theme_css(), unsafe_allow_html=True)
     st.markdown(_NAV_CSS, unsafe_allow_html=True)
     if hide_sidebar:
         st.markdown(_hide_sidebar_css(), unsafe_allow_html=True)
 
-    brand, p_w, p_s, p_r, p_c, p_regime = st.columns([4.5, 1.3, 1.3, 1.3, 1.3, 1.6], gap="small")
+    brand, p_w, p_s, p_r, p_c, p_regime, p_theme = st.columns(
+        [4.2, 1.3, 1.3, 1.3, 1.3, 1.5, 0.7], gap="small"
+    )
 
     with brand:
         st.markdown(
@@ -235,6 +240,15 @@ def render_navbar(current: str, hide_sidebar: bool = False, bussola: dict | None
                 '</div>',
                 unsafe_allow_html=True,
             )
+
+    # === TOGGLE TEMA GLOBALE (sopra le schede, in ogni pagina) ===
+    with p_theme:
+        cur = st.session_state.get("argo_theme", "dark")
+        icon = "☀️" if cur == "dark" else "🌙"
+        help_txt = "Passa al tema chiaro" if cur == "dark" else "Passa al tema scuro"
+        if st.button(icon, key="argo_theme_nav", use_container_width=True, help=help_txt):
+            st.session_state["argo_theme"] = "light" if cur == "dark" else "dark"
+            st.rerun()
 
 
 def section_header(eyebrow: str, title: str, subtitle: str = ""):
