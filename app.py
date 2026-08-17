@@ -24,7 +24,7 @@ def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 CSV_PATH = "watchlist.csv"
-MODEL_NAME = "llama-3.2-11b-vision-preview"
+MODEL_NAME = "qwen/qwen3.6-27b"
 
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
@@ -217,7 +217,7 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     data_url = f"data:{mime_type};base64,{b64}"
 
-    modelli = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    modelli = ["qwen/qwen3.6-27b"]
     response = None
     ultimo_err = None
     for model in modelli:
@@ -235,7 +235,7 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
                     },
                 ],
                 temperature=0.1,
-                max_tokens=500,
+                max_completion_tokens=500,
                 response_format={"type": "json_object"},
             )
             break
@@ -326,7 +326,7 @@ ALIAS_COLONNE = {
     "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
     "origine": "Origine",
     "POC": "POC 1", "poc": "POC 1",
-    "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
+    "Nota POC": "POC 1", "nota poc": "POC 1",
     "auto_indice": "Auto_Indice",
 }
 
@@ -449,7 +449,7 @@ with col_upload:
             st.warning("⚠️ **Analisi AI non disponibile.** Aggiungi `groq>=0.11.0` a `requirements.txt` e fai reboot. Il resto della pagina funziona normalmente.")
         else:
             if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
-                with st.spinner("Analisi in corso (Groq llama-3.2-11b-vision)..."):
+                with st.spinner("Analisi in corso (Groq qwen3.6-27b vision)..."):
                     try:
                         image_bytes = uploaded_file.getvalue()
                         mime_type = uploaded_file.type or "image/png"
@@ -857,7 +857,7 @@ else:
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: 11,
             }},
-            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }}, horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
+            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }} , horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
             timeScale: {{ borderColor: '#334155', timeVisible: {str(usa_timestamp).lower()} }},
             rightPriceScale: {{ borderColor: '#334155' }},
             crosshair: {{
