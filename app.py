@@ -229,14 +229,13 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": PROMPT_VISION},
+                            {"type": "text", "text": PROMPT_VISION + "\n/no_think"},
                             {"type": "image_url", "image_url": {"url": data_url}},
                         ],
                     },
                 ],
                 temperature=0.1,
-                max_completion_tokens=500,
-                response_format={"type": "json_object"},
+                max_completion_tokens=1024,
             )
             break
         except Exception as e:
@@ -247,6 +246,8 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     text = response.choices[0].message.content or ""
     text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
+    if "{" in text and "}" in text:
+        text = text[text.find("{"): text.rfind("}") + 1]
 
     if not text.strip():
         raise ValueError("Risposta vuota dal modello vision.")
@@ -857,7 +858,7 @@ else:
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: 11,
             }},
-            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }} , horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
+            grid: {{ vertLines: {{ color: 'rgba(30,41,59,0.4)' }}, horzLines: {{ color: 'rgba(30,41,59,0.4)' }} }},
             timeScale: {{ borderColor: '#334155', timeVisible: {str(usa_timestamp).lower()} }},
             rightPriceScale: {{ borderColor: '#334155' }},
             crosshair: {{
