@@ -8,8 +8,33 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from nav import render_navbar, section_header
+from theme import get_theme
 
 st.set_page_config(page_title="ARGO COT", layout="wide", page_icon="🛢️")
+
+TH = get_theme()
+PAL = {
+    "dark": {
+        "red": "#d65a4a", "green": "#4fae7e", "teal": "#6fcfcf", "amber": "#fbbf24",
+        "yellow": "#f2c200", "txt": "#e2e8f0", "tick": "#7dd3fc", "muted": "#64748b",
+        "grid": "rgba(255,255,255,.05)",
+        "colorscale": [
+            [0.0, "#e0685a"], [0.05, "#d65a4a"], [0.10, "#b0473a"], [0.20, "#8a3a30"],
+            [0.25, "#232a34"], [0.5, "#232a34"], [0.75, "#232a34"],
+            [0.80, "#35604a"], [0.90, "#418a5f"], [0.95, "#4fae7e"], [1.0, "#5cc48e"],
+        ],
+    },
+    "light": {
+        "red": "#dc2626", "green": "#16a34a", "teal": "#0e7490", "amber": "#b45309",
+        "yellow": "#ca8a04", "txt": "#0f172a", "tick": "#0369a1", "muted": "#64748b",
+        "grid": "rgba(15,23,42,.08)",
+        "colorscale": [
+            [0.0, "#b91c1c"], [0.10, "#dc2626"], [0.20, "#ef4444"],
+            [0.25, "#e2e8f0"], [0.5, "#e2e8f0"], [0.75, "#e2e8f0"],
+            [0.80, "#4ade80"], [0.90, "#22c55e"], [1.0, "#15803d"],
+        ],
+    },
+}[TH["name"]]
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
@@ -25,13 +50,11 @@ YF_COMM = {
     "SUGAR11": "SB=F", "SUGAR14": None, "COCOA": "CC=F", "OJ": "OJ=F", "LUMBER": "LBS=F",
     "LIVE_CATTLE": "LE=F", "FEEDER_CATTLE": "GF=F", "LEAN_HOGS": "HE=F",
 }
-
 CFTC_TO_FX = {
     "EURO FX": "EUR", "BRITISH POUND": "GBP", "JAPANESE YEN": "JPY",
     "AUSTRALIAN DOLLAR": "AUD", "CANADIAN DOLLAR": "CAD",
     "SWISS FRANC": "CHF", "NEW ZEALAND DOLLAR": "NZD", "US DOLLAR INDEX": "USD",
 }
-
 CFTC_TO_COMM = {
     "WHEAT": "WHEAT", "CORN": "CORN", "OATS": "OATS", "SOYBEANS": "SOYBEANS",
     "SOYBEAN OIL": "SOYBEAN_OIL", "SOYBEAN MEAL": "SOYBEAN_MEAL",
@@ -40,7 +63,6 @@ CFTC_TO_COMM = {
     "GOLD": "GOLD", "SILVER": "SILVER", "COPPER": "COPPER",
     "NATURAL GAS": "NG", "CRUDE OIL": "WTI", "BRENT CRUDE OIL": "BRENT",
 }
-
 COMM_NAMES = {
     "WHEAT": "🌾 Frumento", "CORN": "🌽 Mais", "OATS": "🥣 Avena",
     "SOYBEANS": "🫘 Soia", "SOYBEAN_OIL": "🫗 Olio di soia", "SOYBEAN_MEAL": "🥜 Farina di soia",
@@ -52,34 +74,34 @@ COMM_NAMES = {
 
 st.markdown("""
 <style>
-.cot-ticker{border-top:1px solid #1e293b;border-bottom:1px solid #1e293b;overflow:hidden;white-space:nowrap;margin:4px 0 18px;background:#0a0f1a;border-radius:8px}
+.cot-ticker{border-top:1px solid var(--border);border-bottom:1px solid var(--border);overflow:hidden;white-space:nowrap;margin:4px 0 18px;background:var(--bg-base);border-radius:8px}
 .cot-track{display:inline-block;padding:7px 0;animation:cotmarq 45s linear infinite}
 .cot-ticker:hover .cot-track{animation-play-state:paused}
 @keyframes cotmarq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.cot-tk{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;margin:0 14px;color:#94a3b8}
-.cot-tk .s{color:#e2e8f0;font-weight:700}
+.cot-tk{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;margin:0 14px;color:var(--txt-3)}
+.cot-tk .s{color:var(--txt-1);font-weight:700}
 .cot-tk .p{padding:1px 6px;border-radius:3px;font-size:10px}
-.cot-tk .p.l{background:rgba(34,197,94,.15);color:#86efac}
-.cot-tk .p.s{background:rgba(239,68,68,.15);color:#fca5a5}
-.cot-tk .p.n{background:#1e293b;color:#64748b}
-.cot-ledger{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8;display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 8px}
-.cot-ledger .k{color:#64748b}.cot-ledger .v{color:#7dd3fc}.cot-ledger .v.big{color:#fbbf24;font-weight:700}
+.cot-tk .p.l{background:rgba(34,197,94,.15);color:var(--fg-pos)}
+.cot-tk .p.s{background:rgba(239,68,68,.15);color:var(--fg-neg)}
+.cot-tk .p.n{background:var(--border);color:var(--txt-muted)}
+.cot-ledger{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--txt-3);display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 8px}
+.cot-ledger .k{color:var(--txt-muted)}.cot-ledger .v{color:var(--fg-ice)}.cot-ledger .v.big{color:var(--fg-warn);font-weight:700}
 .cot-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
-.cot-met{background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:9px 11px;transition:transform .15s ease,border-color .2s ease}
-.cot-met:hover{transform:translateY(-2px);border-color:#38bdf8}
-.cot-met .lab{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#64748b}
-.cot-met .val{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;margin-top:3px;color:#e2e8f0}
-.cot-met .val.pos{color:#86efac}.cot-met .val.neg{color:#fca5a5}.cot-met .val.warn{color:#fbbf24}
-.cot-readout{font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.5;padding:10px 12px;border-radius:8px;border:1px solid #1e293b;background:#0b1220;margin:8px 0}
+.cot-met{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:9px 11px;transition:transform .15s ease,border-color .2s ease}
+.cot-met:hover{transform:translateY(-2px);border-color:var(--accent)}
+.cot-met .lab{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--txt-muted)}
+.cot-met .val{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;margin-top:3px;color:var(--txt-1)}
+.cot-met .val.pos{color:var(--fg-pos)}.cot-met .val.neg{color:var(--fg-neg)}.cot-met .val.warn{color:var(--fg-warn)}
+.cot-readout{font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.5;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-panel);margin:8px 0;color:var(--txt-2)}
 .cot-readout.red{border-left:3px solid #ef4444}.cot-readout.yellow{border-left:3px solid #f59e0b}.cot-readout.green{border-left:3px solid #22c55e}
-.cot-al{border:1px solid #1e293b;border-left-width:4px;border-radius:8px;padding:11px 14px;font-size:12.5px;line-height:1.55;background:#0b1220;margin-bottom:8px}
+.cot-al{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:11px 14px;font-size:12.5px;line-height:1.55;background:var(--bg-panel);margin-bottom:8px;color:var(--txt-2)}
 .cot-al.red{border-left-color:#ef4444}.cot-al.yellow{border-left-color:#f59e0b}.cot-al.green{border-left-color:#22c55e}
-.cot-al b{color:#f8fafc}.cot-al .mono{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8;display:block;margin-top:3px}
-.cot-al .hint{display:block;margin-top:5px;color:#64748b;font-style:italic;font-size:11px}
-.cot-chip{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:5px 9px;border-radius:6px;border:1px solid #1e293b;background:#0b1220;color:#94a3b8;margin:0 5px 6px 0;transition:transform .12s ease,border-color .15s ease}
+.cot-al b{color:var(--txt-1)}.cot-al .mono{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--txt-3);display:block;margin-top:3px}
+.cot-al .hint{display:block;margin-top:5px;color:var(--txt-muted);font-style:italic;font-size:11px}
+.cot-chip{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--bg-panel);color:var(--txt-3);margin:0 5px 6px 0;transition:transform .12s ease,border-color .15s ease}
 .cot-chip:hover{transform:translateY(-2px)}
 .cot-chip .cd{width:8px;height:8px;border-radius:2px}
-.cot-chip .cs{font-weight:700;color:#e2e8f0}
+.cot-chip .cs{font-weight:700;color:var(--txt-1)}
 .cot-chip.t-green{border-color:rgba(34,197,94,.4)}.cot-chip.t-green .cd{background:#22c55e}
 .cot-chip.t-red{border-color:rgba(239,68,68,.4)}.cot-chip.t-red .cd{background:#ef4444}
 .cot-chip.t-yellow{border-color:rgba(245,158,11,.4)}.cot-chip.t-yellow .cd{background:#f59e0b}
@@ -88,9 +110,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown(f"""
+<style>
+:root {{
+  --fg-pos: {TH['pills']['green'][1]};
+  --fg-neg: {TH['pills']['red'][1]};
+  --fg-warn: {TH['pills']['amber'][1]};
+  --fg-ice: {TH['pills']['cyan'][1]};
+}}
+</style>
+""", unsafe_allow_html=True)
+
 render_navbar("cot", hide_sidebar=True)
 section_header("Commitments of Traders", "COT Plate · Forex & Materie Prime")
-
 
 @st.cache_data(ttl=3600)
 def carica_cot():
@@ -105,7 +137,6 @@ def carica_cot():
     except Exception as e:
         print("Errore lettura cot_data.json:", e)
         return None
-
 
 @st.cache_data(ttl=43200)
 def prezzo_yf(sym):
@@ -124,9 +155,7 @@ def prezzo_yf(sym):
     except Exception:
         return None
 
-
 DATA = carica_cot()
-
 
 # ================================================================
 # LETTURA ZIP CFTC ROBUSTA (nomi fogli e nomi mercati variabili)
@@ -156,14 +185,12 @@ def _leggi_sheet_cftc(inner: bytes) -> pd.DataFrame:
             continue
     raise RuntimeError("Nessun foglio con Market_and_Exchange_Names trovato nello zip")
 
-
 def leggi_zip_bytes(content: bytes) -> pd.DataFrame:
     zf = zipfile.ZipFile(io.BytesIO(content))
     nomi = [n for n in zf.namelist() if n.lower().endswith((".xls", ".xlsx"))]
     if not nomi:
         raise RuntimeError("Nessun file .xls dentro lo zip")
     return _leggi_sheet_cftc(zf.read(nomi[0]))
-
 
 def _mask_mercato(df: pd.DataFrame, nome_cftc: str):
     """Match esatto o per prefisso (il CFTC aggiunge la borsa al nome, es. 'GOLD - COMEX')."""
@@ -176,12 +203,10 @@ def _mask_mercato(df: pd.DataFrame, nome_cftc: str):
         m = m & ~col.str.contains("BRENT")
     return m
 
-
 def _rows_ordinate(df: pd.DataFrame, nome_cftc: str) -> pd.DataFrame:
     rows = df[_mask_mercato(df, nome_cftc)].copy()
     rows["_rd"] = pd.to_datetime(rows["Report_Date_as_MM_DD_YYYY"], errors="coerce")
     return rows.dropna(subset=["_rd"]).sort_values("_rd")
-
 
 def processa_dfs(df: pd.DataFrame):
     fx = {}
@@ -196,7 +221,6 @@ def processa_dfs(df: pd.DataFrame):
             serie.append({"t": t, "nc": float(nc)})
         if serie:
             fx[simbolo] = serie
-
     comm = {}
     for nome_cftc, simbolo in CFTC_TO_COMM.items():
         rows = _rows_ordinate(df, nome_cftc)
@@ -213,7 +237,6 @@ def processa_dfs(df: pd.DataFrame):
             comm[simbolo] = serie
     return fx, comm
 
-
 def merge_con_esistente(existing_fx, existing_comm, new_fx, new_comm):
     def _merge(old, new):
         out = {k: list(v) for k, v in (old or {}).items()}
@@ -227,7 +250,6 @@ def merge_con_esistente(existing_fx, existing_comm, new_fx, new_comm):
         return out
     return _merge(existing_fx, new_fx), _merge(existing_comm, new_comm)
 
-
 def pubblica_payload(fx, comm):
     fx_order = [s for s in ["EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "USD"] if s in fx]
     comm_order = [s for s in [
@@ -236,19 +258,16 @@ def pubblica_payload(fx, comm):
         "OATS", "ROUGH_RICE", "COTTON", "OJ", "LUMBER",
         "LIVE_CATTLE", "LEAN_HOGS",
     ] if s in comm]
-
     max_settimane = 0
     totale_record = 0
     for v in list(fx.values()) + list(comm.values()):
         max_settimane = max(max_settimane, len(v))
         totale_record += len(v)
-
     ultima_data = None
     for v in list(fx.values()) + list(comm.values()):
         if v:
             ultima_data = max(ultima_data or 0, v[-1]["t"])
     data_str = datetime.datetime.fromtimestamp(ultima_data / 1000, datetime.timezone.utc).strftime("%Y-%m-%d") if ultima_data else ""
-
     payload = {
         "meta": {
             "date": data_str,
@@ -265,7 +284,6 @@ def pubblica_payload(fx, comm):
         "fx_order": fx_order,
         "comm_order": comm_order,
     }
-
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/cot_data.json"
     headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
     r = requests.get(url, headers=headers)
@@ -282,17 +300,16 @@ def pubblica_payload(fx, comm):
         raise RuntimeError(f"Commit su GitHub fallito: {r.status_code} {r.text[:200]}")
     return payload
 
-
 if not DATA:
-    st.info("🛢️ **Nessun dato COT sul repo.** Usa il pannello **📥 Aggiornamento manuale** qui sotto: scarica i zip dal tuo browser e caricali qui.")
+    st.info("🛢️ Nessun dato COT sul repo. Usa il pannello 📥 Aggiornamento manuale qui sotto: scarica i zip dal tuo browser e caricali qui.")
 
-_anno = datetime.date.today().year
+anno = datetime.date.today().year
 with st.expander("📥 Aggiornamento manuale (download dal browser + upload)", expanded=(DATA is None)):
     st.markdown(
-        f"**1️⃣ Scarica i zip dal sito CFTC** (il tuo browser non viene bloccato):\n\n"
-        f"- 🔗 [fut_fin_xls_{_anno}.zip](https://www.cftc.gov/files/dea/history/fut_fin_xls_{_anno}.zip) — **basta questo**: lo storico salvato viene conservato e aggiornato\n"
-        f"- 🔗 [fut_fin_xls_{_anno - 1}.zip](https://www.cftc.gov/files/dea/history/fut_fin_xls_{_anno - 1}.zip) — opzionale, solo per ricostruzione da zero\n\n"
-        f"**2️⃣ Carica qui i file scaricati** (anche uno solo), poi premi **Processa**."
+        f"1️⃣ Scarica i zip dal sito CFTC (il tuo browser non viene bloccato):\n\n"
+        f"- 🔗 [fut_fin_xls_{anno}.zip](https://www.cftc.gov/files/dea/history/fut_fin_xls_{anno}.zip) — basta questo: lo storico salvato viene conservato e aggiornato\n"
+        f"- 🔗 [fut_fin_xls_{anno - 1}.zip](https://www.cftc.gov/files/dea/history/fut_fin_xls_{anno - 1}.zip) — opzionale, solo per ricostruzione da zero\n\n"
+        f"2️⃣ Carica qui i file scaricati (anche uno solo), poi premi Processa."
     )
     uploaded = st.file_uploader("Zip CFTC (.zip)", type=["zip"], accept_multiple_files=True, label_visibility="collapsed")
     if st.button("⚙️ Processa e pubblica su GitHub", type="primary", disabled=(not uploaded)):
@@ -330,7 +347,7 @@ try:
     d_rep = datetime.date.fromisoformat(META["date"])
     giorni = (datetime.date.today() - d_rep).days
     if giorni > 12:
-        st.warning(f"⚠️ Dati COT del **{META['date']}** ({giorni} giorni fa): il report CFTC esce il venerdì, usa **📥 Aggiornamento manuale**.")
+        st.warning(f"⚠️ Dati COT del {META['date']} ({giorni} giorni fa): il report CFTC esce il venerdì, usa 📥 Aggiornamento manuale.")
 except Exception:
     pass
 
@@ -342,7 +359,6 @@ st.markdown(
     f'<span><span class="k">generated</span> <span class="v">{META["gen"]}</span></span>'
     f'<span><span class="k">source</span> <span class="v">{META["src"]}</span></span>'
     f'</div>', unsafe_allow_html=True)
-
 
 def series(a, k):
     return [x[k] for x in a[-WINDOW:]]
@@ -373,7 +389,7 @@ def reversing(a, w=2):
 
 def comm_state(sym):
     """Stato COT di una commodity.
-    REGOLA HOT ALLARGATA: Producer estremo (pP<10 o pP>90) => hot anche senza Managed estremo."""
+    REGOLA HOT ALLARGATA: Producer estremo (pP <10 o pP >90) => hot anche senza Managed estremo."""
     arr = COMM.get(sym) or []
     if len(arr) < MINW:
         return {"key": "flat", "tone": "muted", "pP": 50, "pM": 50, "pS": 50, "dP": 0, "dM": 0, "revP": False}
@@ -387,7 +403,6 @@ def comm_state(sym):
     elif (pP < 10 or pP > 90): key, tone = "hot_producer", "yellow"
     else: key, tone = "flat", "muted"
     return {"key": key, "tone": tone, "pP": pP, "pM": pM, "pS": pS, "dP": dP, "dM": dM, "revP": revP}
-
 
 def build_ticker():
     items = []
@@ -404,7 +419,7 @@ def build_ticker():
         cls = "l" if p <= 30 else ("s" if p >= 70 else "n")
         items.append(f'<span class="cot-tk"><span class="s">{s}</span><span class="p {cls}">P{p:.0f}°</span></span>')
     if not items: return
-    inner = "".join(items)
+    inner = " ".join(items)
     st.markdown(f'<div class="cot-ticker"><div class="cot-track">{inner}{inner}</div></div>', unsafe_allow_html=True)
 
 build_ticker()
@@ -422,7 +437,6 @@ with tab_fx:
         P = {}; D = {}
         for s in syms:
             v = series(FX[s], "nc"); P[s] = percentile(v, v[-1]); D[s] = deriv(v)
-
         z = []; txt = []; cust = []
         maxD, maxPair, maxSign = 0, "", 1
         for rs in syms:
@@ -437,27 +451,22 @@ with tab_fx:
                     verso = "LONG" if diff >= 0 else "SHORT"
                     cr.append(f"<b>{verso} {rs}/{cs}</b> · Δperc {diff:+.0f} · {rs} {P[rs]:.0f}° vs {cs} {P[cs]:.0f}° · deriv {dd:+.0f}")
             z.append(zr); txt.append(tr); cust.append(cr)
-
         c1, c2 = st.columns([1.6, 1], gap="large")
         with c1:
             st.markdown("**Matrice forza relativa** — cella = P(riga) − P(colonna) su Leveraged Money net. Passa il mouse per il verso operativo della coppia.")
             fig = go.Figure(go.Heatmap(
                 z=z, x=syms, y=syms, text=txt, texttemplate="%{text}",
-                textfont={"size": 12, "family": "IBM Plex Mono", "color": "#e2e8f0"},
+                textfont={"size": 12, "family": "IBM Plex Mono", "color": PAL["txt"]},
                 customdata=cust, hovertemplate="%{customdata}<extra></extra>",
                 zmin=-100, zmax=100, xgap=3, ygap=3,
-                colorscale=[
-                    [0.0, "#e0685a"], [0.05, "#d65a4a"], [0.10, "#b0473a"], [0.20, "#8a3a30"],
-                    [0.25, "#232a34"], [0.5, "#232a34"], [0.75, "#232a34"],
-                    [0.80, "#35604a"], [0.90, "#418a5f"], [0.95, "#4fae7e"], [1.0, "#5cc48e"],
-                ],
+                colorscale=PAL["colorscale"],
                 showscale=False,
             ))
             fig.update_layout(
-                template="plotly_dark", height=430, margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                xaxis={"side": "top", "tickfont": {"family": "IBM Plex Mono", "color": "#7dd3fc"}},
-                yaxis={"autorange": "reversed", "tickfont": {"family": "IBM Plex Mono", "color": "#7dd3fc"}},
+                template=TH["chart"]["template"], height=430, margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor=TH["chart"]["paper"], plot_bgcolor=TH["chart"]["paper"],
+                xaxis={"side": "top", "tickfont": {"family": "IBM Plex Mono", "color": PAL["tick"]}},
+                yaxis={"autorange": "reversed", "tickfont": {"family": "IBM Plex Mono", "color": PAL["tick"]}},
             )
             st.plotly_chart(fig, use_container_width=True)
             st.markdown(
@@ -469,16 +478,15 @@ with tab_fx:
             order = sorted(syms, key=lambda s: P[s], reverse=True)
             figr = go.Figure(go.Bar(
                 y=order, x=[P[s] - 50 for s in order], orientation="h",
-                marker={"color": ["#4fae7e" if P[s] >= 66 else ("#d65a4a" if P[s] <= 34 else "#f2c200") for s in order]},
+                marker={"color": [PAL["green"] if P[s] >= 66 else (PAL["red"] if P[s] <= 34 else PAL["yellow"]) for s in order]},
                 text=[f"{P[s]:.0f}°" for s in order], textposition="outside",
-                textfont={"family": "IBM Plex Mono", "size": 11, "color": "#cbd5e1"},
+                textfont={"family": "IBM Plex Mono", "size": 11, "color": PAL["txt"]},
             ))
-            figr.update_layout(template="plotly_dark", height=330, margin=dict(l=10, r=10, t=10, b=10),
-                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            figr.update_layout(template=TH["chart"]["template"], height=330, margin=dict(l=10, r=10, t=10, b=10),
+                               paper_bgcolor=TH["chart"]["paper"], plot_bgcolor=TH["chart"]["paper"],
                                xaxis={"range": [-55, 55], "showgrid": False, "visible": False},
-                               yaxis={"autorange": "reversed", "tickfont": {"family": "IBM Plex Mono", "color": "#7dd3fc"}})
+                               yaxis={"autorange": "reversed", "tickfont": {"family": "IBM Plex Mono", "color": PAL["tick"]}})
             st.plotly_chart(figr, use_container_width=True)
-
             als = []
             for i, a in enumerate(syms):
                 for b in syms:
@@ -513,21 +521,19 @@ with tab_cm:
         visible = [s for s in mk if (flt == "all") or (flt == "hot" and stati[s]["tone"] != "muted") or (flt == "bull" and stati[s]["key"] == "bull") or (flt == "bear" and stati[s]["key"] == "bear")]
         if not visible: visible = mk
 
-        # CHIP con dicitura italiana identica al menu (COMM_NAME)
         chips = "".join(
             f'<span class="cot-chip t-{stati[s]["tone"]}"><span class="cd"></span>'
             f'<span class="cs">{_html.escape(COMM_NAME.get(s, s))}</span>'
             f'<span>{stati[s]["pP"]:.0f}</span></span>' for s in visible)
         hot_n = sum(1 for s in mk if stati[s]["tone"] != "muted")
         st.markdown(f'<div style="margin:6px 0 4px">{chips}</div>'
-                    f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#64748b;margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
+                    f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:var(--txt-muted);margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
                     unsafe_allow_html=True)
 
-        opts = {s: (COMM_NAME.get(s) or s) for s in mk}   # menu sempre completo, svincolato dal filtro
+        opts = {s: (COMM_NAME.get(s) or s) for s in mk}
         if "cot_market" not in st.session_state or st.session_state["cot_market"] not in opts:
             st.session_state["cot_market"] = (visible[0] if visible else mk[0])
         sym = st.selectbox("Mercato", list(opts.keys()), format_func=lambda s: opts[s], label_visibility="collapsed")
-
         arr = COMM[sym]
         pA = series(arr, "prod"); mA = series(arr, "mm"); sA = series(arr, "swap")
         S = stati[sym]
@@ -539,10 +545,9 @@ with tab_cm:
             st.markdown(f"**Trasferimento rischio — {COMM_NAME.get(sym, sym)}** · {len(arr)} sett. · la linea ambra (asse destro) è il **prezzo del future front‑month**, allineato alla settimana CFTC.")
             show_price = st.checkbox("Sovrapponi prezzo dell'asset (asse destro)", value=True, key="cot_price_on")
             figc = make_subplots(specs=[[{"secondary_y": True}]])
-            figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant", line={"color": "#d65a4a", "width": 2}, fill="tozeroy", fillcolor="rgba(214,90,74,.08)"), secondary_y=False)
-            figc.add_trace(go.Scatter(y=mA, name="Managed Money", line={"color": "#4fae7e", "width": 2}), secondary_y=False)
-            figc.add_trace(go.Scatter(y=sA, name="Swap Dealer", line={"color": "#6fcfcf", "width": 1.5, "dash": "dash"}), secondary_y=False)
-
+            figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant", line={"color": PAL["red"], "width": 2}, fill="tozeroy", fillcolor="rgba(214,90,74,.08)"), secondary_y=False)
+            figc.add_trace(go.Scatter(y=mA, name="Managed Money", line={"color": PAL["green"], "width": 2}), secondary_y=False)
+            figc.add_trace(go.Scatter(y=sA, name="Swap Dealer", line={"color": PAL["teal"], "width": 1.5, "dash": "dash"}), secondary_y=False)
             price_note = ""
             if show_price:
                 close = prezzo_yf(YF_COMM.get(sym))
@@ -555,25 +560,23 @@ with tab_cm:
                         py.append(None if pd.isna(v) else float(v))
                     figc.add_trace(go.Scatter(
                         y=py, name="Prezzo (front-month)",
-                        line={"color": "#fbbf24", "width": 2.4},
+                        line={"color": PAL["amber"], "width": 2.4},
                         hovertemplate="prezzo %{y:.2f}<extra></extra>"), secondary_y=True)
                 else:
                     price_note = f"Prezzo non disponibile per {sym} (nessun future front‑month su yfinance)."
-
-            figc.update_layout(template="plotly_dark", height=340, margin=dict(l=10, r=10, t=10, b=10),
-                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            figc.update_layout(template=TH["chart"]["template"], height=340, margin=dict(l=10, r=10, t=10, b=10),
+                               paper_bgcolor=TH["chart"]["paper"], plot_bgcolor=TH["chart"]["paper"],
                                legend={"orientation": "h", "y": 1.14, "font": {"family": "IBM Plex Mono", "size": 10.5}},
-                               xaxis={"title": "settimane (ultime 104)", "tickfont": {"size": 9.5, "color": "#64748b"}},
-                               )
+                               xaxis={"title": "settimane (ultime 104)", "tickfont": {"size": 9.5, "color": PAL["muted"]}},
+                               font=dict(color=TH["chart"]["text"]))
             figc.update_yaxes(title_text="contratti", secondary_y=False,
-                              tickfont={"family": "IBM Plex Mono", "size": 10, "color": "#64748b"},
-                              gridcolor="rgba(255,255,255,.05)")
+                              tickfont={"family": "IBM Plex Mono", "size": 10, "color": PAL["muted"]},
+                              gridcolor=PAL["grid"])
             figc.update_yaxes(title_text="prezzo", secondary_y=True, showgrid=False,
-                              tickfont={"family": "IBM Plex Mono", "size": 10, "color": "#fbbf24"})
+                              tickfont={"family": "IBM Plex Mono", "size": 10, "color": PAL["amber"]})
             st.plotly_chart(figc, use_container_width=True)
             if price_note:
                 st.caption(price_note)
-
             cls_v = "pos" if dP >= 0 else "neg"; cls_m = "pos" if dM >= 0 else "neg"
             st.markdown(
                 f'<div class="cot-metrics">'
@@ -586,28 +589,26 @@ with tab_cm:
                 f'<div class="cot-met"><div class="lab">Δ Prod 2w</div><div class="val {cls_v}">{dP:+.0f}</div></div>'
                 f'<div class="cot-met"><div class="lab">Δ MM 2w</div><div class="val {cls_m}">{dM:+.0f}</div></div>'
                 f'</div>', unsafe_allow_html=True)
-
             opp = (pP < 30 and pM > 70) or (pP > 70 and pM < 30)
             if pP < 20 and pM > 65:
                 vcls = "red" if revP else "yellow"
-                vtxt = (f"<b style='color:#86efac'>CONTESTO RIALZISTA ATTIVO</b> · Producer depresso ({pP:.0f}°) e <b>in inversione</b>: il rischio si trasferisce. Setup di contesto long → cerca conferma volumetrica."
+                vtxt = (f"<b style='color:{TH['pills']['green'][1]}'>CONTESTO RIALZISTA ATTIVO</b> · Producer depresso ({pP:.0f}°) e <b>in inversione</b>: il rischio si trasferisce. Setup di contesto long → cerca conferma volumetrica."
                         if revP else
-                        f"<b style='color:#fbbf24'>TENSIONE RIALZISTA</b> · Producer molto short ({pP:.0f}°) vs Managed long ({pM:.0f}°). <b>Non è ancora long</b>: attendi che la linea rossa salga (producer inverte).")
+                        f"<b style='color:{PAL['amber']}'>TENSIONE RIALZISTA</b> · Producer molto short ({pP:.0f}°) vs Managed long ({pM:.0f}°). <b>Non è ancora long</b>: attendi che la linea rossa salga (producer inverte).")
             elif pP > 80 and pM < 35:
                 vcls = "red" if revP else "yellow"
-                vtxt = (f"<b style='color:#fca5a5'>CONTESTO RIBASSISTA ATTIVO</b> · Producer {pP:.0f}° in inversione verso più copertura + Managed short ({pM:.0f}°). Setup di contesto short."
+                vtxt = (f"<b style='color:{TH['pills']['red'][1]}'>CONTESTO RIBASSISTA ATTIVO</b> · Producer {pP:.0f}° in inversione verso più copertura + Managed short ({pM:.0f}°). Setup di contesto short."
                         if revP else
-                        f"<b style='color:#fbbf24'>TENSIONE RIBASSISTA</b> · Producer {pP:.0f}° vs Managed {pM:.0f}°. Attendi che la linea rossa scenda (producer riprende a coprire).")
+                        f"<b style='color:{PAL['amber']}'>TENSIONE RIBASSISTA</b> · Producer {pP:.0f}° vs Managed {pM:.0f}°. Attendi che la linea rossa scenda (producer riprende a coprire).")
             elif (pM > 85 or pM < 15) and not revP:
-                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>SPECULATORI A ESTREMO</b> · Managed {'max long' if pM>85 else 'max short'} ({pM:.0f}°) ma producer non inverte: trend maturo → <b>non inseguirlo, non invertirlo</b>. Watchlist.")
+                vcls, vtxt = "yellow", (f"<b style='color:{PAL['amber']}'>SPECULATORI A ESTREMO</b> · Managed {'max long' if pM>85 else 'max short'} ({pM:.0f}°) ma producer non inverte: trend maturo → <b>non inseguirlo, non invertirlo</b>. Watchlist.")
             elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
-                vcls, vtxt = "green", (f"<b style='color:#7dd3fc'>TREND SPECULATIVO IN CORSO</b> · Managed {'accumula long' if dM>0 else 'accumula short'} (Δ {dM:+.0f}) senza estremi: trend vivo → <b>non operare contro</b>.")
+                vcls, vtxt = "green", (f"<b style='color:{TH['pills']['cyan'][1]}'>TREND SPECULATIVO IN CORSO</b> · Managed {'accumula long' if dM>0 else 'accumula short'} (Δ {dM:+.0f}) senza estremi: trend vivo → <b>non operare contro</b>.")
             elif (pP < 10 or pP > 90):
-                vcls, vtxt = "yellow", (f"<b style='color:#fbbf24'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° con Managed neutro ({pM:.0f}°): copertura commerciale anomala → <b>monitora quando la linea rossa inverte</b> come anticipatore.")
+                vcls, vtxt = "yellow", (f"<b style='color:{PAL['amber']}'>PRODUCER ESTREMO</b> · Producer a {pP:.0f}° con Managed neutro ({pM:.0f}°): copertura commerciale anomala → <b>monitora quando la linea rossa inverte</b> come anticipatore.")
             else:
                 vcls, vtxt = "green", (f"<b>NESSUNA LETTURA DOMINANTE</b> · Producer {pP:.0f}° · Managed {pM:.0f}° · Swap {pS:.0f}°. Nessun trasferimento netto: stai fermo.")
             st.markdown(f'<div class="cot-readout {vcls}">{vtxt}</div>', unsafe_allow_html=True)
-
             als = []
             if (pP < 10 or pP > 90) and (pM < 10 or pM > 90) and opp:
                 d2 = "RIALZISTA" if pP < 10 else "RIBASSISTA"
@@ -624,7 +625,6 @@ with tab_cm:
             if not als:
                 als.append(f'<div class="cot-al green">Nessuna configurazione estrema su {sym}.</div>')
             st.markdown("".join(als), unsafe_allow_html=True)
-
         with g2:
             with st.expander("📖 Come leggere le 3 linee + prezzo", expanded=True):
                 st.markdown(
