@@ -2,12 +2,14 @@
 Screening automatico giornaliero (lanciato da .github/workflows/run_screening.yml).
 I/O su disco; il commit lo fa il workflow. Logica ALLINEATA a watchlist_io:
 VWAP rinfrescati sempre (auto+manuali), POC solo su auto, rimozione solo zombie.
+CONCETTO POC = ZONA: schema con POC k Low/High; i POC "punto" (manuali/legacy)
+ricevono zona derivata ±MANUAL_POC_ZONE_PCT al caricamento (valore POC mai toccato).
 """
 
 import os
 import datetime
 import pandas as pd
-from data_engine import DataEngine
+from data_engine import DataEngine, zona_poc_effettiva, MANUAL_POC_ZONE_PCT
 
 CSV_PATH = "watchlist.csv"
 
@@ -23,7 +25,9 @@ COLONNE_ATTESE = [
     "Livello 1", "Nota 1", "Livello 2", "Nota 2", "Livello 3", "Nota 3",
     "VWAP 1", "Nota VWAP 1", "VWAP 2", "Nota VWAP 2", "VWAP 3", "Nota VWAP 3",
     "Screenshot", "Origine",
-    "POC 1", "Nota POC 1", "POC 2", "Nota POC 2", "POC 3", "Nota POC 3",
+    "POC 1", "POC 1 Low", "POC 1 High", "Nota POC 1",
+    "POC 2", "POC 2 Low", "POC 2 High", "Nota POC 2",
+    "POC 3", "POC 3 Low", "POC 3 High", "Nota POC 3",
     "Auto_Indice",
 ]
 ALIAS_COLONNE = {
@@ -37,6 +41,11 @@ ALIAS_COLONNE = {
 }
 _TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
 _VWAP_LABELS = {"VWAP 4Y", "VWAP 1Y", "VWAP 3M"}
+_COLONNE_NUMERICHE = [
+    "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3",
+    "POC 1", "POC 1 Low", "POC 1 High", "POC 2", "POC 2 Low", "POC 2 High",
+    "POC 3", "POC 3 Low", "POC 3 High",
+]
 
 
 def _is_text_col(col: str) -> bool:
@@ -57,9 +66,16 @@ def load_watchlist_disk() -> pd.DataFrame:
     for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
-    for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3", "POC 1", "POC 2", "POC 3"]:
+    for col in _COLONNE_NUMERICHE:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
+    # Migrazione zone: POC punto senza Low/High -> zona derivata (valore POC intatto)
+    for k in (1, 2, 3):
+        mask = (df[f"POC {k}"] != 0) & ((df[f"POC {k} Low"] == 0) | (df[f"POC {k} High"] == 0))
+        if mask.any():
+            lo, hi = zip(*[zona_poc_effettiva(p, 0, 0) for p in df.loc[mask, f"POC {k}"]])
+            df.loc[mask, f"POC {k} Low"] = lo
+            df.loc[mask, f"POC {k} High"] = hi
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     return df
@@ -80,9 +96,19 @@ def _safe_float(val, default: float = 0.0) -> float:
 
 
 def _dists(row_s, prezzo):
-    poc_vals = [_safe_float(row_s.get(f"POC {k}"), 0.0) for k in (1, 2, 3)]
-    poc_vals = [v for v in poc_vals if v != 0]
-    dist_poc = min(abs(prezzo - v) / v * 100 for v in poc_vals) if poc_vals else 999
+    """Distanza minima prezzo -> zone POC (0 se dentro la zona) e VWAP."""
+    dist_poc = 999
+    for k in (1, 2, 3):
+        poc = _safe_float(row_s.get(f"POC {k}"), 0.0)
+        lo, hi = zona_poc_effettiva(poc, row_s.get(f"POC {k} Low"), row_s.get(f"POC {k} High"))
+        if poc > 0 and lo > 0 and hi > 0:
+            if lo <= prezzo <= hi:
+                d = 0.0
+            elif prezzo < lo:
+                d = abs(prezzo - lo) / lo * 100
+            else:
+                d = abs(prezzo - hi) / hi * 100
+            dist_poc = min(dist_poc, d)
     v4 = _safe_float(row_s.get("VWAP 4Y"), 0.0)
     v1 = _safe_float(row_s.get("VWAP 1Y"), 0.0)
     v3 = _safe_float(row_s.get("VWAP 3M"), 0.0)
@@ -107,6 +133,8 @@ def _write_vwap(df, idx, row_s):
 def _write_pocs(df, idx, row_s, indice):
     for k in (1, 2, 3):
         df.at[idx, f"POC {k}"] = _safe_float(row_s.get(f"POC {k}"), 0.0)
+        df.at[idx, f"POC {k} Low"] = _safe_float(row_s.get(f"POC {k} Low"), 0.0)
+        df.at[idx, f"POC {k} High"] = _safe_float(row_s.get(f"POC {k} High"), 0.0)
         df.at[idx, f"Nota POC {k}"] = str(row_s.get(f"Nota POC {k}", "") or "")
     df.at[idx, "Auto_Indice"] = indice
 
@@ -144,9 +172,18 @@ def reconcile(df_wl, df_scr, indice, soglia):
                     "VWAP 2": _safe_float(row_s.get("VWAP 1Y"), 0.0), "Nota VWAP 2": "VWAP 1Y",
                     "VWAP 3": _safe_float(row_s.get("VWAP 3M"), 0.0), "Nota VWAP 3": "VWAP 3M",
                     "Screenshot": "", "Origine": "auto",
-                    "POC 1": _safe_float(row_s.get("POC 1"), 0.0), "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
-                    "POC 2": _safe_float(row_s.get("POC 2"), 0.0), "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
-                    "POC 3": _safe_float(row_s.get("POC 3"), 0.0), "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
+                    "POC 1": _safe_float(row_s.get("POC 1"), 0.0),
+                    "POC 1 Low": _safe_float(row_s.get("POC 1 Low"), 0.0),
+                    "POC 1 High": _safe_float(row_s.get("POC 1 High"), 0.0),
+                    "Nota POC 1": str(row_s.get("Nota POC 1", "") or ""),
+                    "POC 2": _safe_float(row_s.get("POC 2"), 0.0),
+                    "POC 2 Low": _safe_float(row_s.get("POC 2 Low"), 0.0),
+                    "POC 2 High": _safe_float(row_s.get("POC 2 High"), 0.0),
+                    "Nota POC 2": str(row_s.get("Nota POC 2", "") or ""),
+                    "POC 3": _safe_float(row_s.get("POC 3"), 0.0),
+                    "POC 3 Low": _safe_float(row_s.get("POC 3 Low"), 0.0),
+                    "POC 3 High": _safe_float(row_s.get("POC 3 High"), 0.0),
+                    "Nota POC 3": str(row_s.get("Nota POC 3", "") or ""),
                     "Auto_Indice": indice,
                 }])
                 df_wl = pd.concat([df_wl, nuova], ignore_index=True)
