@@ -3,22 +3,22 @@
 download_indices.py
 -------------------
 Scarica mensilmente le liste complete dei componenti di:
-  - S&P 500     (SPY xlsx | fallback iShares IVV)
-  - Nasdaq 100  (api.nasdaq.com | fallback Invesco QQQ)
-  - DAX         (iShares Core DAX ETF)
-  - CAC 40      (Amundi CAC 40 ETF)
-  - FTSE MIB    (Xtrackers FTSE MIB ETF)
+  - S&P 500     (SPY xlsx -> iShares IVV -> Wikipedia)
+  - Nasdaq 100  (api.nasdaq.com -> Invesco QQQ -> Wikipedia)
+  - DAX         (iShares EXIC -> Wikipedia)
+  - CAC 40      (Wikipedia)
+  - FTSE MIB    (Wikipedia)
 
-Solo CSV/XLSX da ETF ufficiali — niente parser PDF.
-Salva direttamente su GitHub in `indices/` (filesystem Streamlit Cloud effimero).
+Solo CSV/XLSX ETF + tabelle Wikipedia — niente parser PDF.
+Salva su GitHub in `indices/` (filesystem Streamlit Cloud effimero).
 
 Uso:
     python download_indices.py                # scarica tutto e push su GitHub
     python download_indices.py --only sp500   # solo un indice
     python download_indices.py --local        # test locale in ./output/
 
-Variabili d'ambiente:
-    GITHUB_TOKEN, GITHUB_REPO (già presenti in secrets)
+Dipendenze: pip install pandas requests openpyxl lxml
+Variabili d'ambiente per il push: GITHUB_TOKEN, GITHUB_REPO
 """
 
 import argparse
@@ -89,7 +89,50 @@ def _commit_to_github(path: str, df: pd.DataFrame, message: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# S&P 500 — primario: SPDR SPY xlsx | fallback: iShares IVV CSV
+# WIKIPEDIA — fallback universale (tabelle costituenti)
+# ---------------------------------------------------------------------------
+WIKI_URLS = {
+    "sp500": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+    "nasdaq100": "https://en.wikipedia.org/wiki/Nasdaq-100",
+    "dax": "https://en.wikipedia.org/wiki/DAX",
+    "cac40": "https://en.wikipedia.org/wiki/CAC_40",
+    "ftsemib": "https://en.wikipedia.org/wiki/FTSE_MIB",
+}
+
+
+def _find_col(columns, keys):
+    for c in columns:
+        cl = str(c).strip().lower()
+        if any(k in cl for k in keys):
+            return c
+    return None
+
+
+def get_wikipedia(name: str, local_only: bool, min_rows: int = 20) -> pd.DataFrame:
+    url = WIKI_URLS[name]
+    tables = pd.read_html(url)
+    for t in tables:
+        if t.shape[0] < min_rows:
+            continue
+        tc = _find_col(t.columns, ("ticker", "symbol", "mnemo"))
+        nc = _find_col(t.columns, ("company", "security", "name", "constituent"))
+        if not tc or not nc:
+            continue
+        out = pd.DataFrame({"ticker": t[tc].astype(str), "name": t[nc].astype(str)})
+        out["ticker"] = (
+            out["ticker"]
+            .str.replace(r"^(BIT|EPA|XETR|FWB|SWX|NASDAQ|NYSE)\s*:\s*", "", regex=True)
+            .str.strip()
+            .str.upper()
+        )
+        out = out[out["ticker"].str.match(r"^[A-Z0-9][A-Z0-9.\-]*$", na=False)]
+        if len(out) >= min_rows:
+            return _save(out, name, f"Wikipedia ({url.rsplit('/', 1)[-1]})", local_only)
+    raise ValueError(f"Nessuna tabella costituenti valida su {url}")
+
+
+# ---------------------------------------------------------------------------
+# S&P 500 — SPY xlsx -> iShares IVV -> Wikipedia
 # ---------------------------------------------------------------------------
 SPY_XLSX_URL = (
     "https://www.ssga.com/us/en/intermediary/etfs/library-content/products/"
@@ -110,23 +153,28 @@ def get_sp500(local_only: bool) -> pd.DataFrame:
         df = df[df["ticker"].notna() & ~df["ticker"].astype(str).str.contains("Cash", case=False, na=False)]
         return _save(df[["ticker", "name", "weight"]], "sp500", "SPY holdings (SSGA)", local_only)
     except Exception as e:
-        print(f"[WARN] SPY primario fallito ({e}), fallback iShares IVV...")
+        print(f"[WARN] SPY primario fallito ({e}), fallback IVV...")
 
-    r = requests.get(IVV_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
-    r.raise_for_status()
-    text = r.content.decode("utf-8", errors="ignore")
-    header_idx = next(i for i, line in enumerate(text.splitlines()) if line.startswith("Ticker"))
-    df = pd.read_csv(io.StringIO(text), skiprows=header_idx)
-    df = df.rename(columns={"Ticker": "ticker", "Name": "name", "Weight (%)": "weight"})
-    return _save(df[["ticker", "name", "weight"]].dropna(subset=["ticker"]), "sp500", "iShares IVV holdings (fallback)", local_only)
+    try:
+        r = requests.get(IVV_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
+        r.raise_for_status()
+        text = r.content.decode("utf-8", errors="ignore")
+        header_idx = next(i for i, line in enumerate(text.splitlines()) if line.startswith("Ticker"))
+        df = pd.read_csv(io.StringIO(text), skiprows=header_idx)
+        df = df.rename(columns={"Ticker": "ticker", "Name": "name", "Weight (%)": "weight"})
+        return _save(df[["ticker", "name", "weight"]].dropna(subset=["ticker"]), "sp500", "iShares IVV (fallback)", local_only)
+    except Exception as e:
+        print(f"[WARN] IVV fallito ({e}), fallback Wikipedia...")
+
+    return get_wikipedia("sp500", local_only, min_rows=100)
 
 
 # ---------------------------------------------------------------------------
-# Nasdaq 100 — primario: api.nasdaq.com | fallback: Invesco QQQ CSV
+# Nasdaq 100 — api.nasdaq.com -> Invesco QQQ -> Wikipedia
 # ---------------------------------------------------------------------------
 NASDAQ_API_URL = "https://api.nasdaq.com/api/quote/list-type/nasdaq100"
 QQQ_CSV_URL = (
-    "https://www.invesco.com/us/financial-products/etfs/holdings/main/holdings/0"
+    "https://www.invesco.com/us/financial_products/etfs/holdings/main/holdings/0"
     "?audienceType=Investor&action=download&ticker=QQQ"
 )
 
@@ -140,17 +188,22 @@ def get_nasdaq100(local_only: bool) -> pd.DataFrame:
         df = df.rename(columns={"symbol": "ticker", "companyName": "name", "marketCap": "market_cap"})
         return _save(df[["ticker", "name"]], "nasdaq100", "api.nasdaq.com (ufficiale)", local_only)
     except Exception as e:
-        print(f"[WARN] API Nasdaq fallita ({e}), fallback Invesco QQQ...")
+        print(f"[WARN] API Nasdaq fallita ({e}), fallback QQQ...")
 
-    r = requests.get(QQQ_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
-    r.raise_for_status()
-    df = pd.read_csv(io.StringIO(r.content.decode("utf-8", errors="ignore")))
-    df = df.rename(columns={"Holding Ticker": "ticker", "Name": "name", "Weight": "weight"})
-    return _save(df[["ticker", "name"]].dropna(subset=["ticker"]), "nasdaq100", "Invesco QQQ holdings (fallback)", local_only)
+    try:
+        r = requests.get(QQQ_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
+        r.raise_for_status()
+        df = pd.read_csv(io.StringIO(r.content.decode("utf-8", errors="ignore")))
+        df = df.rename(columns={"Holding Ticker": "ticker", "Name": "name", "Weight": "weight"})
+        return _save(df[["ticker", "name"]].dropna(subset=["ticker"]), "nasdaq100", "Invesco QQQ (fallback)", local_only)
+    except Exception as e:
+        print(f"[WARN] QQQ fallito ({e}), fallback Wikipedia...")
+
+    return get_wikipedia("nasdaq100", local_only, min_rows=50)
 
 
 # ---------------------------------------------------------------------------
-# DAX — iShares Core DAX ETF (EXIC)
+# DAX — iShares EXIC -> Wikipedia
 # ---------------------------------------------------------------------------
 DAX_CSV_URL = (
     "https://www.ishares.com/de/privatanleger/de/produkte/251464/"
@@ -160,83 +213,33 @@ DAX_CSV_URL = (
 
 
 def get_dax(local_only: bool) -> pd.DataFrame:
-    r = requests.get(DAX_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
-    r.raise_for_status()
-    text = r.content.decode("utf-8", errors="ignore")
-    header_idx = next(i for i, line in enumerate(text.splitlines()) if line.startswith("Ticker") or line.startswith("Name"))
-    df = pd.read_csv(io.StringIO(text), skiprows=header_idx)
-    df.columns = [c.strip() for c in df.columns]
-    df = df.rename(columns={"Ticker": "ticker", "Name": "name", "Weight (%)": "weight"})
-    return _save(df[["ticker", "name", "weight"]].dropna(subset=["ticker"]), "dax", "iShares Core DAX (EXIC) holdings", local_only)
-
-
-# ---------------------------------------------------------------------------
-# CAC 40 — Amundi CAC 40 ETF
-# ---------------------------------------------------------------------------
-CAC40_ETF_CSV_URL = "https://www.amundietf.it/it/professional/produkte/etf/amundi-cac-40-ucits-etf-dist/FR0007052782/download-holdings"
-
-
-def get_cac40(local_only: bool) -> pd.DataFrame:
-    r = requests.get(CAC40_ETF_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
-    r.raise_for_status()
-    df = pd.read_csv(io.StringIO(r.content.decode("utf-8", errors="ignore")))
-    df.columns = [c.strip() for c in df.columns]
-    rename_map = {}
-    for col in df.columns:
-        cl = col.lower()
-        if cl in ("ticker", "mnemo", "symbol"):
-            rename_map[col] = "ticker"
-        elif cl in ("name", "company"):
-            rename_map[col] = "name"
-        elif cl in ("weight", "weight (%)"):
-            rename_map[col] = "weight"
-    df = df.rename(columns=rename_map)
-    if "name" not in df.columns:
-        df["name"] = ""
-    if "weight" not in df.columns:
-        df["weight"] = None
-    out = df[["ticker", "name", "weight"]].dropna(subset=["ticker"])
-    return _save(out, "cac40", "Amundi CAC 40 ETF holdings", local_only)
-
-
-# ---------------------------------------------------------------------------
-# FTSE MIB — Xtrackers FTSE MIB ETF
-# ---------------------------------------------------------------------------
-FTSEMIB_ETF_CSV_URL = "https://etf.dws.com/en-it/IE00B53L4X51-xtrackers-ftse-mib-ucits-etf-1c/"
-
-
-def get_ftsemib(local_only: bool) -> pd.DataFrame:
-    r = requests.get(FTSEMIB_ETF_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
-    r.raise_for_status()
-    content_type = r.headers.get("Content-Type", "")
-    if "html" in content_type.lower():
-        match = re.search(r'(https?://[^"\']+holdings[^"\']*\.csv)', r.text)
-        if not match:
-            raise ValueError("Xtrackers serve HTML ma nessun link holdings CSV trovato")
-        r2 = requests.get(match.group(1), headers=HEADERS_BROWSER, timeout=30)
-        r2.raise_for_status()
-        text = r2.content.decode("utf-8", errors="ignore")
-    else:
+    try:
+        r = requests.get(DAX_CSV_URL, headers=HEADERS_BROWSER, timeout=30)
+        r.raise_for_status()
         text = r.content.decode("utf-8", errors="ignore")
+        header_idx = next(i for i, line in enumerate(text.splitlines()) if line.startswith("Ticker") or line.startswith("Name"))
+        df = pd.read_csv(io.StringIO(text), skiprows=header_idx)
+        df.columns = [c.strip() for c in df.columns]
+        df = df.rename(columns={"Ticker": "ticker", "Name": "name", "Weight (%)": "weight"})
+        return _save(df[["ticker", "name", "weight"]].dropna(subset=["ticker"]), "dax", "iShares Core DAX (EXIC)", local_only)
+    except Exception as e:
+        print(f"[WARN] iShares DAX fallito ({e}), fallback Wikipedia...")
 
-    df = pd.read_csv(io.StringIO(text))
-    df.columns = [c.strip() for c in df.columns]
-    rename_map = {}
-    for col in df.columns:
-        cl = col.lower()
-        if cl in ("ticker", "symbol", "mnemo"):
-            rename_map[col] = "ticker"
-        elif cl in ("name", "company", "constituent"):
-            rename_map[col] = "name"
-        elif cl in ("weight", "weight (%)"):
-            rename_map[col] = "weight"
-    df = df.rename(columns=rename_map)
-    if "name" not in df.columns:
-        df["name"] = ""
-    if "weight" not in df.columns:
-        df["weight"] = None
-    out = df[["ticker", "name", "weight"]].dropna(subset=["ticker"])
-    return _save(out, "ftsemib", "Xtrackers FTSE MIB ETF holdings", local_only)
+    return get_wikipedia("dax", local_only, min_rows=30)
+
+
+# ---------------------------------------------------------------------------
+# CAC 40 — Wikipedia (URL Amundi non più disponibile)
+# ---------------------------------------------------------------------------
+def get_cac40(local_only: bool) -> pd.DataFrame:
+    return get_wikipedia("cac40", local_only, min_rows=30)
+
+
+# ---------------------------------------------------------------------------
+# FTSE MIB — Wikipedia (URL Xtrackers non più disponibile)
+# ---------------------------------------------------------------------------
+def get_ftsemib(local_only: bool) -> pd.DataFrame:
+    return get_wikipedia("ftsemib", local_only, min_rows=30)
 
 
 FETCHERS = {
