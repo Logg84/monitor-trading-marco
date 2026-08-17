@@ -110,7 +110,11 @@ def _find_col(columns, keys):
 
 def get_wikipedia(name: str, local_only: bool, min_rows: int = 20) -> pd.DataFrame:
     url = WIKI_URLS[name]
-    tables = pd.read_html(url)
+    # Wikipedia blocca lo User-Agent di default di pandas/urllib (403):
+    # scarico la pagina con requests + UA browser e passo l'HTML a read_html.
+    r = requests.get(url, headers=HEADERS_BROWSER, timeout=30)
+    r.raise_for_status()
+    tables = pd.read_html(io.BytesIO(r.content))
     for t in tables:
         if t.shape[0] < min_rows:
             continue
