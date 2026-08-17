@@ -168,17 +168,16 @@ section_header("Portafoglio monitorato", "Watchlist & Livelli")
 
 
 # ================================================================
-# CLIENT GROQ — AUTONOMO (import interno, chiave in chiaro, nessun crash)
+# CLIENT GROQ — AUTONOMO (chiave SOLO da secrets, nessun valore nel codice)
 # ================================================================
-_GROQ_KEY_FALLBACK = "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"
-
 @st.cache_resource
 def get_client():
     try:
         from groq import Groq
     except Exception:
         return None
-    api_key = st.secrets.get("GROQ_API_KEY") or _GROQ_KEY_FALLBACK
+    # Legge GROQ_API_KEY; se assente prova il vecchio nome secret (entrambi da Streamlit secrets)
+    api_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("GROQ_KEY_FALLBACK")
     if not api_key:
         return None
     return Groq(api_key=api_key)
@@ -209,7 +208,7 @@ Regole:
 
 def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
     if client is None:
-        raise RuntimeError("Client Groq non disponibile: aggiungi groq>=0.11.0 a requirements.txt.")
+        raise RuntimeError("Client Groq non disponibile: aggiungi groq>=0.11.0 a requirements.txt e la chiave GROQ_API_KEY nei secrets.")
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     data_url = f"data:{mime_type};base64,{b64}"
 
@@ -469,7 +468,7 @@ with col_upload:
         st.image(uploaded_file, caption="Anteprima", use_container_width=True)
 
         if client is None:
-            st.warning("⚠️ **Analisi AI non disponibile.** Aggiungi `groq>=0.11.0` a `requirements.txt` e fai reboot. Il resto della pagina funziona normalmente.")
+            st.warning("⚠️ **Analisi AI non disponibile.** Aggiungi `groq>=0.11.0` a `requirements.txt` e la chiave `GROQ_API_KEY` nei secrets di Streamlit. Il resto della pagina funziona normalmente.")
         else:
             if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
                 with st.spinner("Analisi in corso (Groq qwen3.6-27b vision)..."):
