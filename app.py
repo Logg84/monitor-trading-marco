@@ -35,16 +35,15 @@ TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
 # Inizializza session state per dati pesanti
-with st.spinner("🔧 Avvio applicazione... caricamento configurazione e dati."):
-    if "engine" not in st.session_state:
-        st.session_state["engine"] = DataEngine()
-    # Cache watchlist caricata una volta per sessione (refresh dopo modifiche esplicite)
-    if "watchlist_last_commit" not in st.session_state:
-        st.session_state["watchlist_last_commit"] = 0
-    if "watchlist_cached" not in st.session_state:
-        st.session_state["watchlist_cached"] = carica_watchlist()
-    if "prezzi_sessione" not in st.session_state:
-        st.session_state["prezzi_sessione"], st.session_state["prezzi_aggiornati_il"] = carica_prezzi_condivisi()
+if "engine" not in st.session_state:
+    st.session_state["engine"] = DataEngine()
+# Cache watchlist caricata una volta per sessione (refresh dopo modifiche esplicite)
+if "watchlist_last_commit" not in st.session_state:
+    st.session_state["watchlist_last_commit"] = 0
+if "watchlist_cached" not in st.session_state:
+    st.session_state["watchlist_cached"] = carica_watchlist()
+if "prezzi_sessione" not in st.session_state:
+    st.session_state["prezzi_sessione"], st.session_state["prezzi_aggiornati_il"] = carica_prezzi_condivisi()
 
 TH = get_theme()
 
