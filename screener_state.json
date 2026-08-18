@@ -1082,5 +1082,13 @@
     "SDF.DE": {
         "status": "Active",
         "indice": "DAX (Germania)"
+    },
+    "RDDT": {
+        "status": "Active",
+        "indice": "S&P 500"
+    },
+    "BZU.MI": {
+        "status": "Active",
+        "indice": "FTSE MIB (Italia)"
     }
 }

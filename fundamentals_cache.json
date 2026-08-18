@@ -2850,5 +2850,27 @@
         "revenueGrowth": -1.9177718832891246,
         "operatingCashflow": 429000000,
         "last_updated": "2026-08-16T21:47:44.071007"
+    },
+    "RDDT": {
+        "marketCap": 31649225895.0,
+        "debtToEquity": 0.635,
+        "freeCashflow": 678068736,
+        "operatingMargins": 0.28788,
+        "returnOnEquity": 0.30712,
+        "netIncome": 529721000.0,
+        "revenueGrowth": 0.6110118148138511,
+        "operatingCashflow": 1026094976,
+        "last_updated": "2026-08-18T13:00:53.998688"
+    },
+    "BZU.MI": {
+        "marketCap": 7058701099.78894,
+        "debtToEquity": 6.827,
+        "freeCashflow": 15428625,
+        "operatingMargins": 0.1397,
+        "returnOnEquity": 0.12303001,
+        "netIncome": 921313000.0,
+        "revenueGrowth": null,
+        "operatingCashflow": 821296000,
+        "last_updated": "2026-08-18T13:01:03.213714"
     }
 }
