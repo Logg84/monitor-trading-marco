@@ -1,0 +1,14 @@
+# Screenshot caricati per estrazione Gemini Vision — non vanno versionati
+screenshots/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store

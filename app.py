@@ -12,7 +12,8 @@ from PIL import Image
 import base64
 from nav import render_navbar, section_header
 from theme import get_theme
-from data_engine import zona_poc_effettiva
+from data_engine import DataEngine, zona_poc_effettiva
+from watchlist_io import carica_watchlist_da_github as carica_watchlist, commit_csv_su_github, ALIAS_COLONNE
 
 MAPPA_BORSA_EUROPEA = {"CPR": "CPR.MI", "RI": "RI.PA", "NESN": "NESN.SW", "AF": "AF.PA"}
 
@@ -27,6 +28,9 @@ def storico_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
 
 CSV_PATH = "watchlist.csv"
 MODEL_NAME = "qwen/qwen3.6-27b"
+
+# Configurazione API TwelveData (serve per mappa_ticker_twelvedata in carica_watchlist)
+TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
 
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
@@ -298,140 +302,40 @@ STATE_PATH = "alert_state.json"
 HISTORY_PATH = "alert_history.csv"
 PREZZI_PATH = "prezzi_attuali.json"
 
-COLONNE_NUMERICHE = [
-    "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3",
-    "POC 1", "POC 1 Low", "POC 1 High", "POC 2", "POC 2 Low", "POC 2 High",
-    "POC 3", "POC 3 Low", "POC 3 High",
-]
+# ================================================================
+# FUNZIONI HELPER LOCALI
+# ================================================================
+def mappa_ticker_twelvedata(ticker: str) -> str:
+    t = ticker.strip().upper()
+    for base in CRYPTO_NOTE:
+        if t == f"{base}USD":
+            return f"{base}/USD"
+    if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
+        return f"{t[:3]}/{t[3:]}"
+    return t
 
-_TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+def determina_exchange(simbolo: str) -> str:
+    return "nasdaq"
 
-def _is_text_col(col: str) -> bool:
-    return col.startswith("Nota") or col in _TEXT_COLS
-
-def _read_watchlist_github() -> pd.DataFrame | None:
+def dimensione_repo_kb() -> int | None:
+    """Restituisce la dimensione del repo GitHub in KB, o None se non configurato."""
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return None
     try:
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+        url = f"https://api.github.com/repos/{GITHUB_REPO}"
         headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-        r = requests.get(url, headers=headers, timeout=30)
-        if r.status_code != 200:
-            return None
-        contenuto = base64.b64decode(r.json()["content"]).decode()
-        return pd.read_csv(io.StringIO(contenuto))
-    except Exception as e:
-        print(f"Errore lettura watchlist da GitHub: {e}")
-        return None
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("size", 0)  # size è in KB
+    except Exception:
+        pass
+    return None
 
-def carica_watchlist() -> pd.DataFrame:
-    df = _read_watchlist_github()
-    if df is None or df.empty:
-        if os.path.exists(CSV_PATH):
-            try:
-                df = pd.read_csv(CSV_PATH)
-            except Exception:
-                df = pd.DataFrame(columns=COLONNE_ATTESE)
-        else:
-            df = pd.DataFrame(columns=COLONNE_ATTESE)
-    if df.empty:
-        df = pd.DataFrame(columns=COLONNE_ATTESE)
-    df = df.rename(columns=ALIAS_COLONNE)
-    for col in COLONNE_ATTESE:
-        if col not in df.columns:
-            df[col] = "" if _is_text_col(col) else 0
-    df = df[COLONNE_ATTESE]
-    for col in COLONNE_ATTESE:
-        if _is_text_col(col):
-            df[col] = df[col].fillna("").astype(str).replace("nan", "")
-    df["Origine"] = df["Origine"].replace("", "manuale")
-    for col in _COLONNE_NUMERICHE:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
-# Migrazione zone: POC punto senza Low/High -> zona derivata (valore POC intatto)
-    for k in (1, 2, 3):
-        mask = (df[f"POC {k}"] != 0) & ((df[f"POC {k} Low"] == 0) | (df[f"POC {k} High"] == 0))
-        if mask.any():
-            lo, hi = zip(*[zona_poc_effettiva(p, 0, 0) for p in df.loc[mask, f"POC {k}"]])
-            df.loc[mask, f"POC {k} Low"] = lo
-            df.loc[mask, f"POC {k} High"] = hi
-    # Auto-rimozione tickers sopra 25% di ritracciamento dal massimo storico
-    # Se il prezzo si è ripreso di più del 25% dal massimo, rimuovi dalla watchlist
-    if "Ticker" in df.columns and not df.empty:
-        tickers_to_remove = []
-        for _, row in df.iterrows():
-            ticker = str(row["Ticker"]).strip().upper()
-            # Usa la funzione mappa già definita nell'app
-            ticker_td = mappa_ticker_twelvedata(ticker)
-            try:
-                url = f"https://api.twelvedata.com/time_series?symbol={ticker_td}&interval=1day&outputsize=250&apikey={TD_API_KEY}&order=ASC"
-                r = requests.get(url, timeout=10)
-                if r.status_code == 200:
-                    dati = r.json()
-                    if dati.get("values"):
-                        closes = [float(v["close"]) for v in dati["values"]]
-                        ath = max(closes)
-                        prezzo_corrente = closes[-1]
-                        dd_pct = (prezzo_corrente - ath) / ath * 100
-                        # Se il prezzo si è ripreso di più del 25% dal massimo (drawdown > -25%)
-                        # significa che il titolo non è più in "sconto" profondo
-                        if dd_pct > -25:
-                            tickers_to_remove.append(ticker)
-            except Exception:
-                pass  # Se fallisce il fetch, non rimuovere (conservativo)
-        if tickers_to_remove:
-            df = df[~df["Ticker"].isin(tickers_to_remove)]
-            if not df.empty:
-                commit_csv_su_github(df)
-    if df.columns.duplicated().any():
-        df = df.loc[:, ~df.columns.duplicated()]
-    return df
-
-def rinomina_ticker(vecchio_ticker: str, nuovo_ticker: str):
+def elimina_riga(ticker: str):
     df = carica_watchlist()
-    vecchio_ticker = vecchio_ticker.strip().upper()
-    nuovo_ticker = nuovo_ticker.strip().upper()
-    if not nuovo_ticker or vecchio_ticker == nuovo_ticker:
-        return df
-    idx = df[df["Ticker"].str.upper() == vecchio_ticker].index
-    if len(idx) == 0:
-        return df
-    df.at[idx[0], "Ticker"] = nuovo_ticker
+    df = df[df["Ticker"] != ticker]
     df.to_csv(CSV_PATH, index=False)
     commit_csv_su_github(df)
-    return df
-
-def salva_riga(ticker: str, l1, l2, l3, v1, v2, v3, n1="", n2="", n3="", nv1="", nv2="", nv3="", screenshot_path=None):
-    df = carica_watchlist()
-    ticker = ticker.strip().upper()
-    if ticker in df["Ticker"].str.upper().values:
-        idx = df[df["Ticker"].str.upper() == ticker].index[0]
-        for col in ["Nota 1", "Nota 2", "Nota 3", "Nota VWAP 1", "Nota VWAP 2", "Nota VWAP 3", "Screenshot", "Origine"]:
-            df[col] = df[col].astype(object)
-        df.at[idx, "Livello 1"] = l1; df.at[idx, "Nota 1"] = n1
-        df.at[idx, "Livello 2"] = l2; df.at[idx, "Nota 2"] = n2
-        df.at[idx, "Livello 3"] = l3; df.at[idx, "Nota 3"] = n3
-        df.at[idx, "VWAP 1"] = v1; df.at[idx, "Nota VWAP 1"] = nv1
-        df.at[idx, "VWAP 2"] = v2; df.at[idx, "Nota VWAP 2"] = nv2
-        df.at[idx, "VWAP 3"] = v3; df.at[idx, "Nota VWAP 3"] = nv3
-        df.at[idx, "Origine"] = "manuale"
-        if screenshot_path:
-            df.at[idx, "Screenshot"] = screenshot_path
-    else:
-        nuova_riga = pd.DataFrame([{
-            "Ticker": ticker,
-            "Livello 1": l1, "Nota 1": n1, "Livello 2": l2, "Nota 2": n2, "Livello 3": l3, "Nota 3": n3,
-            "VWAP 1": v1, "Nota VWAP 1": nv1, "VWAP 2": v2, "Nota VWAP 2": nv2, "VWAP 3": v3, "Nota VWAP 3": nv3,
-            "Screenshot": screenshot_path or "", "Origine": "manuale",
-            "POC 1": 0, "POC 1 Low": 0, "POC 1 High": 0, "Nota POC 1": "",
-            "POC 2": 0, "POC 2 Low": 0, "POC 2 High": 0, "Nota POC 2": "",
-            "POC 3": 0, "POC 3 Low": 0, "POC 3 High": 0, "Nota POC 3": "",
-            "Auto_Indice": "",
-        }])
-        df = pd.concat([df, nuova_riga], ignore_index=True)
-    df.to_csv(CSV_PATH, index=False)
-    commit_csv_su_github(df)
-    return df
 
 
 # ================================================================
@@ -568,7 +472,6 @@ st.divider()
 st.markdown('<div class="wl-card-head">📋 Watchlist salvata</div>', unsafe_allow_html=True)
 df = carica_watchlist()
 
-TD_API_KEY = st.secrets.get("TWELVEDATA_API_KEY")
 CRYPTO_NOTE = {"BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "LTC"}
 _ULTIME_CHIAMATE_API = []
 
@@ -583,15 +486,6 @@ def rispetta_rate_limit():
         while _ULTIME_CHIAMATE_API and time.time() - _ULTIME_CHIAMATE_API[0] > 60:
             _ULTIME_CHIAMATE_API.pop(0)
     _ULTIME_CHIAMATE_API.append(time.time())
-
-def mappa_ticker_twelvedata(ticker: str) -> str:
-    t = ticker.strip().upper()
-    for base in CRYPTO_NOTE:
-        if t == f"{base}USD":
-            return f"{base}/USD"
-    if len(t) == 6 and t.isalpha() and t[:3] not in CRYPTO_NOTE:
-        return f"{t[:3]}/{t[3:]}"
-    return t
 
 _ULTIMO_ERRORE_TD = None
 
@@ -623,9 +517,6 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
         print(f"Errore Twelve Data per {simbolo}: {e}")
         return pd.DataFrame()
 
-def determina_exchange(simbolo: str) -> str:
-    return "nasdaq"
-
 @st.cache_data(ttl=300)
 def carica_prezzi_condivisi():
     path = "prezzi_attuali.json"
@@ -643,12 +534,6 @@ def carica_prezzi_condivisi():
             dati = json.load(f)
             return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
     return {}, ""
-
-def elimina_riga(ticker: str):
-    df = carica_watchlist()
-    df = df[df["Ticker"] != ticker]
-    df.to_csv(CSV_PATH, index=False)
-    commit_csv_su_github(df)
 
 if df.empty or "Ticker" not in df.columns:
     st.info("Nessun dato salvato ancora.")
