@@ -39,10 +39,21 @@ ALIAS_COLONNE = {
     "auto_indice": "Auto_Indice",
 }
 CSV_PATH = "watchlist.csv"
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if hasattr(st, "secrets") else os.environ.get("GITHUB_TOKEN")
-GITHUB_REPO = st.secrets.get("GITHUB_REPO") if hasattr(st, "secrets") else os.environ.get("GITHUB_REPO")
-_TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
-_VWAP_LABELS = {"VWAP 4Y", "VWAP 1Y", "VWAP 3M"}
+# GITHUB_TOKEN e GITHUB_REPO NON vengono letti qui al caricamento modulo,
+# ma dentro le funzioni (carica_watchlist_da_github, commit_csv_su_github)
+# per evitare errori se secrets.toml non è ancora caricato da Streamlit.
+# Qui definiamo solo le colonne e costanti di configurazione.
+_ALIAS_COLONNE = ALIAS_COLONNE  # placeholder per type hint, verrà sovrascritto
+
+
+def _get_github_credentials():
+    """Legge secret lazily: solo quando serve, dentro il contesto Streamlit."""
+    try:
+        if hasattr(st, "secrets") and "GITHUB_TOKEN" in st.secrets:
+            return st.secrets["GITHUB_TOKEN"], st.secrets["GITHUB_REPO"]
+    except Exception:
+        pass
+    return os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
 
 
 def _is_text_col(col: str) -> bool:
@@ -50,10 +61,12 @@ def _is_text_col(col: str) -> bool:
 
 
 def carica_watchlist_da_github() -> pd.DataFrame:
-    if not GITHUB_TOKEN or not GITHUB_REPO:
+    _GITHUB_TOKEN, _GITHUB_REPO = _get_github_credentials()
+    
+    if not _GITHUB_TOKEN or not _GITHUB_REPO:
         return pd.DataFrame(columns=COLONNE_ATTESE)
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{CSV_PATH}"
+    headers = {"Authorization": f"token {_GITHUB_TOKEN}"}
     try:
         r = requests.get(url, headers=headers)
         if r.status_code != 200:
@@ -84,11 +97,13 @@ def carica_watchlist_da_github() -> pd.DataFrame:
 
 
 def commit_csv_su_github(df: pd.DataFrame):
-    if not GITHUB_TOKEN or not GITHUB_REPO:
+    _GITHUB_TOKEN, _GITHUB_REPO = _get_github_credentials()
+    
+    if not _GITHUB_TOKEN or not _GITHUB_REPO:
         print("GITHUB_TOKEN o GITHUB_REPO non configurati, skip commit.")
         return
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{CSV_PATH}"
+    headers = {"Authorization": f"token {_GITHUB_TOKEN}"}
     r = requests.get(url, headers=headers)
     sha = r.json().get("sha") if r.status_code == 200 else None
     contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
