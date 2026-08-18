@@ -39,18 +39,8 @@ ALIAS_COLONNE = {
     "auto_indice": "Auto_Indice",
 }
 CSV_PATH = "watchlist.csv"
-# GITHUB_TOKEN e GITHUB_REPO vengono letti all'occorrenza dentro le funzioni,
-# non al caricamento del modulo, per evitare errori se secrets.toml manca.
-# Qui definiamo solo le colonne e costanti di configurazione.
-ALIAS_COLONNE = {
-    "ticker": "Ticker", "livello": "Livello 1",
-    "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
-    "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
-    "origine": "Origine",
-    "POC": "POC 1", "poc": "POC 1",
-    "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
-    "auto_indice": "Auto_Indice",
-}
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if hasattr(st, "secrets") else os.environ.get("GITHUB_TOKEN")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO") if hasattr(st, "secrets") else os.environ.get("GITHUB_REPO")
 _TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
 _VWAP_LABELS = {"VWAP 4Y", "VWAP 1Y", "VWAP 3M"}
 
@@ -59,58 +49,28 @@ def _is_text_col(col: str) -> bool:
     return col.startswith("Nota") or col in _TEXT_COLS
 
 
-def _github_request(url: str, headers: dict, timeout: int = 10) -> requests.Response | None:
-    """Esegue una richiesta GitHub con timeout ridotto."""
-    try:
-        r = requests.get(url, headers=headers, timeout=timeout)
-        return r
-    except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects,
-            requests.exceptions.RequestException) as e:
-        print(f"Errore richiesta GitHub: {e}")
-        return None
-
-
 def carica_watchlist_da_github() -> pd.DataFrame:
-    # Leggi secret all'interno della funzione, non al caricamento modulo
-    _GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if hasattr(st, "secrets") else os.environ.get("GITHUB_TOKEN")
-    _GITHUB_REPO = st.secrets.get("GITHUB_REPO") if hasattr(st, "secrets") else os.environ.get("GITHUB_REPO")
-    
-    if not _GITHUB_TOKEN or not _GITHUB_REPO:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
         return pd.DataFrame(columns=COLONNE_ATTESE)
-    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{CSV_PATH}"
-    headers = {"Authorization": f"token {_GITHUB_TOKEN}"}
-    r = _github_request(url, headers, timeout=8)  # timeout 8s invece di default
-    if r is None or r.status_code != 200:
-        print(f"Fallito fetch watchlist da GitHub (status={r.status_code if r else 'timeout'}), uso file locale")
-        # Fallback: leggi file locale se esiste
-        if os.path.exists(CSV_PATH):
-            try:
-                df = pd.read_csv(CSV_PATH)
-                return df.rename(columns=ALIAS_COLONNE) if not df.empty else pd.DataFrame(columns=COLONNE_ATTESE)
-            except Exception:
-                return pd.DataFrame(columns=COLONNE_ATTESE)
-        return pd.DataFrame(columns=COLONNE_ATTEST)
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            return pd.DataFrame(columns=COLONNE_ATTESE)
         contenuto = base64.b64decode(r.json()["content"]).decode()
-        df = pd.read_csv(io.StringIO(contenuto))
+        df = pd.read_csv(pd.io.common.StringIO(contenuto))
     except Exception as e:
-        print(f"Errore parsing watchlist da GitHub: {e}")
-        # Fallback locale
-        if os.path.exists(CSV_PATH):
-            try:
-                df = pd.read_csv(CSV_PATH)
-                return df.rename(columns=ALIAS_COLONNE) if not df.empty else pd.DataFrame(columns=COLONNE_ATTESE)
-            except Exception:
-                return pd.DataFrame(columns=COLONNE_ATTESE)
+        print(f"Errore lettura watchlist da GitHub: {e}")
         return pd.DataFrame(columns=COLONNE_ATTESE)
     df = df.rename(columns=ALIAS_COLONNE)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = ""
-    df = df[COLONNE_ATTEST]
+            df[col] = "" if _is_text_col(col) else 0
+    df = df[COLONNE_ATTESE]
     if "Origine" in df.columns:
         df["Origine"] = df["Origine"].fillna("manuale").replace("", "manuale")
-    for col in COLONNE_ATTEST:
+    for col in COLONNE_ATTESE:
         if _is_text_col(col):
             df[col] = df[col].fillna("").astype(str).replace("nan", "")
     for col in ["Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3",
@@ -124,25 +84,18 @@ def carica_watchlist_da_github() -> pd.DataFrame:
 
 
 def commit_csv_su_github(df: pd.DataFrame):
-    # Leggi secret all'interno della funzione
-    _GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if hasattr(st, "secrets") else os.environ.get("GITHUB_TOKEN")
-    _GITHUB_REPO = st.secrets.get("GITHUB_REPO") if hasattr(st, "secrets") else os.environ.get("GITHUB_REPO")
-    
-    if not _GITHUB_TOKEN or not _GITHUB_REPO:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
         print("GITHUB_TOKEN o GITHUB_REPO non configurati, skip commit.")
         return
-    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{CSV_PATH}"
-    headers = {"Authorization": f"token {_GITHUB_TOKEN}"}
-    r = _github_request(url, headers, timeout=10)  # timeout 10s
-    if r is None or r.status_code != 200:
-        print(f"Fallito fetch per ottenere SHA su GitHub, skip commit")
-        return
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    r = requests.get(url, headers=headers)
     sha = r.json().get("sha") if r.status_code == 200 else None
     contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
     payload = {"message": "Aggiorna watchlist.csv (promozione auto + rinfresco VWAP)", "content": contenuto_b64, "branch": "main"}
     if sha:
         payload["sha"] = sha
-    resp = requests.put(url, headers=headers, json=payload, timeout=10)
+    resp = requests.put(url, headers=headers, json=payload)
     if resp.status_code not in (200, 201):
         print(f"Commit watchlist su GitHub fallito: {resp.status_code} {resp.text[:200]}")
 
