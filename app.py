@@ -333,7 +333,7 @@ def dimensione_repo_kb() -> int | None:
     return None
 
 def elimina_riga(ticker: str):
-    df = carica_watchlist()
+    df = carica_watchlist_da_github()
     df = df[df["Ticker"] != ticker]
     df.to_csv(CSV_PATH, index=False)
     commit_csv_su_github(df)
@@ -522,18 +522,43 @@ def ottieni_time_series(simbolo: str, interval: str, outputsize: int) -> pd.Data
 def carica_prezzi_condivisi():
     path = "prezzi_attuali.json"
     if GITHUB_TOKEN and GITHUB_REPO:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        r = _github_request(url, headers, timeout=8)  # timeout 8s invece di bloccante
+        if r is None or r.status_code != 200:
+            print(f"Fallito fetch prezzi da GitHub, uso file locale")
+            # Fallback: leggi file locale
+            if os.path.exists(path):
+                try:
+                    with open(path) as f:
+                        dati = json.load(f)
+                    return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+                except Exception:
+                    return {}, ""
+            return {}, ""
         try:
-            r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
-            if r.status_code == 200:
-                contenuto = base64.b64decode(r.json()["content"]).decode()
-                dati = json.loads(contenuto)
-                return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
-        except Exception:
-            pass
-    if os.path.exists(path):
-        with open(path) as f:
-            dati = json.load(f)
+            contenuto = base64.b64decode(r.json()["content"]).decode()
+            dati = json.loads(contenuto)
             return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+        except Exception as e:
+            print(f"Errore parsing prezzi da GitHub: {e}")
+            # Fallback locale
+            if os.path.exists(path):
+                try:
+                    with open(path) as f:
+                        dati = json.load(f)
+                    return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+                except Exception:
+                    return {}, ""
+            return {}, ""
+    # Nessun token: fallback file locale
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                dati = json.load(f)
+            return dati.get("prezzi", {}), dati.get("aggiornato_il", "")
+        except Exception:
+            return {}, ""
     return {}, ""
 
 if df.empty or "Ticker" not in df.columns:

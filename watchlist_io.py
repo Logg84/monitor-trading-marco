@@ -49,24 +49,50 @@ def _is_text_col(col: str) -> bool:
     return col.startswith("Nota") or col in _TEXT_COLS
 
 
+def _github_request(url: str, headers: dict, timeout: int = 10) -> requests.Response | None:
+    """Esegue una richiesta GitHub con timeout ridotto e gestisce gli errori."""
+    try:
+        r = requests.get(url, headers=headers, timeout=timeout)
+        return r
+    except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects,
+            requests.exceptions.RequestException) as e:
+        print(f"Errore richiesta GitHub: {e}")
+        return None
+
+
 def carica_watchlist_da_github() -> pd.DataFrame:
     if not GITHUB_TOKEN or not GITHUB_REPO:
         return pd.DataFrame(columns=COLONNE_ATTESE)
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    r = _github_request(url, headers, timeout=8)  # timeout 8s invece di default
+    if r is None or r.status_code != 200:
+        print(f"Fallito fetch watchlist da GitHub (status={r.status_code if r else 'timeout'}), uso file locale")
+        # Fallback: leggi file locale se esiste
+        if os.path.exists(CSV_PATH):
+            try:
+                df = pd.read_csv(CSV_PATH)
+                return df.rename(columns=ALIAS_COLONNE) if not df.empty else pd.DataFrame(columns=COLONNE_ATTESE)
+            except Exception:
+                return pd.DataFrame(columns=COLONNE_ATTESE)
+        return pd.DataFrame(columns=COLONNE_ATTESE)
     try:
-        r = requests.get(url, headers=headers)
-        if r.status_code != 200:
-            return pd.DataFrame(columns=COLONNE_ATTESE)
         contenuto = base64.b64decode(r.json()["content"]).decode()
-        df = pd.read_csv(pd.io.common.StringIO(contenuto))
+        df = pd.read_csv(io.StringIO(contenuto))
     except Exception as e:
-        print(f"Errore lettura watchlist da GitHub: {e}")
+        print(f"Errore parsing watchlist da GitHub: {e}")
+        # Fallback locale
+        if os.path.exists(CSV_PATH):
+            try:
+                df = pd.read_csv(CSV_PATH)
+                return df.rename(columns=ALIAS_COLONNE) if not df.empty else pd.DataFrame(columns=COLONNE_ATTESE)
+            except Exception:
+                return pd.DataFrame(columns=COLONNE_ATTESE)
         return pd.DataFrame(columns=COLONNE_ATTESE)
     df = df.rename(columns=ALIAS_COLONNE)
     for col in COLONNE_ATTESE:
         if col not in df.columns:
-            df[col] = "" if _is_text_col(col) else 0
+            df[col] = ""
     df = df[COLONNE_ATTESE]
     if "Origine" in df.columns:
         df["Origine"] = df["Origine"].fillna("manuale").replace("", "manuale")
@@ -89,13 +115,16 @@ def commit_csv_su_github(df: pd.DataFrame):
         return
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    r = requests.get(url, headers=headers)
+    r = _github_request(url, headers, timeout=10)  # timeout 10s
+    if r is None or r.status_code != 200:
+        print(f"Fallito fetch per ottenere SHA su GitHub, skip commit")
+        return
     sha = r.json().get("sha") if r.status_code == 200 else None
     contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
     payload = {"message": "Aggiorna watchlist.csv (promozione auto + rinfresco VWAP)", "content": contenuto_b64, "branch": "main"}
     if sha:
         payload["sha"] = sha
-    resp = requests.put(url, headers=headers, json=payload)
+    resp = requests.put(url, headers=headers, json=payload, timeout=10)
     if resp.status_code not in (200, 201):
         print(f"Commit watchlist su GitHub fallito: {resp.status_code} {resp.text[:200]}")
 
