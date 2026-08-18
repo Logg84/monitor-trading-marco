@@ -258,15 +258,12 @@
         "last_updated": "2026-08-12T22:12:16.234169"
     },
     "BX": {
-        "marketCap": 105515377772.72253,
-        "debtToEquity": 68.185,
+        "marketCap": 103623519993.00548,
+        "debtToEquity": 62.529,
         "freeCashflow": null,
         "operatingMargins": 0.54357,
         "returnOnEquity": 0.31374002,
-        "netIncome": 3019214000.0,
-        "revenueGrowth": 0.3247767645313415,
-        "operatingCashflow": 5597890048,
-        "last_updated": "2026-08-17T21:53:25.939357"
+        "last_updated": "2026-07-29T13:59:08.390171"
     },
     "BSX": {
         "marketCap": 74519379573.30148,
@@ -2570,15 +2567,12 @@
         "last_updated": "2026-07-29T22:31:27.457491"
     },
     "LOW": {
-        "marketCap": 121006185149.29633,
+        "marketCap": 120933290496.13898,
         "debtToEquity": null,
         "freeCashflow": 4816124928,
         "operatingMargins": 0.11067,
         "returnOnEquity": null,
-        "netIncome": 6654000000.0,
-        "revenueGrowth": 0.10262780697563306,
-        "operatingCashflow": 9834999808,
-        "last_updated": "2026-08-17T21:53:25.941619"
+        "last_updated": "2026-07-29T22:31:27.458544"
     },
     "SAN.PA": {
         "marketCap": 91568389594.55,
@@ -2649,15 +2643,12 @@
         "last_updated": "2026-08-14T21:52:12.582192"
     },
     "LHX": {
-        "marketCap": 51838425711.331055,
+        "marketCap": 50653596039.845856,
         "debtToEquity": 34.574,
         "freeCashflow": null,
         "operatingMargins": 0.097270004,
         "returnOnEquity": null,
-        "netIncome": 1606000000.0,
-        "revenueGrowth": 0.08385551050497604,
-        "operatingCashflow": 1655000064,
-        "last_updated": "2026-08-17T21:53:25.940876"
+        "last_updated": "2026-07-30T22:37:44.161451"
     },
     "MDT": {
         "marketCap": 109712672062.98363,
@@ -2859,27 +2850,5 @@
         "revenueGrowth": -1.9177718832891246,
         "operatingCashflow": 429000000,
         "last_updated": "2026-08-16T21:47:44.071007"
-    },
-    "JKHY": {
-        "marketCap": 10648380051.672363,
-        "debtToEquity": 6.398,
-        "freeCashflow": 373407744,
-        "operatingMargins": 0.24369,
-        "returnOnEquity": 0.24892001,
-        "netIncome": 455748000.0,
-        "revenueGrowth": 0.08743656926234902,
-        "operatingCashflow": 786398016,
-        "last_updated": "2026-08-17T21:53:25.939615"
-    },
-    "PGR": {
-        "marketCap": 118506819467.75299,
-        "debtToEquity": 24.428,
-        "freeCashflow": 15114500096,
-        "operatingMargins": 0.18208,
-        "returnOnEquity": 0.34943,
-        "netIncome": 11308000000.0,
-        "revenueGrowth": 0.07292566492384633,
-        "operatingCashflow": 16339000320,
-        "last_updated": "2026-08-17T21:53:25.942336"
     }
 }

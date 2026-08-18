@@ -30,6 +30,17 @@ MODEL_NAME = "qwen/qwen3.6-27b"
 
 st.set_page_config(page_title="Watchlist Grafici", layout="wide", page_icon="📈")
 
+# Inizializza session state per dati pesanti
+if "engine" not in st.session_state:
+    st.session_state["engine"] = DataEngine()
+# Cache watchlist caricata una volta per sessione (refresh dopo modifiche esplicite)
+if "watchlist_last_commit" not in st.session_state:
+    st.session_state["watchlist_last_commit"] = 0
+if "watchlist_cached" not in st.session_state:
+    st.session_state["watchlist_cached"] = carica_watchlist()
+if "prezzi_sessione" not in st.session_state:
+    st.session_state["prezzi_sessione"], st.session_state["prezzi_aggiornati_il"] = carica_prezzi_condivisi()
+
 TH = get_theme()
 
 st.markdown("""
@@ -247,7 +258,7 @@ def analizza_immagine(image_bytes: bytes, mime_type: str) -> dict:
         raise RuntimeError(f"Groq ha fallito su tutti i modelli vision: {ultimo_err}")
 
     text = response.choices[0].message.content or ""
-    text = re.sub(r".*?</think>", "", text, flags=re.DOTALL)
+    text = re.sub(r".*?```", "", text, flags=re.DOTALL)
     text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
     if "{" in text and "}" in text:
@@ -282,66 +293,21 @@ COLONNE_ATTESE = [
 
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
-_TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+CSV_PATH = "watchlist.csv"
+STATE_PATH = "alert_state.json"
+HISTORY_PATH = "alert_history.csv"
+PREZZI_PATH = "prezzi_attuali.json"
 
-def _is_text_col(col: str) -> bool:
-    return col.startswith("Nota") or col in _TEXT_COLS
-
-def commit_csv_su_github(df: pd.DataFrame):
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        return
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    r = requests.get(url, headers=headers)
-    sha = r.json().get("sha") if r.status_code == 200 else None
-    contenuto_b64 = base64.b64encode(df.to_csv(index=False).encode()).decode()
-    payload = {"message": "Aggiorna watchlist.csv da app Streamlit", "content": contenuto_b64, "branch": "main"}
-    if sha:
-        payload["sha"] = sha
-    resp = requests.put(url, headers=headers, json=payload)
-    if resp.status_code not in (200, 201):
-        st.warning(f"Salvataggio su GitHub fallito: {resp.status_code} {resp.text[:200]}")
-
-def carica_screenshot_su_github(ticker: str, contenuto_bytes: bytes, estensione: str) -> str | None:
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        return None
-    nome_file = f"screenshots/{ticker}_{int(time.time())}.{estensione}"
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{nome_file}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    payload = {"message": f"Aggiungi screenshot {ticker}", "content": base64.b64encode(contenuto_bytes).decode(), "branch": "main"}
-    resp = requests.put(url, headers=headers, json=payload)
-    if resp.status_code in (200, 201):
-        return nome_file
-    st.warning(f"Salvataggio screenshot fallito: {resp.status_code} {resp.text[:200]}")
-    return None
-
-@st.cache_data(ttl=600)
-def dimensione_repo_kb() -> int | None:
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        return None
-    try:
-        r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}", headers={"Authorization": f"token {GITHUB_TOKEN}"})
-        if r.status_code == 200:
-            return r.json().get("size")
-    except Exception:
-        pass
-    return None
-
-ALIAS_COLONNE = {
-    "ticker": "Ticker", "livello": "Livello 1",
-    "livello_1": "Livello 1", "livello_2": "Livello 2", "livello_3": "Livello 3",
-    "vwap_1": "VWAP 1", "vwap_2": "VWAP 2", "vwap_3": "VWAP 3",
-    "origine": "Origine",
-    "POC": "POC 1", "poc": "POC 1",
-    "Nota POC": "Nota POC 1", "nota poc": "Nota POC 1",
-    "auto_indice": "Auto_Indice",
-}
-
-_COLONNE_NUMERICHE = [
+COLONNE_NUMERICHE = [
     "Livello 1", "Livello 2", "Livello 3", "VWAP 1", "VWAP 2", "VWAP 3",
     "POC 1", "POC 1 Low", "POC 1 High", "POC 2", "POC 2 Low", "POC 2 High",
     "POC 3", "POC 3 Low", "POC 3 High",
 ]
+
+_TEXT_COLS = {"Screenshot", "Origine", "Auto_Indice"}
+
+def _is_text_col(col: str) -> bool:
+    return col.startswith("Nota") or col in _TEXT_COLS
 
 def _read_watchlist_github() -> pd.DataFrame | None:
     if not GITHUB_TOKEN or not GITHUB_REPO:
@@ -349,7 +315,7 @@ def _read_watchlist_github() -> pd.DataFrame | None:
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CSV_PATH}"
         headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, timeout=30)
         if r.status_code != 200:
             return None
         contenuto = base64.b64decode(r.json()["content"]).decode()
@@ -382,13 +348,41 @@ def carica_watchlist() -> pd.DataFrame:
     for col in _COLONNE_NUMERICHE:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0).astype(float)
-    # Migrazione zone: POC punto senza Low/High -> zona derivata (valore POC intatto)
+# Migrazione zone: POC punto senza Low/High -> zona derivata (valore POC intatto)
     for k in (1, 2, 3):
         mask = (df[f"POC {k}"] != 0) & ((df[f"POC {k} Low"] == 0) | (df[f"POC {k} High"] == 0))
         if mask.any():
             lo, hi = zip(*[zona_poc_effettiva(p, 0, 0) for p in df.loc[mask, f"POC {k}"]])
             df.loc[mask, f"POC {k} Low"] = lo
             df.loc[mask, f"POC {k} High"] = hi
+    # Auto-rimozione tickers sopra 25% di ritracciamento dal massimo storico
+    # Se il prezzo si è ripreso di più del 25% dal massimo, rimuovi dalla watchlist
+    if "Ticker" in df.columns and not df.empty:
+        tickers_to_remove = []
+        for _, row in df.iterrows():
+            ticker = str(row["Ticker"]).strip().upper()
+            # Usa la funzione mappa già definita nell'app
+            ticker_td = mappa_ticker_twelvedata(ticker)
+            try:
+                url = f"https://api.twelvedata.com/time_series?symbol={ticker_td}&interval=1day&outputsize=250&apikey={TD_API_KEY}&order=ASC"
+                r = requests.get(url, timeout=10)
+                if r.status_code == 200:
+                    dati = r.json()
+                    if dati.get("values"):
+                        closes = [float(v["close"]) for v in dati["values"]]
+                        ath = max(closes)
+                        prezzo_corrente = closes[-1]
+                        dd_pct = (prezzo_corrente - ath) / ath * 100
+                        # Se il prezzo si è ripreso di più del 25% dal massimo (drawdown > -25%)
+                        # significa che il titolo non è più in "sconto" profondo
+                        if dd_pct > -25:
+                            tickers_to_remove.append(ticker)
+            except Exception:
+                pass  # Se fallisce il fetch, non rimuovere (conservativo)
+        if tickers_to_remove:
+            df = df[~df["Ticker"].isin(tickers_to_remove)]
+            if not df.empty:
+                commit_csv_su_github(df)
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     return df
@@ -464,22 +458,11 @@ with col_upload:
         type=["png", "jpg", "jpeg", "webp"],
         label_visibility="collapsed",
     )
-    if uploaded_file is not None:
-        st.image(uploaded_file, caption="Anteprima", use_container_width=True)
-
-        if client is None:
-            st.warning("⚠️ **Analisi AI non disponibile.** Aggiungi `groq>=0.11.0` a `requirements.txt` e la chiave `GROQ_API_KEY` nei secrets di Streamlit. Il resto della pagina funziona normalmente.")
-        else:
-            if st.button("🔍 Analizza con LLaVA (Groq)", type="primary", use_container_width=True):
-                with st.spinner("Analisi in corso (Groq qwen3.6-27b vision)..."):
-                    try:
-                        image_bytes = uploaded_file.getvalue()
-                        mime_type = uploaded_file.type or "image/png"
-                        dati = analizza_immagine(image_bytes, mime_type)
-                        st.session_state["ultima_analisi"] = dati
-                        st.success("✅ Analisi completata.")
-                    except Exception as e:
-                        st.error(f"❌ Errore durante l'analisi: {e}")
+    # ⚠️ Upload screenshot disabilitato temporaneamente -
+    # l'analisi immagini richiede configurazione GROQ API
+    st.caption("📸 Analisi immagini disabilitata - configurare GROQ_API_KEY per riattivare")
+    # Non mostrare upload file né pulsante analisi
+    # [L'analisi immagini è disabilitata - vedere sopra]
 
 with col_result:
     if "ultima_analisi" in st.session_state:
@@ -516,13 +499,13 @@ with col_result:
         with c_save:
             if st.button("💾 Salva in watchlist", type="primary", use_container_width=True):
                 screenshot_path = None
-                if uploaded_file is not None:
-                    estensione = (uploaded_file.type or "image/png").split("/")[-1]
-                    if estensione == "jpeg":
-                        estensione = "jpg"
-                    screenshot_path = carica_screenshot_su_github(
-                        ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
-                    )
+                #if uploaded_file is not None:
+                    #estensione = (uploaded_file.type or "image/png").split("/")[-1]
+                    #if estensione == "jpeg":
+                        #estensione = "jpg"
+                    #screenshot_path = carica_screenshot_su_github(
+                        #ticker_edit.strip().upper() or "TICKER", uploaded_file.getvalue(), estensione
+                    #)
                 salva_riga(ticker_edit, l1_edit, l2_edit, l3_edit, v1_edit, v2_edit, v3_edit,
                            n1_edit, n2_edit, n3_edit, nv1_edit, nv2_edit, nv3_edit, screenshot_path)
                 del st.session_state["ultima_analisi"]
@@ -700,7 +683,8 @@ else:
     if "editing_ticker" not in st.session_state:
         st.session_state["editing_ticker"] = None
 
-    prezzi_condivisi, prezzi_aggiornati_il = carica_prezzi_condivisi()
+    prezzi_condivisi = st.session_state["prezzi_sessione"]
+    prezzi_aggiornati_il = st.session_state["prezzi_aggiornati_il"]
     if prezzi_aggiornati_il:
         st.caption(f"💹 Prezzi aggiornati da ultimo controllo alert: {prezzi_aggiornati_il}")
 

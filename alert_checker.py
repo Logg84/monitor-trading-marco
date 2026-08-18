@@ -142,7 +142,7 @@ def carica_watchlist() -> pd.DataFrame:
     return df
 
 SOGLIA_TRIGGER_PCT = 2.0
-COOLDOWN_GIORNI = 3
+COOLDOWN_GIORNI = 1
 COOLDOWN_SEC = COOLDOWN_GIORNI * 24 * 3600
 SOGLIA_PREZZO_INVARIATO_PCT = 0.05  # prezzo praticamente identico -> nessun nuovo alert
 

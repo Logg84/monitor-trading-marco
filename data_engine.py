@@ -440,20 +440,38 @@ class DataEngine:
     # ===============================
     # DOWNLOAD PREZZI IN BATCH (GIORNALIERO)
     # ===============================
-    def download_prices_batch(self, tickers, period="10y", interval="1d"):
+    def download_prices_batch(self, tickers, period="10y", interval="1d", max_retries=3):
         self.add_debug(f"Avvio download batch prezzi per {len(tickers)} ticker (Period: {period}, Interval: {interval})...", "info")
         chunk_size = 50
         chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
         dfs = []
+        failed_chunks = []
         for i, chunk in enumerate(chunks):
             self.add_debug(f"Scaricando lotto prezzi {i+1}/{len(chunks)} ({len(chunk)} tickers)...", "info")
-            try:
-                df_chunk = yf.download(chunk, period=period, interval=interval, progress=False, threads=True, auto_adjust=True)
-                if not df_chunk.empty:
-                    dfs.append(df_chunk)
-                time.sleep(1.0)
-            except Exception as e:
-                self.add_debug(f"Errore nel lotto prezzi {i+1}: {str(e)}", "error")
+            df_chunk = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    df_chunk = yf.download(chunk, period=period, interval=interval, progress=False, threads=True, auto_adjust=True)
+                    if df_chunk is not None and not df_chunk.empty:
+                        break
+                    raise ValueError("Download vuoto")
+                except Exception as e:
+                    wait = 2 ** attempt  # backoff esponenziale: 2s, 4s, 8s
+                    if attempt < max_retries:
+                        self.add_debug(f"Lotto {i+1} fallito (tentativo {attempt}/{max_retries}): {str(e)} — retry tra {wait}s", "warning")
+                        time.sleep(wait)
+                    else:
+                        self.add_debug(f"Lotto {i+1} fallito definitivamente dopo {max_retries} tentativi: {str(e)}", "error")
+                        failed_chunks.append((i + 1, chunk))
+            if df_chunk is not None and not df_chunk.empty:
+                dfs.append(df_chunk)
+            time.sleep(1.0)  # pausa tra lotti per non stressare l'endpoint
+        if failed_chunks:
+            self.add_debug(
+                f"ATTENZIONE: {len(failed_chunks)}/{len(chunks)} lotti prezzi non scaricati "
+                f"({sum(len(c) for _, c in failed_chunks)} ticker mancanti da questo giro).",
+                "error"
+            )
         if not dfs:
             return pd.DataFrame()
         try:

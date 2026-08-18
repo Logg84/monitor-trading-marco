@@ -47,7 +47,7 @@ YF_COMM = {
     "WTI": "CL=F", "BRENT": "BZ=F", "RBOB": "RB=F", "HO": "HO=F", "NG": "NG=F",
     "CORN": "ZC=F", "WHEAT": "ZW=F", "SOYBEANS": "ZS=F", "SOYBEAN_OIL": "ZL=F", "SOYBEAN_MEAL": "ZM=F",
     "OATS": "ZO=F", "ROUGH_RICE": "ZR=F", "COTTON": "CT=F", "COFFEE": "KC=F",
-    "SUGAR11": "SB=F", "SUGAR14": None, "COCOA": "CC=F", "OJ": "OJ=F", "LUMBER": "LBS=F",
+    "SUGAR11": "SB=F", "SUGAR14": "SB=F", "COCOA": "CC=F", "OJ": "OJ=F", "LUMBER": "LBS=F",
     "LIVE_CATTLE": "LE=F", "FEEDER_CATTLE": "GF=F", "LEAN_HOGS": "HE=F",
 }
 CFTC_TO_FX = {
