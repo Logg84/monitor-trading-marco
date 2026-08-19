@@ -1,5 +1,6 @@
 """
 Design system — palette ad alto contrasto, zero decorazioni, sostanza.
+Sidebar rimossa: navigazione e toggle tema vivono nella navbar alta.
 """
 import streamlit as st
 
@@ -49,13 +50,16 @@ def inject_css(dark: bool = True) -> None:
     font-size: 14px;
 }}
 
-/* Sidebar */
+/* Sidebar ELIMINATA: nascosta ovunque, insieme alle frecce di collasso */
 [data-testid="stSidebar"] {{
-    background-color: {c['surface']};
-    border-right: 1px solid {c['border']};
+    display: none;
 }}
-
-/* Nascondi la lista pagine default di Streamlit (la navigazione è nella navbar alta) */
+[data-testid="stSidebarCollapseButton"] {{
+    display: none;
+}}
+[data-testid="stSidebarCollapsedControl"] {{
+    display: none;
+}}
 [data-testid="stSidebarNav"] {{
     display: none;
 }}
@@ -243,11 +247,13 @@ h3 {{ font-size: 15px; }}
     border: 1px solid {c['border']};
 }}
 
-/* Container: padding-top sufficiente a non finire sotto l'header fisso */
+/* Container: larghezza TOTALE, padding-top che evita l'header fisso */
 .block-container {{
     padding-top: 84px;
     padding-bottom: 24px;
-    max-width: 1400px;
+    padding-left: 24px;
+    padding-right: 24px;
+    max-width: 100%;
 }}
 </style>
 """
