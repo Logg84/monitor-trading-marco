@@ -3,12 +3,13 @@ Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple
 (soglia adattiva + larghezza max = min(15% range, 8×ATR20)),
 VWAP ancorati a minimi strutturali, Bottom Score, REVERSAL STATE (punti 🟡/🟢),
 trimestrali, cache screening, universo, risoluzione ticker, link TradingView,
-sanitizzazione ticker indici (anti doppio-suffisso).
+sanitizzazione ticker indici (regex + mappa anti doppio-suffisso).
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
 import datetime as _dt
 import json
+import re
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -28,6 +29,10 @@ DEFAULT_SAMPLE = {
 # ── Sanitizzazione ticker indici ───────────────────────────
 SUFFIX_CODES = {"MI", "PA", "DE", "MC", "AS", "L", "SW", "ST", "BR"}
 
+# Ticker valido: 1-6 alfanumerici, opzionalmente separatore . o - + 1-4 alfanumerici.
+# Respinge "-", "2602335D", SEDOL/CIK residui, doppie estensioni.
+TICKER_RE = re.compile(r"^[A-Z0-9]{1,6}([.-][A-Z0-9]{1,4})?$")
+
 TICKER_FIX = {
     "AIR.PA.DE": "AIR.DE",   # Airbus: XETRA per il DAX
     "MT.AS.PA": "MT.AS",    # ArcelorMittal: linea Amsterdam (valida e liquida)
@@ -35,7 +40,7 @@ TICKER_FIX = {
 }
 
 def _sanitize_ticker(t: str) -> str | None:
-    """Pulisce un ticker da CSV indice: niente doppi suffissi, niente 404."""
+    """Pulisce un ticker da CSV indice: niente doppi suffissi, niente spazzatura."""
     t = (t or "").strip().upper()
     if not t or t == "NAN":
         return None
@@ -44,13 +49,12 @@ def _sanitize_ticker(t: str) -> str | None:
     parts = t.split(".")
     if len(parts) == 3 and parts[2] in SUFFIX_CODES:
         if parts[1] in SUFFIX_CODES:
-            # AIR.PA.DE → AIR.DE (tiene base + suffisso finale)
-            return f"{parts[0]}.{parts[2]}"
-        # BT.A.L → BT-A.L (punto interno → dash, formato yfinance)
-        return f"{parts[0]}-{parts[1]}.{parts[2]}"
-    if len(parts) == 2 and parts[1] not in SUFFIX_CODES and t.endswith((".DE", ".PA", ".AS", ".MI", ".MC", ".L", ".SW", ".ST", ".BR")) is False:
-        return t
-    return t
+            # AIR.PA.DE → AIR.DE (base + suffisso finale)
+            t = f"{parts[0]}.{parts[2]}"
+        else:
+            # BT.A.L → BT-A.L (punto interno → dash)
+            t = f"{parts[0]}-{parts[1]}.{parts[2]}"
+    return t if TICKER_RE.match(t) else None
 
 # ── Prezzi ─────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -357,7 +361,7 @@ def bottom_score(df: pd.DataFrame, zones: list[dict] | None = None) -> dict:
     return {"score": int(round(float(np.nan_to_num(total)))), "drawdown": drawdown,
             "rsi": r, "roc10": roc_now, "decel": decel, "components": components}
 
-# ── REVERSAL STATE (punti 🟡/🟢) ───────────────────────────
+# ── REVERSAL STATE (punti 🟡/) ───────────────────────────
 def _cross_recent(above: np.ndarray, lookback: int = 5) -> bool:
     n = len(above)
     if n < 2:
