@@ -2,7 +2,8 @@
 Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple
 (soglia adattiva + larghezza max = min(15% range, 8×ATR20)),
 VWAP ancorati a minimi strutturali, Bottom Score, REVERSAL STATE (punti 🟡/🟢),
-trimestrali, cache screening, universo, risoluzione ticker, link TradingView.
+trimestrali, cache screening, universo, risoluzione ticker, link TradingView,
+sanitizzazione ticker indici (anti doppio-suffisso).
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
@@ -23,6 +24,33 @@ DEFAULT_SAMPLE = {
     "SP500_SAMPLE": ["AAPL", "MSFT", "NVDA", "JNJ", "PG", "KO", "XOM", "HD", "V", "UNH"],
     "EURO_SAMPLE": ["ASML.AS", "SAP.DE", "TTE.PA", "SAN.MC", "ENI.MI", "UCG.MI"],
 }
+
+# ── Sanitizzazione ticker indici ───────────────────────────
+SUFFIX_CODES = {"MI", "PA", "DE", "MC", "AS", "L", "SW", "ST", "BR"}
+
+TICKER_FIX = {
+    "AIR.PA.DE": "AIR.DE",   # Airbus: XETRA per il DAX
+    "MT.AS.PA": "MT.AS",    # ArcelorMittal: linea Amsterdam (valida e liquida)
+    "BT.A.L": "BT-A.L",     # BT Group: formato yfinance
+}
+
+def _sanitize_ticker(t: str) -> str | None:
+    """Pulisce un ticker da CSV indice: niente doppi suffissi, niente 404."""
+    t = (t or "").strip().upper()
+    if not t or t == "NAN":
+        return None
+    if t in TICKER_FIX:
+        return TICKER_FIX[t]
+    parts = t.split(".")
+    if len(parts) == 3 and parts[2] in SUFFIX_CODES:
+        if parts[1] in SUFFIX_CODES:
+            # AIR.PA.DE → AIR.DE (tiene base + suffisso finale)
+            return f"{parts[0]}.{parts[2]}"
+        # BT.A.L → BT-A.L (punto interno → dash, formato yfinance)
+        return f"{parts[0]}-{parts[1]}.{parts[2]}"
+    if len(parts) == 2 and parts[1] not in SUFFIX_CODES and t.endswith((".DE", ".PA", ".AS", ".MI", ".MC", ".L", ".SW", ".ST", ".BR")) is False:
+        return t
+    return t
 
 # ── Prezzi ─────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -53,7 +81,6 @@ def get_prices_long(ticker: str) -> pd.DataFrame:
 @st.cache_data(ttl=3600, show_spinner=False)
 def download_closes_chunked(tickers: tuple, period: str = "2y",
                             chunk_size: int = 100) -> pd.DataFrame:
-    """Download multiplo daily a blocchi, per universi grandi."""
     tk = list(tickers)
     frames = []
     for i in range(0, len(tk), chunk_size):
@@ -76,7 +103,6 @@ def download_closes_chunked(tickers: tuple, period: str = "2y",
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def download_weekly_chunked(tickers: tuple, chunk_size: int = 100) -> pd.DataFrame:
-    """Download multiplo SETTIMANALE lungo a blocchi (zone volumetriche)."""
     tk = list(tickers)
     frames = []
     for i in range(0, len(tk), chunk_size):
@@ -124,7 +150,6 @@ def vwap_anchored(df: pd.DataFrame, lookback: int = 60) -> float:
 
 # ── Zone volumetriche multiple ─────────────────────────────
 def _split_run(vps: np.ndarray, l: int, h: int, max_bins: int) -> list[tuple[int, int]]:
-    """Spezza una mensola troppo larga alla valle interna più profonda."""
     segs = []
     stack = [(l, h)]
     while stack:
@@ -146,16 +171,6 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
                  half_life_years: float = 4.0, min_share: float = 0.02,
                  max_width_frac: float = 0.15, atr20: float | None = None,
                  atr_width_mult: float = 8.0) -> list[dict]:
-    """
-    Zone volumetriche su storico lungo.
-    Regole:
-    - mensole = bin continui con volume ≥ soglia adattiva (70° percentile
-      dei volumi positivi);
-    - larghezza massima = min(15% del range prezzo, atr_width_mult × ATR20):
-      il vincolo ATR rende le zone leggibili sulla volatilità corrente;
-    - score = 100 · (0.6·dimensione_normalizzata + 0.4·recency),
-      recency = e^(−age/half_life).
-    """
     if wdf is None or len(wdf) < 40:
         return []
     close = wdf["Close"]
@@ -176,8 +191,7 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
     vp = np.bincount(idx, weights=v, minlength=bins).astype(float)
     va = np.bincount(idx, weights=v * age, minlength=bins).astype(float)
 
-    kern = np.array([0.25, 0.5, 0.25])
-    vps = np.convolve(vp, kern, mode="same")
+    vps = np.convolve(vp, np.array([0.25, 0.5, 0.25]), mode="same")
     pos = vps[vps > 0]
     if pos.size == 0:
         return []
@@ -202,13 +216,9 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
                 if share < min_share:
                     continue
                 zage = float(va[l:h + 1].sum() / zv) if zv > 0 else float(age[-1])
-                zones.append({
-                    "lo": float(price_bins[l]),
-                    "hi": float(price_bins[h + 1]),
-                    "center": float((price_bins[l] + price_bins[h + 1]) / 2),
-                    "share": share,
-                    "age": zage,
-                })
+                zones.append({"lo": float(price_bins[l]), "hi": float(price_bins[h + 1]),
+                              "center": float((price_bins[l] + price_bins[h + 1]) / 2),
+                              "share": share, "age": zage})
             i = j + 1
         else:
             i += 1
@@ -226,8 +236,6 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
     return zones[:max_zones]
 
 def zone_component(price: float, zones: list[dict], atr20: float) -> float:
-    """Componente 0-100: dentro una zona pesa lo score della zona,
-    fuori decade con la distanza (in ATR)."""
     if not zones or atr20 <= 0:
         return 50.0
     best = None
@@ -251,11 +259,6 @@ def anchored_vwap_from(wdf: pd.DataFrame, i: int) -> float:
 
 def structural_anchors(wdf: pd.DataFrame, k: int = 13, min_gap_weeks: int = 26,
                        max_n: int = 3, earnings: list | None = None) -> list[dict]:
-    """
-    Minimi strutturali settimanali (pivot low ±k), distanziati ≥ min_gap_weeks,
-    bonus ×1.25 se a ±30gg da una trimestrale. Da ogni ancora: VWAP a oggi.
-    Ritorna [VWA1 (recente), VWA2, VWA3] con date, prezzo, vwap, near.
-    """
     n = len(wdf)
     if n < 3 * k or not {"High", "Low"}.issubset(wdf.columns):
         return []
@@ -280,8 +283,7 @@ def structural_anchors(wdf: pd.DataFrame, k: int = 13, min_gap_weeks: int = 26,
     chosen = []
     for sel, i, near in cand:
         if all(abs(i - c["i"]) >= min_gap_weeks for c in chosen):
-            chosen.append({"i": i, "date": wdf.index[i],
-                           "price": float(low.iloc[i]),
+            chosen.append({"i": i, "date": wdf.index[i], "price": float(low.iloc[i]),
                            "near": near, "rise": float(rise.iloc[i])})
         if len(chosen) >= max_n:
             break
@@ -304,7 +306,6 @@ def get_info(ticker: str) -> dict:
         return {}
 
 def company_name(ticker: str) -> str:
-    """Nome società da info (longName o shortName). '—' se assente."""
     info = get_info(ticker)
     return str(info.get("longName") or info.get("shortName") or "—")
 
@@ -316,21 +317,15 @@ def health_check(ticker: str) -> dict:
         checks.append({"name": name, "ok": bool(ok), "detail": detail})
 
     roe = info.get("returnOnEquity")
-    add("ROE ≥ 15%", roe is not None and roe >= 0.15,
-        f"{roe:.1%}" if roe is not None else "n/d")
+    add("ROE ≥ 15%", roe is not None and roe >= 0.15, f"{roe:.1%}" if roe is not None else "n/d")
     de = info.get("debtToEquity")
-    add("D/E ≤ 100", de is not None and de <= 100,
-        f"{de:.0f}" if de is not None else "n/d")
+    add("D/E ≤ 100", de is not None and de <= 100, f"{de:.0f}" if de is not None else "n/d")
     om = info.get("operatingMargins")
-    add("Margine operativo ≥ 10%", om is not None and om >= 0.10,
-        f"{om:.1%}" if om is not None else "n/d")
+    add("Margine operativo ≥ 10%", om is not None and om >= 0.10, f"{om:.1%}" if om is not None else "n/d")
     rg = info.get("revenueGrowth")
-    add("Crescita ricavi > 0", rg is not None and rg > 0,
-        f"{rg:.1%}" if rg is not None else "n/d")
+    add("Crescita ricavi > 0", rg is not None and rg > 0, f"{rg:.1%}" if rg is not None else "n/d")
     fc = info.get("freeCashflow")
-    add("FCF positivo", fc is not None and fc > 0,
-        f"{fc/1e9:.1f}B" if fc is not None else "n/d")
-
+    add("FCF positivo", fc is not None and fc > 0, f"{fc/1e9:.1f}B" if fc is not None else "n/d")
     score = int(round(100 * sum(c["ok"] for c in checks) / len(checks)))
     return {"ticker": ticker, "score": score, "checks": checks}
 
@@ -392,13 +387,6 @@ def _d12(df: pd.DataFrame, i: int) -> tuple[bool, bool]:
 def reversal_state(df: pd.DataFrame, wdf: pd.DataFrame, zones: list[dict],
                    anchors: list[dict], hc_score: int,
                    es_positive: bool | None = None) -> dict:
-    """
-    Punteggio reversal (A = cancello DD ≤ −20%):
-    B decel>0 =1 · C confluenza =1 · G chiusura fresca sopra SMA20 =2 ·
-    D conferma (D1/D2/D3) =1 · E qualità+persistenza =1. Max 6.
-    🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano).
-    🟢 = A + punti ≥5 + D (senza G non si arriva: è il suo valore doppio).
-    """
     close = df["Close"]
     if len(close) < 30:
         return {"dd": 0.0, "points": 0, "kind": None,
@@ -443,7 +431,6 @@ def reversal_state(df: pd.DataFrame, wdf: pd.DataFrame, zones: list[dict],
 
 def candidate_at(df: pd.DataFrame, zones: list[dict], anchors: list[dict],
                  i: int, D: bool, E: bool) -> tuple[float, int]:
-    """DD e punti approssimati alla posizione i (per pruning a 5 chiusure)."""
     close = df["Close"]
     c = close.iloc[:i + 1]
     price = float(c.iloc[-1])
@@ -478,7 +465,6 @@ def earnings_dates_list(ticker: str) -> list:
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def earnings_snapshot(ticker: str) -> dict:
-    """Ultima trimestrale riportata + trend ricavi. positive = True/False/None."""
     out = {"positive": None, "surprise": None, "date": None, "rev_yoy": None, "quarters": None}
     t = yf.Ticker(ticker)
     try:
@@ -512,7 +498,6 @@ def earnings_snapshot(ticker: str) -> dict:
 
 # ── Cache screening ────────────────────────────────────────
 def save_screening_cache(df: pd.DataFrame, meta: dict) -> None:
-    """Salva l'ultima scansione su disco (persistente tra sessioni)."""
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         df.to_csv(SCREENING_CACHE_CSV, index=False)
@@ -523,7 +508,6 @@ def save_screening_cache(df: pd.DataFrame, meta: dict) -> None:
         pass
 
 def load_screening_cache() -> tuple[pd.DataFrame | None, dict]:
-    """Carica l'ultima scansione salvata. (None, {}) se assente."""
     try:
         if not SCREENING_CACHE_CSV.exists():
             return None, {}
@@ -551,14 +535,16 @@ def load_index_constituents(name: str) -> list[str]:
             df = None
         if df is not None and not df.empty:
             col = "Ticker" if "Ticker" in df.columns else df.columns[0]
-            out = [str(t).strip() for t in df[col].dropna().tolist()]
-            out = [t for t in out if t and t.lower() != "nan"]
+            out = []
+            for x in df[col].dropna():
+                t = _sanitize_ticker(str(x))
+                if t and t not in out:
+                    out.append(t)
             if out:
                 return out
     return list(DEFAULT_SAMPLE.get(name, []))
 
 def _weekly_for(data_w, t, sub):
-    """Weekly del ticker dal download multiplo, o daily come estremo ripiego."""
     if data_w is not None:
         try:
             cw = data_w["Close"][t].dropna()
@@ -574,7 +560,6 @@ def _weekly_for(data_w, t, sub):
     return sub
 
 def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
-    """Screening multi-titolo: daily 2y + zone/VWA su settimanale lungo."""
     def _log(msg):
         if log is not None:
             try:
@@ -665,7 +650,10 @@ def build_universe() -> list[str]:
             try:
                 df = pd.read_csv(p)
                 col = "Ticker" if "Ticker" in df.columns else df.columns[0]
-                tickers.update(str(t).strip() for t in df[col])
+                for x in df[col].dropna():
+                    t = _sanitize_ticker(str(x))
+                    if t:
+                        tickers.add(t)
             except Exception:
                 continue
     return sorted(tickers)
@@ -687,20 +675,19 @@ def resolve_ticker(raw: str) -> str | None:
 
 # ── Mappatura TradingView ─────────────────────────────────
 TV_EXCHANGES = {
-    "":    "NASDAQ",      # USA senza suffisso (fallback; NYSE/American coperti per ricerca)
-    ".MI": "MIL",         # Milano
-    ".PA": "EURONEXT",    # Parigi
-    ".DE": "XETR",        # Francoforte
-    ".MC": "BMAD",        # Madrid
-    ".AS": "EURONEXT",    # Amsterdam
-    ".L":  "LSE",         # Londra
-    ".SW": "SIX",         # Svizzera
-    ".ST": "OMX",         # Stoccolma
-    ".BR": "EURONEXT",    # Bruxelles
+    "":    "NASDAQ",
+    ".MI": "MIL",
+    ".PA": "EURONEXT",
+    ".DE": "XETR",
+    ".MC": "BMAD",
+    ".AS": "EURONEXT",
+    ".L":  "LSE",
+    ".SW": "SIX",
+    ".ST": "OMX",
+    ".BR": "EURONEXT",
 }
 
 def tradingview_url(ticker: str) -> str:
-    """URL diretto al chart TradingView per il ticker."""
     if "." in ticker:
         base, suffix = ticker.rsplit(".", 1)
         suffix = "." + suffix.upper()
