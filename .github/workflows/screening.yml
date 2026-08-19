@@ -1,7 +1,10 @@
 name: screening-daily
 on:
   schedule:
-    - cron: "30 7,12,16 * * 1-5"   # 3 volte/giorno lun-ven (UTC)
+    # 2 corse complete/giorno lun-ven (UTC):
+    # 06:30 → ~8:30 locali: USA consolidati, prepari gli ingressi del pomeriggio
+    # 14:30 → ~16:30 locali: fasi finali europee, prepari gli ingressi di domani
+    - cron: "30 6,14 * * 1-5"
   workflow_dispatch:
 permissions:
   contents: write
@@ -15,7 +18,7 @@ jobs:
           python-version: "3.12"
       - name: Installa dipendenze
         run: pip install -r requirements.txt
-      - name: Screening + auto-popolazione + pruning
+      - name: Screening tutti gli indici + auto-popolazione + pruning
         run: python scripts/run_screening.py
       - name: Commit risultati
         run: |
