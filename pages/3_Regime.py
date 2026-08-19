@@ -5,7 +5,8 @@ allo score, gauge composite, SPX con flip-line e ±2σ, termometro VIX/VVIX.
 import streamlit as st
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Regime", page_icon="🧭", layout="wide")
+st.set_page_config(page_title="Regime", page_icon="🧭", layout="wide",
+                   initial_sidebar_state="collapsed")
 
 from ui.theme import inject_css, COLORS, FONT_MONO, style_fig
 from ui.nav import render_navbar, sidebar_nav
