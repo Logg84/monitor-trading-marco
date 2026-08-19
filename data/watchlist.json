@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-19T15:45:02.819593+00:00",
+  "updated": "2026-08-19T15:45:03.791441+00:00",
   "entries": [
     {
       "ticker": "RNO.PA",
@@ -62,17 +62,6 @@
       "created": "2026-08-19T15:45:02.817541+00:00",
       "last_reviewed": "2026-08-19T15:45:02.817552+00:00",
       "poc": 25.5004,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "SHL.DE",
-      "origin": "auto",
-      "created": "2026-08-19T15:45:02.819262+00:00",
-      "last_reviewed": "2026-08-19T15:45:02.819271+00:00",
-      "poc": 50.4621,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
