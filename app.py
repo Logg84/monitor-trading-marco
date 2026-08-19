@@ -1,9 +1,8 @@
 """
-Watchlist — home. Pruning automatico (🤖 e ), tabella cliccabile con Nome,
+Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
 link TradingView, zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali;
 aggiunta manuale con L1/L2/L3; storico alert; analisi singola.
-Write-through GitHub con circuito di protezione: reconcile/prune non possono
-pubblicare una watchlist vuota (solo azioni esplicite dell'utente).
+Write-through GitHub + autoguarigione dal repo + guard anti-svuotamento.
 Lettura, mai ordine — non è consulenza.
 """
 import streamlit as st
@@ -22,7 +21,8 @@ from core.data_engine import (
 from core.reversal import analyze_ticker, prune_watchlist
 from core.gh_sync import publish_watchlist
 from core.watchlist_io import (
-    load_watchlist, add_entry, remove_entry, touch_review, update_levels,
+    load_watchlist, load_watchlist_with_restore,
+    add_entry, remove_entry, touch_review, update_levels,
     is_stale, reconcile,
 )
 from core.alerts import load_alert_state
@@ -63,7 +63,10 @@ removed = prune_watchlist()
 for t, motivo in removed:
     st.warning(f"🗑 {t} rimosso automaticamente dalla watchlist: {motivo}.")
 
-entries = load_watchlist()
+# ── Caricamento con autoguarigione dal repo ────────────────
+entries = load_watchlist_with_restore()
+if entries and not load_watchlist():
+    st.caption("Watchlist ripristinata da GitHub (fonte di verità).")
 
 analyses = {}
 for e in entries:
@@ -90,8 +93,7 @@ if msgs:
     else:
         st.error(
             f"Reconcile avrebbe svuotato la watchlist ({n_before} → 0): "
-            "pubblicazione su GitHub bloccata (circuito di protezione). "
-            "Incollami core/watchlist_io.py per capire la regola che rimuove.")
+            "pubblicazione su GitHub bloccata (circuito di protezione).")
 
 with st.expander("➕ Aggiungi titolo (👤 manuale)"):
     with st.form("add_form"):
