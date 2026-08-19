@@ -1,6 +1,6 @@
 """
-Screening: titoli in sconto + alert POC/VWAP + grafico di decelerazione.
-Usa volume profile reale. Log di avanzamento per le operazioni lunghe.
+Screening: titoli in sconto + alert POC/VWAP + POC20y + segnale +
+grafico di decelerazione. Log di avanzamento per le operazioni lunghe.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -120,6 +120,12 @@ if diagnostics:
             "vengono analizzati una sola volta."
         )
 
+st.caption(
+    "POC20y: volume profile su storico settimanale lungo. Zona: ±0.6·ATR(20). "
+    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona POC20y o ≤VWAP60); "
+    "🟡 = DD≤−20% + decel>0. Lettura, mai ordine."
+)
+
 # ── Filtri: alert è sottoinsieme di "in sconto" ────────────
 discount = df[df["DD%"] <= -20].copy()
 alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
@@ -128,7 +134,8 @@ alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
 sc1, sc2 = st.columns([2, 1])
 sort_col = sc1.selectbox(
     "Ordina per",
-    ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "Ticker"],
+    ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60",
+     "ΔPOC%", "ΔVWAP%", "Ticker"],
     index=0,
 )
 sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
