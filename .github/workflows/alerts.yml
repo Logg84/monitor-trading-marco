@@ -1,8 +1,9 @@
 name: alerts
 on:
   schedule:
-    - cron: "*/15 8-16 * * 1-5"   # orari Euronext (UTC)
-    - cron: "*/15 14-21 * * 1-5"  # orari NYSE (UTC)
+    # Ogni 2 ore, lun-ven (UTC): 06,08,10,12,14,16,18,20,22
+    # → ~8-24 locali d'estate, 7-23 d'inverno
+    - cron: "0 6-22/2 * * 1-5"
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,7 +17,7 @@ jobs:
           python-version: "3.12"
       - name: Installa dipendenze
         run: pip install -r requirements.txt
-      - name: Check alert
+      - name: Check alert (candidato / inversione / livelli)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
