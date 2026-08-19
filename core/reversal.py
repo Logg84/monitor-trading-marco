@@ -1,11 +1,11 @@
 """
 Operazioni watchlist basate sul reversal state:
 - analyze_ticker: pacchetto completo per un ticker
-- auto_populate: promuove 🟡/ dello screening in watchlist 🤖
+- auto_populate: promuove 🟡/🟢 dello screening in watchlist 🤖
 - prune_watchlist: uscite automatiche (🤖 e 👤) con persistenza 5 chiusure.
-Regole uscita:
- 🤖: (DD > −20% OR punti < 3) per 5 chiusure consecutive.
- 👤: (punti < 3 AND chiusura < livello minimo inserito) per 5 chiusure consecutive.
+Regole uscita (punti come da reversal_state, 🟡 ora a ≥2):
+ 🤖: (DD > −20% OR punti < 2) per 5 chiusure consecutive.
+ 👤: (punti < 2 AND chiusura < livello minimo inserito) per 5 chiusure consecutive.
  👤 senza livelli inseriti: nessuna uscita automatica.
 """
 from __future__ import annotations
@@ -37,14 +37,14 @@ def analyze_ticker(ticker: str) -> dict | None:
             "hc": hc, "es": es, "rev": rev}
 
 def auto_populate(rows) -> list[str]:
-    """Aggiunge in watchlist (🤖) i ticker 🟡/🟢 assenti. Ritorna i aggiunti."""
+    """Aggiunge in watchlist (🤖) i ticker 🟡/🟢 assenti. Ritorna i ticker aggiunti."""
     entries = load_watchlist()
     have = {e["ticker"] for e in entries}
     added = []
     for r in rows:
         sig = str(r.get("Segnale", ""))
         t = r["Ticker"]
-        if sig.startswith(("🟡", "")) and t not in have:
+        if sig.startswith(("🟡", "🟢")) and t not in have:
             try:
                 add_entry(t, origin="auto", poc=r.get("Z1c"))
                 added.append(t)
@@ -65,11 +65,11 @@ def _bad_series(a: dict, origin: str, min_lvl: float | None) -> bool:
     for i in idxs:
         dd_i, pts_i = candidate_at(df, a["zones"], a["anchors"], i, D, E)
         if origin == "auto":
-            if not ((dd_i > -20) or (pts_i < 3)):
+            if not ((dd_i > -20) or (pts_i < 2)):
                 return False
         else:
             close_i = float(df["Close"].iloc[i])
-            if not (pts_i < 3 and min_lvl is not None and close_i < min_lvl):
+            if not (pts_i < 2 and min_lvl is not None and close_i < min_lvl):
                 return False
     return True
 
