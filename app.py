@@ -1,5 +1,5 @@
 """
-Watchlist — home. Tabella 👤/, flag stale, livelli L1/L2/L3,
+Watchlist — home. Tabella 👤/🤖, flag stale, livelli L1/L2/L3,
 storico alert, analisi singola.
 """
 import streamlit as st
@@ -8,10 +8,10 @@ import pandas as pd
 
 st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide")
 
-from ui.theme import inject_css, COLORS
+from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
-    get_prices, atr, vwap_anchored, poc_zone, poc_zone_from_profile,
+    get_prices, vwap_anchored, poc_zone_from_profile,
     health_check, bottom_score, build_universe, resolve_ticker,
 )
 from core.watchlist_io import (
@@ -27,30 +27,37 @@ inject_css(dark=st.session_state.dark_mode)
 render_navbar(title="Watchlist")
 sidebar_nav()
 
-with st.sidebar:
-    st.markdown("---")
-    label = "☀️ Tema chiaro" if st.session_state.dark_mode else "🌙 Tema scuro"
-    if st.button(label, use_container_width=True):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        st.rerun()
-
-def entry_metrics(ticker: str) -> dict | None:
+# ── Analisi per ticker (una sola chiamata get_prices) ──────
+def build_analysis(ticker: str) -> dict | None:
     try:
         df = get_prices(ticker)
     except Exception:
         return None
     vwap = vwap_anchored(df)
-    poc, _, _ = poc_zone_from_profile(df)
+    poc, lo, hi = poc_zone_from_profile(df)
+    bs = bottom_score(df, poc=poc)
     price = float(df["Close"].iloc[-1])
     ath = float(df["Close"].max())
-    return {"vwap": round(vwap, 4), "poc_auto": round(poc, 4),
-            "drawdown": (price / ath - 1) * 100}
+    return {
+        "df": df, "vwap": vwap, "poc": poc, "lo": lo, "hi": hi,
+        "bs": bs, "price": price, "dd": (price / ath - 1) * 100,
+    }
 
 st.markdown("## Watchlist")
-
 entries = load_watchlist()
-metrics = {e["ticker"]: entry_metrics(e["ticker"]) for e in entries}
-entries, msgs = reconcile(entries, {k: v for k, v in metrics.items() if v})
+
+analyses = {}
+for e in entries:
+    a = build_analysis(e["ticker"])
+    if a is not None:
+        analyses[e["ticker"]] = a
+
+metrics = {
+    t: {"vwap": round(a["vwap"], 4), "poc_auto": round(a["poc"], 4),
+        "drawdown": a["dd"]}
+    for t, a in analyses.items()
+}
+entries, msgs = reconcile(entries, metrics)
 for m in msgs:
     st.warning(m)
 
@@ -59,7 +66,7 @@ with st.expander("➕ Aggiungi titolo (👤 manuale)"):
         c1, c2 = st.columns([2, 1])
         new_ticker = c1.text_input("Ticker (es. CPR.MI o CPR)", value="")
         new_poc = c2.number_input("POC manuale (opzionale)", value=0.0, step=0.1)
-        submitted = st.form_submit_button("Aggiungi")
+        submitted = st.form_submit_button("Aggiungi", type="primary")
         if submitted and new_ticker.strip():
             t = resolve_ticker(new_ticker) or new_ticker.strip().upper()
             add_entry(t, origin="manual", poc=new_poc if new_poc > 0 else None)
@@ -70,95 +77,98 @@ if not entries:
 else:
     rows = []
     for e in entries:
-        m = metrics.get(e["ticker"]) or {}
-        df_p = None
-        try:
-            df_p = get_prices(e["ticker"])
-        except Exception:
+        a = analyses.get(e["ticker"])
+        if a is None:
             continue
-        if df_p is None:
-            continue
-        price = float(df_p["Close"].iloc[-1])
-        poc, lo, hi = poc_zone_from_profile(df_p)
-        bs = bottom_score(df_p, poc=poc)
         rows.append({
-            "": "👤" if e["origin"] == "manual" else "🤖",
+            "Orig.": "👤" if e["origin"] == "manual" else "🤖",
             "Ticker": e["ticker"],
-            "Prezzo": round(price, 2),
-            "DD%": round(bs["drawdown"], 1),
-            "RSI": round(bs["rsi"], 0),
-            "VWAP": e.get("vwap"),
-            "POC": f"{poc:.2f}",
-            "Zona POC": f"{lo:.2f}–{hi:.2f}",
-            "Bottom": bs["score"],
+            "Prezzo": round(a["price"], 2),
+            "DD%": round(a["dd"], 1),
+            "RSI": round(a["bs"]["rsi"], 0),
+            "VWAP": f"{e['vwap']:.2f}" if e.get("vwap") else "—",
+            "POC": f"{a['poc']:.2f}",
+            "Zona POC": f"{a['lo']:.2f}–{a['hi']:.2f}",
+            "Bottom": a["bs"]["score"],
             "Stale": "⚠️" if is_stale(e) else "",
         })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    if rows:
+        sc1, sc2 = st.columns([2, 1])
+        sort_col = sc1.selectbox(
+            "Ordina per",
+            ["Bottom", "DD%", "RSI", "Prezzo", "Ticker"],
+            index=0, key="wl_sort",
+        )
+        sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"],
+                             horizontal=True, key="wl_dir")
+        df_w = pd.DataFrame(rows).sort_values(
+            sort_col, ascending=(sort_dir == "Ascendente")
+        ).reset_index(drop=True)
+        st.dataframe(df_w, use_container_width=True, hide_index=True)
 
     sel = st.selectbox("Titolo da analizzare", [e["ticker"] for e in entries])
-    sel_entry = next(e for e in entries if e["ticker"] == sel)
+    sel_entry = next((e for e in entries if e["ticker"] == sel), None)
 
-    c1, c2 = st.columns(2)
-    if c1.button("✅ Revisionato oggi", key="rev"):
-        touch_review(sel)
-        st.rerun()
-    if c2.button("🗑 Rimuovi dalla watchlist", key="rm"):
-        remove_entry(sel)
-        st.rerun()
+    if sel_entry is not None:
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Revisionato oggi", key="rev"):
+            touch_review(sel)
+            st.rerun()
+        if c2.button("🗑 Rimuovi dalla watchlist", key="rm"):
+            remove_entry(sel)
+            st.rerun()
 
-    df = get_prices(sel)
-    price = float(df["Close"].iloc[-1])
-    poc, lo, hi = poc_zone_from_profile(df)
-    bs = bottom_score(df, poc=poc)
-    hc = health_check(sel)
+        a = analyses.get(sel)
+        if a is None:
+            st.warning(f"Dati prezzo non disponibili per {sel}.")
+        else:
+            df = a["df"]
+            price = a["price"]
+            poc, lo, hi = a["poc"], a["lo"], a["hi"]
+            bs = a["bs"]
+            hc = health_check(sel)
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Prezzo", f"{price:,.2f}")
-    m2.metric("Drawdown ATH", f"{bs['drawdown']:.1f}%")
-    m3.metric("Health", f"{hc['score']}/100")
-    m4.metric("Bottom Score", f"{bs['score']}/100")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Prezzo", f"{price:,.2f}")
+            m2.metric("Drawdown ATH", f"{bs['drawdown']:.1f}%")
+            m3.metric("Health", f"{hc['score']}/100")
+            m4.metric("Bottom Score", f"{bs['score']}/100")
 
-    col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Close",
-                             line=dict(color=col["accent"], width=1.5)))
-    fig.add_hrect(y0=lo, y1=hi, fillcolor=col["warning"], opacity=0.15,
-                  line_width=0, annotation_text="Zona POC (volume profile)")
-    fig.add_hline(y=poc, line_color=col["text"], line_dash="dash",
-                  annotation_text=f"POC {'👤' if sel_entry.get('poc_origin') == 'manual' else '🤖'}")
-    if sel_entry.get("vwap"):
-        fig.add_hline(y=sel_entry["vwap"], line_color=col["positive"],
-                      line_dash="dot", annotation_text="VWAP")
+            col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Close",
+                                     line=dict(color=col["accent"], width=1.5)))
+            fig.add_hrect(y0=lo, y1=hi, fillcolor=col["warning"], opacity=0.15,
+                          line_width=0, annotation_text="Zona POC (volume profile)")
+            fig.add_hline(y=poc, line_color=col["text"], line_dash="dash",
+                          annotation_text=f"POC {'👤' if sel_entry.get('poc_origin') == 'manual' else '🤖'}")
+            if sel_entry.get("vwap"):
+                fig.add_hline(y=sel_entry["vwap"], line_color=col["positive"],
+                              line_dash="dot", annotation_text="VWAP")
+            levels = sel_entry.get("levels", {})
+            for lvl_name, lvl_val in levels.items():
+                if lvl_val and lvl_val > 0:
+                    fig.add_hline(y=lvl_val, line_color=col["accent"], line_dash="solid",
+                                  annotation_text=f"{lvl_name} (👤)")
+            style_fig(fig, st.session_state.dark_mode, height=420)
+            st.plotly_chart(fig, use_container_width=True)
 
-    levels = sel_entry.get("levels", {})
-    for lvl_name, lvl_val in levels.items():
-        if lvl_val and lvl_val > 0:
-            fig.add_hline(y=lvl_val, line_color=col["accent"], line_dash="solid",
-                          annotation_text=f"{lvl_name} (👤)")
+            with st.expander("Livelli manuali (👤)"):
+                with st.form("levels_form"):
+                    l1 = st.number_input("L1 (supporto forte)", value=levels.get("L1", 0.0), step=0.1)
+                    l2 = st.number_input("L2 (supporto medio)", value=levels.get("L2", 0.0), step=0.1)
+                    l3 = st.number_input("L3 (resistenza)", value=levels.get("L3", 0.0), step=0.1)
+                    submitted = st.form_submit_button("Salva livelli", type="primary")
+                    if submitted:
+                        update_levels(sel, {"L1": l1, "L2": l2, "L3": l3})
+                        st.success("Livelli salvati")
+                        st.rerun()
 
-    fig.update_layout(
-        template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
-        paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
-        font=dict(color=col["text"], family="Inter"),
-        margin=dict(l=10, r=10, t=30, b=10), height=420, showlegend=False,
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Livelli manuali (👤)"):
-        with st.form("levels_form"):
-            l1 = st.number_input("L1 (supporto forte)", value=levels.get("L1", 0.0), step=0.1)
-            l2 = st.number_input("L2 (supporto medio)", value=levels.get("L2", 0.0), step=0.1)
-            l3 = st.number_input("L3 (resistenza)", value=levels.get("L3", 0.0), step=0.1)
-            submitted = st.form_submit_button("Salva livelli")
-            if submitted:
-                update_levels(sel, {"L1": l1, "L2": l2, "L3": l3})
-                st.success("Livelli salvati")
-                st.rerun()
-
-    with st.expander("Health Check — dettagli"):
-        for chk in hc["checks"]:
-            icon = "✅" if chk["ok"] else "❌"
-            st.markdown(f"{icon} **{chk['name']}** — {chk['detail']}")
+            with st.expander("Health Check — dettagli"):
+                for chk in hc["checks"]:
+                    icon = "✅" if chk["ok"] else "❌"
+                    st.markdown(f"{icon} **{chk['name']}** — {chk['detail']}")
 
     with st.expander("🔔 Storico alert"):
         hist = load_alert_state().get("history", [])
@@ -172,10 +182,8 @@ else:
 
 # ── Analisi singola libera ─────────────────────────────────
 st.markdown("### Analisi singola")
-
 universe = build_universe()
 mode = st.radio("Sorgente", ["Da universo", "Ticker libero"], horizontal=True)
-
 ticker = None
 if mode == "Da universo":
     ticker = st.selectbox("Titolo", universe)
@@ -187,7 +195,7 @@ else:
         if ticker is None:
             st.error(f"Nessun dato per '{raw}' sulle borse supportate.")
         elif ticker != raw:
-            st.caption(f"Risolto come **{ticker}**")
+            st.caption(f"Risolto come {ticker}")
 
 if ticker:
     try:
@@ -213,7 +221,7 @@ if ticker:
     c5.metric("RSI(14)", f"{bs['rsi']:.0f}")
     c6.metric("VWAP(60)", f"{vwap:,.2f}")
     c7.metric("POC (volume profile)", f"{poc:,.2f}")
-    c8.metric("Zona POC", f"{lo:,.2f} – {hi:,.2f}")
+    c8.metric("Zona POC", f"{lo:.2f} – {hi:.2f}")
 
     col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
     fig = go.Figure()
@@ -225,15 +233,10 @@ if ticker:
                   annotation_text="POC")
     fig.add_hline(y=vwap, line_color=col["positive"], line_dash="dot",
                   annotation_text="VWAP")
-    fig.update_layout(
-        template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
-        paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
-        font=dict(color=col["text"], family="Inter"),
-        margin=dict(l=10, r=10, t=30, b=10), height=420, showlegend=False,
-    )
+    style_fig(fig, st.session_state.dark_mode, height=420)
     st.plotly_chart(fig, use_container_width=True)
 
-    if st.button(f"➕ Promuovi in watchlist (🤖 auto)"):
+    if st.button(f"➕ Promuovi in watchlist (🤖 auto)", type="primary"):
         add_entry(ticker, origin="auto", poc=poc)
         st.success(f"{ticker} promosso in watchlist come 🤖")
 
