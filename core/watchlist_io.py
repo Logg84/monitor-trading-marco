@@ -1,6 +1,9 @@
 """
 Watchlist: schema, I/O, riconciliazione, livelli manuali L1/L2/L3.
 👤 manuale = intoccabile dall'automazione; 🤖 auto = gestita dal sistema.
+REGOLA D'ORO: reconcile NON rimuove mai le entry (aggiorna solo i campi).
+Le uscite 🤖 avvengono SOLO via core.reversal.prune_watchlist
+(condizione vera per 5 chiusure consecutive). Niente killer silenziosi.
 """
 from __future__ import annotations
 
@@ -12,7 +15,6 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 WATCHLIST_PATH = DATA_DIR / "watchlist.json"
 
 STALE_MONTHS = 4
-ZOMBIE_DD_PCT = -8.0
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -31,6 +33,25 @@ def save_watchlist(entries: list[dict]) -> None:
     with open(WATCHLIST_PATH, "w", encoding="utf-8") as f:
         json.dump({"updated": _now(), "entries": entries},
                   f, indent=2, ensure_ascii=False)
+
+def load_watchlist_with_restore() -> list[dict]:
+    """
+    Come load_watchlist, ma se il file locale è vuoto prova a ripristinare
+    da data/watchlist.json nel repo GitHub (fonte di verità).
+    Serve a guarire il portale dopo un redeploy o un publish anomalo.
+    """
+    entries = load_watchlist()
+    if entries:
+        return entries
+    try:
+        from core.gh_sync import fetch_json_from_github
+        data = fetch_json_from_github("data/watchlist.json")
+        if data and data.get("entries"):
+            save_watchlist(data["entries"])
+            return data["entries"]
+    except Exception:
+        pass
+    return entries
 
 def add_entry(ticker: str, origin: str = "manual",
               poc: float | None = None, notes: str = "") -> list[dict]:
@@ -91,6 +112,12 @@ def is_stale(entry: dict) -> bool:
 
 def reconcile(entries: list[dict],
               metrics: dict[str, dict]) -> tuple[list[dict], list[str]]:
+    """
+    Aggiorna i campi derivati (vwap, poc auto) e basta.
+    NON rimuove mai: le uscite sono competenza di prune_watchlist.
+    Cintura: se per qualsiasi ragione l'output fosse vuoto con input pieno,
+    blocca il salvataggio e segnala.
+    """
     out, msgs = [], []
     for e in entries:
         m = metrics.get(e["ticker"])
@@ -99,12 +126,11 @@ def reconcile(entries: list[dict],
             continue
         e["vwap"] = m.get("vwap")
         if e["origin"] == "auto":
-            dd = m.get("drawdown")
-            if dd is not None and dd > ZOMBIE_DD_PCT:
-                msgs.append(f"🤖 {e['ticker']} rimosso: sconto perso (DD {dd:.1f}%)")
-                continue
             e["poc"] = m.get("poc_auto")
             e["poc_origin"] = "auto"
         out.append(e)
+    if entries and not out:
+        msgs.append("🛡 reconcile: svuotamento rilevato e bloccato (protezione).")
+        return entries, msgs
     save_watchlist(out)
     return out, msgs
