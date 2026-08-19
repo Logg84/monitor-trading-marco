@@ -1,8 +1,7 @@
 name: alerts
 on:
   schedule:
-    # Ogni 2 ore, lun-ven (UTC): 06,08,10,12,14,16,18,20,22
-    # → ~8-24 locali d'estate, 7-23 d'inverno
+    # ogni 2 ore, lun-ven (UTC): 06,08,...,22
     - cron: "0 6-22/2 * * 1-5"
   workflow_dispatch:
 permissions:
