@@ -1,8 +1,10 @@
 """
 Operazioni watchlist basate sul reversal state:
 - analyze_ticker: pacchetto completo per un ticker
-- auto_populate: promuove 🟡/ dello screening in watchlist  (write-through GitHub)
+- auto_populate: promuove 🟡/🟢 dello screening in watchlist 🤖 (write-through GitHub)
 - prune_watchlist: uscite automatiche (🤖 e 👤) con persistenza 5 chiusure (write-through).
+CIRCUITO DI PROTEZIONE: il pruning non pubblica mai una watchlist che resterebbe
+vuota (svuotamenti totali sono quasi sempre bug, non mercato).
 Regole uscita (punti come da reversal_state, 🟡 a ≥2):
  🤖: (DD > −20% OR punti < 2) per 5 chiusure consecutive.
  👤: (punti < 2 AND chiusura < livello minimo inserito) per 5 chiusure consecutive.
@@ -38,7 +40,7 @@ def analyze_ticker(ticker: str) -> dict | None:
             "hc": hc, "es": es, "rev": rev}
 
 def auto_populate(rows) -> list[str]:
-    """Aggiunge in watchlist (🤖) i ticker 🟡/ assenti. Ritorna i ticker aggiunti."""
+    """Aggiunge in watchlist (🤖) i ticker 🟡/🟢 assenti. Ritorna i ticker aggiunti."""
     entries = load_watchlist()
     have = {e["ticker"] for e in entries}
     added = []
@@ -103,8 +105,15 @@ def prune_watchlist() -> list[tuple[str, str]]:
             except Exception:
                 continue
     if removed:
-        try:
-            publish_watchlist()
-        except Exception:
-            pass
+        remaining = len(load_watchlist())
+        if remaining > 0:
+            try:
+                publish_watchlist()
+            except Exception:
+                pass
+        else:
+            st.warning(
+                "Pruning avrebbe svuotato completamente la watchlist: "
+                "pubblicazione su GitHub bloccata (circuito di protezione). "
+                "Verifica core/watchlist_io.py e le regole di uscita.")
     return removed
