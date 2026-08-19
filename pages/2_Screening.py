@@ -13,7 +13,7 @@ from ui.theme import inject_css, COLORS
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     INDICES_DIR, load_index_constituents, screening,
-    get_prices, atr, vwap_anchored, poc_zone_from_profile, bottom_score,
+    get_prices, vwap_anchored, poc_zone_from_profile, bottom_score,
 )
 from core.watchlist_io import add_entry, load_watchlist
 
@@ -27,30 +27,43 @@ sidebar_nav()
 st.markdown("## Screening")
 st.caption("Lettura, mai ordine — non è consulenza.")
 
-# Costruisci lista indici disponibili (senza SAMPLE)
+# Lista indici disponibili: solo i CSV presenti in data/indices.
 available = []
 if INDICES_DIR.exists():
     available = sorted(p.stem for p in INDICES_DIR.glob("*.csv"))
 
-# Aggiungi opzione speciale "VISUALIZZA TUTTI INSIEME"
 ALL_INDICES = "📊 VISUALIZZA TUTTI INSIEME"
-available_with_all = [ALL_INDICES] + available
+options = [ALL_INDICES] + available
 
 c1, c2 = st.columns([3, 1])
-index_name = c1.selectbox("Indice", available_with_all)
+index_name = c1.selectbox("Indice", options)
 run = c2.button("🚀 Avvia screening", type="primary")
 
 if run:
+    if not available:
+        st.error("Nessun file indice in data/indices. Genera i CSV con scripts/download_indices.py --force e fai commit.")
+        st.stop()
+
     if index_name == ALL_INDICES:
-        # Unione deduplicata di tutti gli indici
+        per_index = {}
         tickers = []
-        for idx_name in available:
-            tickers.extend(load_index_constituents(idx_name))
+        for n in available:
+            tks = load_index_constituents(n)
+            per_index[n] = len(tks)
+            tickers.extend(tks)
         tickers = sorted(set(tickers))
-        st.info(f"Screening unificato: {len(tickers)} ticker unici da {len(available)} indici")
+        st.session_state["screening_per_index"] = per_index
     else:
         tickers = load_index_constituents(index_name)
-    
+        st.session_state["screening_per_index"] = {index_name: len(tickers)}
+
+    if not tickers:
+        st.error(
+            f"Nessun ticker disponibile per '{index_name}': file indice vuoto o mancante. "
+            "Rigenera con `python scripts/download_indices.py --force` e fai commit+push."
+        )
+        st.stop()
+
     with st.spinner(f"Analisi di {len(tickers)} titoli…"):
         df, diagnostics = screening(tickers)
         st.session_state["screening_result"] = df
@@ -58,52 +71,52 @@ if run:
 
 df = st.session_state.get("screening_result")
 diagnostics = st.session_state.get("screening_diagnostics")
+per_index = st.session_state.get("screening_per_index")
 
 if df is None or df.empty:
-    st.info("Nessun risultato in memoria. Avvia lo screening.")
+    if diagnostics and diagnostics.get("total", 0) > 0:
+        st.error(
+            f"Download dati fallito: {diagnostics['total']} ticker richiesti, 0 validi. "
+            "Riprova più tardi (yfinance potrebbe aver limitato le richieste)."
+        )
+    else:
+        st.info("Nessun risultato in memoria. Avvia lo screening.")
     st.stop()
 
-# Mostra diagnostica
-if diagnostics:
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Titoli indice", diagnostics["total"])
-    col2.metric("Titoli validi", diagnostics["valid"])
-    col3.metric("Titoli scartati", diagnostics["discarded"])
+# ── Diagnostica ────────────────────────────────────────────
+if per_index:
+    detail = " · ".join(f"{k}: {v}" for k, v in sorted(per_index.items()))
+    st.caption(f"Costituenti per indice → {detail}")
 
-# Filtri: alert è sottoinsieme di discount
+if diagnostics:
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Titoli indice", diagnostics["total"])
+    m2.metric("Titoli validi", diagnostics["valid"])
+    m3.metric("Titoli scartati", diagnostics["discarded"])
+
+# ── Filtri: alert è sottoinsieme di "in sconto" ────────────
 discount = df[df["DD%"] <= -20].copy()
 alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
 
-tab1, tab2, tab3 = st.tabs([
-    f"Tutti ({len(df)})", 
-    f"In sconto ({len(discount)})", 
-    f"Alert POC/VWAP ({len(alert)})"
-])
-
-# Controlli ordinamento
-sort_col = st.selectbox(
+# ── Ordinamento esplicito ──────────────────────────────────
+sc1, sc2 = st.columns([2, 1])
+sort_col = sc1.selectbox(
     "Ordina per",
     ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "Ticker"],
     index=0,
-    key="sort_col"
 )
-sort_dir = st.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True, key="sort_dir")
+sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
+ascending = sort_dir == "Ascendente"
 
-df_sorted = df.sort_values(
-    sort_col, 
-    ascending=(sort_dir == "Ascendente")
-).reset_index(drop=True)
+df_sorted = df.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
+discount_sorted = discount.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
+alert_sorted = alert.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
 
-discount_sorted = discount.sort_values(
-    sort_col, 
-    ascending=(sort_dir == "Ascendente")
-).reset_index(drop=True)
-
-alert_sorted = alert.sort_values(
-    sort_col, 
-    ascending=(sort_dir == "Ascendente")
-).reset_index(drop=True)
-
+tab1, tab2, tab3 = st.tabs([
+    f"Tutti ({len(df_sorted)})",
+    f"In sconto ({len(discount_sorted)})",
+    f"Alert POC/VWAP ({len(alert_sorted)})",
+])
 with tab1:
     st.dataframe(df_sorted, use_container_width=True, hide_index=True)
 with tab2:
@@ -111,8 +124,9 @@ with tab2:
 with tab3:
     st.dataframe(alert_sorted, use_container_width=True, hide_index=True)
 
+# ── Analisi di decelerazione ───────────────────────────────
 st.markdown("### Analisi di decelerazione")
-sel = st.selectbox("Titolo dai risultati", df["Ticker"].tolist())
+sel = st.selectbox("Titolo dai risultati", df_sorted["Ticker"].tolist())
 
 try:
     full = get_prices(sel)
