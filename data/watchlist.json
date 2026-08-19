@@ -1,0 +1,16 @@
+{
+  "updated": "2026-08-19T08:18:00.984978+00:00",
+  "entries": [
+    {
+      "ticker": "CPR.MI",
+      "origin": "auto",
+      "created": "2026-08-18T19:09:31.410912+00:00",
+      "last_reviewed": "2026-08-18T19:09:31.410924+00:00",
+      "poc": 5.604,
+      "poc_origin": "auto",
+      "vwap": 5.6247,
+      "levels": {},
+      "notes": ""
+    }
+  ]
+}

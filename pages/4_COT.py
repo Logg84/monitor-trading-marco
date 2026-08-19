@@ -1,0 +1,375 @@
+"""
+COT — Forex & materie prime: matrice forza relativa FX, letture
+Producer/Managed/Swap con regola producer estremo, storico merge,
+reset storico, diagnostica zip, publish GitHub opzionale.
+"""
+import datetime
+
+import streamlit as st
+import pandas as pd
+import yfinance as yf
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+st.set_page_config(page_title="COT", page_icon="🛢️", layout="wide")
+
+from ui.theme import inject_css, COLORS
+from ui.nav import render_navbar, sidebar_nav
+from core import cot as C
+
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+inject_css(dark=st.session_state.dark_mode)
+render_navbar(title="COT")
+sidebar_nav()
+
+col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha:.3f})"
+
+TONE_COLOR = {"green": col["positive"], "red": col["negative"],
+              "yellow": col["warning"], "ice": col["accent"],
+              "muted": col["text_muted"]}
+
+@st.cache_data(ttl=43200, show_spinner=False)
+def prezzo_yf(sym: str | None):
+    if not sym:
+        return None
+    try:
+        h = yf.download(sym, period="3y", interval="1d",
+                        progress=False, auto_adjust=True)
+        if h is None or h.empty:
+            return None
+        if isinstance(h.columns, pd.MultiIndex):
+            h.columns = h.columns.droplevel(-1)
+        c = h["Close"].dropna()
+        if c.index.tz is not None:
+            c = c.tz_localize(None)
+        return c
+    except Exception:
+        return None
+
+st.markdown("## COT — Commitments of Traders")
+st.caption("Forex · materie prime · regola producer estremo. Lettura, mai ordine.")
+
+DATA = C.load_cot_data()
+
+# ── Pannello aggiornamento ─────────────────────────────────
+anno = datetime.date.today().year
+with st.expander("📥 Aggiornamento manuale (download + upload zip)",
+                 expanded=(DATA is None)):
+    st.markdown(
+        f"1️⃣ Scarica i zip annuali Excel dal sito CFTC:\n\n"
+        f"- [fut_disagg_xls_{anno}.zip](https://www.cftc.gov/files/dea/history/fut_disagg_xls_{anno}.zip) — materie prime (Producer/Managed/Swap)\n"
+        f"- [fut_disagg_xls_{anno-1}.zip](https://www.cftc.gov/files/dea/history/fut_disagg_xls_{anno-1}.zip) — anno precedente (storico)\n"
+        f"- [dea_fut_xls_{anno}.zip](https://www.cftc.gov/files/dea/history/dea_fut_xls_{anno}.zip) — tutti i mercati, incl. FX (Legacy)\n"
+        f"- [dea_fut_xls_{anno-1}.zip](https://www.cftc.gov/files/dea/history/dea_fut_xls_{anno-1}.zip) — anno precedente (storico)\n\n"
+        f"2️⃣ Caricali qui (anche più di uno) e premi Processa. Lo storico esistente viene conservato."
+    )
+    uploaded = st.file_uploader("Zip CFTC (.zip)", type=["zip"],
+                                accept_multiple_files=True,
+                                label_visibility="collapsed")
+    reset = st.checkbox("🧨 **Riparti da zero** — ignora lo storico salvato e ricostruisce pulito "
+                        "(usalo UNA volta dopo un'elaborazione sbagliata)", value=False)
+    if st.button("⚙️ Processa e salva", type="primary", disabled=(not uploaded)):
+        with st.spinner("Lettura zip + merge con storico…"):
+            try:
+                payload = C.processa_e_salva([(up.name, up.read()) for up in uploaded],
+                                             reset=reset)
+                st.cache_data.clear()
+                st.success(f"✅ COT salvato: report {payload['meta']['date']} · "
+                           f"{payload['meta']['weeks']} settimane · {payload['meta']['rec']} record. "
+                           f"Commit e push di data/cot/cot_data.json per sincronizzare gli altri PC.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Elaborazione fallita: {e}")
+
+# ── Diagnostica ────────────────────────────────────────────
+diag = C.load_diag()
+if diag and (DATA is None or DATA["meta"]["weeks"] < C.MINW):
+    with st.expander("🔬 Diagnostica ultimo Processa (apri e fai screenshot se non funziona)",
+                     expanded=True):
+        for d in diag:
+            st.markdown(f"**{d.get('file')}**")
+            st.json(d, expanded=False)
+
+if not DATA:
+    st.stop()
+
+META, FX, COMM = DATA["meta"], DATA["fx"], DATA["comm"]
+COMM_NAME = DATA.get("comm_name", {})
+FX_ORDER = DATA.get("fx_order", [])
+COMM_ORDER = DATA.get("comm_order", [])
+
+try:
+    d_rep = datetime.date.fromisoformat(META["date"])
+    giorni = (datetime.date.today() - d_rep).days
+    if giorni > 12:
+        st.warning(f"⚠️ Dati COT del {META['date']} ({giorni} giorni fa): "
+                   f"il report esce il venerdì, usa 📥 Aggiornamento manuale.")
+except Exception:
+    pass
+
+st.caption(f"report_date **{META['date']}** · window **{META['weeks']}** sett. · "
+           f"records **{META['rec']}** · generato {META['gen']} · {META['src']}")
+
+tab_fx, tab_cm = st.tabs(["💱 Forex · forza relativa", "🛢️ Materie prime · tre categorie"])
+
+# ══════════════════════════════════════════════════════════
+with tab_fx:
+    syms = [s for s in FX_ORDER if len(FX.get(s) or []) >= C.MINW]
+    if not syms:
+        st.info("Nessun dato Forex valido: servono ≥ 52 settimane (usa 📥 Aggiornamento).")
+    else:
+        P, D = {}, {}
+        for s in syms:
+            v = C.series(FX[s], "nc")
+            P[s] = C.percentile(v, v[-1])
+            D[s] = C.deriv(v)
+
+        z, txt, cust = [], [], []
+        maxD, maxPair, maxSign = 0, "", 1
+        for rs in syms:
+            zr, tr, cr = [], [], []
+            for cs in syms:
+                if rs == cs:
+                    zr.append(None); tr.append("·"); cr.append("—")
+                else:
+                    diff = P[rs] - P[cs]
+                    dd = D[rs] - D[cs]
+                    if abs(diff) > maxD:
+                        maxD, maxPair, maxSign = abs(diff), f"{rs}/{cs}", (1 if diff >= 0 else -1)
+                    zr.append(diff); tr.append(f"{diff:+.0f}")
+                    verso = "LONG" if diff >= 0 else "SHORT"
+                    cr.append(f"<b>{verso} {rs}/{cs}</b> · Δperc {diff:+.0f} · "
+                              f"{rs} {P[rs]:.0f}° vs {cs} {P[cs]:.0f}° · deriv {dd:+.0f}")
+            z.append(zr); txt.append(tr); cust.append(cr)
+
+        n = len(syms)
+        c1, c2 = st.columns([1.5, 1], gap="medium")
+        with c1:
+            st.markdown("**Matrice forza relativa** — cella = P(riga) − P(colonna) "
+                        "su net speculativo. Hover per il verso della coppia.")
+            # Scala più contrastata: colori pieni agli estremi, neutro solo al centro
+            scale = [
+                [0.0, col["negative"]],
+                [0.35, _rgba(col["negative"], 0.45)],
+                [0.5, col["surface"]],
+                [0.65, _rgba(col["positive"], 0.45)],
+                [1.0, col["positive"]],
+            ]
+            fig = go.Figure(go.Heatmap(
+                z=z, x=syms, y=syms, text=txt, texttemplate="%{text}",
+                textfont={"size": 14, "family": "JetBrains Mono",
+                          "color": col["text"]},
+                customdata=cust, hovertemplate="%{customdata}<extra></extra>",
+                zmin=-100, zmax=100, xgap=4, ygap=4,
+                colorscale=scale, showscale=False))
+            fig.update_layout(
+                template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
+                height=max(300, n * 54 + 80),
+                margin=dict(l=6, r=6, t=6, b=6),
+                paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
+                xaxis={"side": "top", "tickfont": {"family": "JetBrains Mono",
+                       "size": 12, "color": col["accent"]}},
+                yaxis={"autorange": "reversed", "tickfont": {"family": "JetBrains Mono",
+                       "size": 12, "color": col["accent"]}})
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown(f"Coppia più sbilanciata: **{'LONG' if maxSign > 0 else 'SHORT'} "
+                        f"{maxPair}** · Δperc {maxD:.0f}° · soglie alert ±80°")
+
+        with c2:
+            st.markdown("**Ranking valute** — percentile del net speculativo. "
+                        "Destra = euforia long, sinistra = panico short.")
+            order = sorted(syms, key=lambda s: P[s], reverse=True)
+            figr = go.Figure(go.Bar(
+                y=order, x=[P[s] - 50 for s in order], orientation="h",
+                marker={"color": [col["positive"] if P[s] >= 60 else
+                                  (col["negative"] if P[s] <= 40 else col["warning"])
+                                  for s in order]},
+                text=[f"{P[s]:.0f}°" for s in order], textposition="outside",
+                textfont={"family": "JetBrains Mono", "size": 12, "color": col["text"]}))
+            figr.update_layout(
+                template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
+                height=max(280, n * 46 + 70),
+                margin=dict(l=6, r=6, t=6, b=6),
+                paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
+                xaxis={"range": [-55, 55], "visible": False},
+                yaxis={"autorange": "reversed",
+                       "tickfont": {"family": "JetBrains Mono", "size": 12,
+                                    "color": col["accent"]}})
+            st.plotly_chart(figr, use_container_width=True)
+
+        als = []
+        for a in syms:
+            for b in syms:
+                if a == b:
+                    continue
+                diff = P[a] - P[b]
+                if abs(diff) >= 80:
+                    verso = "LONG" if diff > 0 else "SHORT"
+                    als.append(f"🔴 **{verso} {a}/{b}** — squilibrio estremo "
+                               f"(Δperc {diff:.0f} · {a} {P[a]:.0f}° · {b} {P[b]:.0f}°). "
+                               f"Conferma con setup volumetrico prima di operare.")
+        if als:
+            for a in als:
+                st.error(a)
+        else:
+            st.success("Nessun differenziale oltre ±80°.")
+
+# ══════════════════════════════════════════════════════════
+with tab_cm:
+    mk = [s for s in COMM_ORDER if len(COMM.get(s) or []) >= C.MINW]
+    if not mk:
+        st.info("Nessun dato materie prime valido: servono ≥ 52 settimane (usa 📥 Aggiornamento).")
+    else:
+        stati = {s: C.comm_state(s, COMM) for s in mk}
+
+        if "cot_filter" not in st.session_state:
+            st.session_state["cot_filter"] = "hot"
+        bf1, bf2, bf3, bf4 = st.columns([1, 1, 1, 5])
+        for c_, key, lab in ((bf1, "hot", "CALDI"), (bf2, "all", "TUTTI"),
+                             (bf3, "bull", "▲"), (bf4, "bear", "▼")):
+            if c_.button(lab, key=f"cotf_{key}",
+                         type="primary" if st.session_state["cot_filter"] == key else "secondary"):
+                st.session_state["cot_filter"] = key
+                st.rerun()
+        flt = st.session_state["cot_filter"]
+        visible = [s for s in mk if (
+            (flt == "all") or
+            (flt == "hot" and stati[s]["tone"] != "muted") or
+            (flt == "bull" and stati[s]["key"] == "bull") or
+            (flt == "bear" and stati[s]["key"] == "bear"))]
+        if not visible:
+            visible = mk
+
+        chips = "".join(
+            f'<span style="display:inline-flex;align-items:center;gap:6px;'
+            f'border:1px solid {col["border"]};border-radius:4px;padding:4px 8px;'
+            f'margin:0 6px 6px 0;font-size:11px;color:{col["text"]};'
+            f'background:{_rgba(TONE_COLOR[stati[s]["tone"]], 0.18)};">'
+            f'<span style="width:8px;height:8px;border-radius:2px;'
+            f'background:{TONE_COLOR[stati[s]["tone"]]};"></span>'
+            f'{COMM_NAME.get(s, s)} · {stati[s]["pP"]:.0f}°</span>'
+            for s in visible)
+        hot_n = sum(1 for s in mk if stati[s]["tone"] != "muted")
+        st.markdown(f'<div style="margin:6px 0 4px">{chips}</div>'
+                    f'<div style="font-size:10.5px;color:{col["text_muted"]};'
+                    f'margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
+                    unsafe_allow_html=True)
+
+        opts = {s: COMM_NAME.get(s, s) for s in mk}
+        if "cot_market" not in st.session_state or st.session_state["cot_market"] not in opts:
+            st.session_state["cot_market"] = visible[0] if visible else mk[0]
+        sym = st.selectbox("Mercato", list(opts.keys()),
+                           format_func=lambda s: opts[s], label_visibility="collapsed")
+        arr = COMM[sym]
+        pA, mA, sA = C.series(arr, "prod"), C.series(arr, "mm"), C.series(arr, "swap")
+        S = stati[sym]
+        pP, pM, pS, dP, dM, revP = S["pP"], S["pM"], S["pS"], S["dP"], S["dM"], S["revP"]
+        zP, zM = C.zscore(pA), C.zscore(mA)
+
+        g1, g2 = st.columns([1.6, 1], gap="large")
+        with g1:
+            st.markdown(f"**Trasferimento rischio — {opts[sym]}** · {len(arr)} sett. "
+                        f"· la linea ambra (asse destro) è il prezzo front-month.")
+            show_price = st.checkbox("Sovrapponi prezzo dell'asset (asse destro)",
+                                     value=True, key="cot_price_on")
+            figc = make_subplots(specs=[[{"secondary_y": True}]])
+            figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant",
+                         line={"color": col["negative"], "width": 2},
+                         fill="tozeroy", fillcolor=_rgba(col["negative"], 0.08)),
+                         secondary_y=False)
+            figc.add_trace(go.Scatter(y=mA, name="Managed Money",
+                         line={"color": col["positive"], "width": 2}), secondary_y=False)
+            figc.add_trace(go.Scatter(y=sA, name="Swap Dealer",
+                         line={"color": col["accent"], "width": 1.5, "dash": "dash"}),
+                         secondary_y=False)
+            if show_price:
+                close = prezzo_yf(C.YF_COMM.get(sym))
+                if close is not None and len(close) > 1:
+                    times = [x["t"] for x in arr[-C.WINDOW:]]
+                    py = []
+                    for t in times:
+                        ts = pd.Timestamp(int(t), unit="ms")
+                        v = close.asof(ts)
+                        py.append(None if pd.isna(v) else float(v))
+                    figc.add_trace(go.Scatter(y=py, name="Prezzo (front-month)",
+                                 line={"color": col["warning"], "width": 2.4},
+                                 hovertemplate="prezzo %{y:.2f}<extra></extra>"),
+                                 secondary_y=True)
+                else:
+                    st.caption(f"Prezzo non disponibile per {sym}.")
+            figc.update_layout(
+                template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
+                height=340, margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
+                legend={"orientation": "h", "y": 1.14,
+                        "font": {"family": "JetBrains Mono", "size": 10.5}},
+                font=dict(color=col["text"]))
+            st.plotly_chart(figc, use_container_width=True)
+
+            m1, m2, m3, m4, m5, m6, m7, m8 = st.columns(8)
+            m1.metric("Prod perc", f"{pP:.0f}°")
+            m2.metric("Managed perc", f"{pM:.0f}°")
+            m3.metric("Swap perc", f"{pS:.0f}°")
+            m4.metric("Prod inverte", "SÌ ✓" if revP else "no")
+            m5.metric("Z Prod", f"{zP:.2f}")
+            m6.metric("Z MM", f"{zM:.2f}")
+            m7.metric("Δ Prod 2w", f"{dP:+.0f}")
+            m8.metric("Δ MM 2w", f"{dM:+.0f}")
+
+            # FIX: if/else espliciti (le espressioni nude venivano stampate dal magic)
+            if pP < 20 and pM > 65:
+                if revP:
+                    st.error("**CONTESTO RIALZISTA ATTIVO** · Producer depresso e in inversione: "
+                             "il rischio si trasferisce. Cerca conferma volumetrica.")
+                else:
+                    st.warning("**TENSIONE RIALZISTA** · Producer molto short vs Managed long. "
+                               "Non è ancora long: attendi che la linea rossa salga.")
+            elif pP > 80 and pM < 35:
+                if revP:
+                    st.error("**CONTESTO RIBASSISTA ATTIVO** · Producer in inversione verso più "
+                             "copertura + Managed short. Setup di contesto short.")
+                else:
+                    st.warning("**TENSIONE RIBASSISTA** · Attendi che la linea rossa scenda.")
+            elif (pM > 85 or pM < 15) and not revP:
+                st.warning(f"**SPECULATORI A ESTREMO** · Managed {'max long' if pM > 85 else 'max short'} "
+                           f"({pM:.0f}°) ma producer non inverte: trend maturo → non inseguirlo, "
+                           f"non invertirlo. Watchlist.")
+            elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
+                st.info(f"**TREND SPECULATIVO IN CORSO** · Managed "
+                        f"{'accumula long' if dM > 0 else 'accumula short'} (Δ {dM:+.0f}) senza "
+                        f"estremi: trend vivo → non operare contro.")
+            elif (pP < 10 or pP > 90):
+                st.warning(f"**PRODUCER ESTREMO** · Producer a {pP:.0f}° con Managed neutro "
+                           f"({pM:.0f}°): copertura commerciale anomala → monitora quando la "
+                           f"linea rossa inverte.")
+            else:
+                st.success(f"**NESSUNA LETTURA DOMINANTE** · Producer {pP:.0f}° · Managed {pM:.0f}° "
+                           f"· Swap {pS:.0f}°. Stai fermo.")
+
+        with g2:
+            with st.expander("📖 Come leggere le 3 linee + prezzo", expanded=True):
+                st.markdown(
+                    "- 🟥 **Producer/Merchant** — strutturalmente *short*: il segnale è il "
+                    "**percentile**. Linea che **sale** = contesto di **bottom**; che **scende** "
+                    "= contesto di **top**.\n"
+                    "- 🟩 **Managed Money** — sopra zero = long, sotto = short. A **estremi** "
+                    "il trend è maturo.\n"
+                    "- 🟦 **Swap Dealer** — rumoroso; utile solo se cambia segno / riduce.\n"
+                    "- 🟨 **Prezzo (asse destro)** — per la **divergenza**: prezzo su nuovi "
+                    "massimi ma Managed no = carburante in calo.")
+            with st.expander("⚙️ Configurazioni operative"):
+                st.markdown(
+                    "- **▲ RIALZISTA** — Producer ai minimi + Managed ai massimi = tensione; "
+                    "long **solo quando il Producer inverte**.\n"
+                    "- **▼ RIBASSISTA** — speculare: conferma quando il Producer riprende a coprire.\n"
+                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa al limite storico: aspetta "
+                    "che inverta per il timing.\n"
+                    "- **TREND VIVO** — Managed in trend *senza* estremi → non operare contro.\n"
+                    "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo.")
