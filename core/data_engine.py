@@ -1,9 +1,9 @@
 """
 Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple
 (soglia adattiva + larghezza max = min(15% range, 8×ATR20)),
-VWAP ancorati, Bottom Score, REVERSAL STATE (punti 🟡/🟢), trimestrali,
-cache screening, universo, risoluzione ticker.
-Solo letture, mai decisioni.
+VWAP ancorati a minimi strutturali, Bottom Score, REVERSAL STATE (punti 🟡/🟢),
+trimestrali, cache screening, universo, risoluzione ticker, link TradingView.
+Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
 import datetime as _dt
@@ -39,6 +39,7 @@ def get_prices(ticker: str, period: str = "2y", interval: str = "1d") -> pd.Data
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def get_prices_long(ticker: str) -> pd.DataFrame:
+    """Storico lungo (max disponibile, target ≥20 anni) settimanale."""
     df = yf.Ticker(ticker).history(period="max", interval="1wk", auto_adjust=True)
     if df.empty:
         raise ValueError(f"Nessun dato lungo per {ticker}")
@@ -52,6 +53,7 @@ def get_prices_long(ticker: str) -> pd.DataFrame:
 @st.cache_data(ttl=3600, show_spinner=False)
 def download_closes_chunked(tickers: tuple, period: str = "2y",
                             chunk_size: int = 100) -> pd.DataFrame:
+    """Download multiplo daily a blocchi, per universi grandi."""
     tk = list(tickers)
     frames = []
     for i in range(0, len(tk), chunk_size):
@@ -74,6 +76,7 @@ def download_closes_chunked(tickers: tuple, period: str = "2y",
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def download_weekly_chunked(tickers: tuple, chunk_size: int = 100) -> pd.DataFrame:
+    """Download multiplo SETTIMANALE lungo a blocchi (zone volumetriche)."""
     tk = list(tickers)
     frames = []
     for i in range(0, len(tk), chunk_size):
@@ -121,6 +124,7 @@ def vwap_anchored(df: pd.DataFrame, lookback: int = 60) -> float:
 
 # ── Zone volumetriche multiple ─────────────────────────────
 def _split_run(vps: np.ndarray, l: int, h: int, max_bins: int) -> list[tuple[int, int]]:
+    """Spezza una mensola troppo larga alla valle interna più profonda."""
     segs = []
     stack = [(l, h)]
     while stack:
@@ -142,6 +146,16 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
                  half_life_years: float = 4.0, min_share: float = 0.02,
                  max_width_frac: float = 0.15, atr20: float | None = None,
                  atr_width_mult: float = 8.0) -> list[dict]:
+    """
+    Zone volumetriche su storico lungo.
+    Regole:
+    - mensole = bin continui con volume ≥ soglia adattiva (70° percentile
+      dei volumi positivi);
+    - larghezza massima = min(15% del range prezzo, atr_width_mult × ATR20):
+      il vincolo ATR rende le zone leggibili sulla volatilità corrente;
+    - score = 100 · (0.6·dimensione_normalizzata + 0.4·recency),
+      recency = e^(−age/half_life).
+    """
     if wdf is None or len(wdf) < 40:
         return []
     close = wdf["Close"]
@@ -153,6 +167,7 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
     pmin, pmax = float(close.min()), float(close.max())
     if pmax <= pmin:
         return []
+
     price_bins = np.linspace(pmin, pmax, bins + 1)
     bin_w = (pmax - pmin) / bins
     idx = np.clip(np.searchsorted(price_bins, close.to_numpy(), side="right") - 1,
@@ -160,11 +175,14 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
     v = vol.to_numpy()
     vp = np.bincount(idx, weights=v, minlength=bins).astype(float)
     va = np.bincount(idx, weights=v * age, minlength=bins).astype(float)
-    vps = np.convolve(vp, np.array([0.25, 0.5, 0.25]), mode="same")
+
+    kern = np.array([0.25, 0.5, 0.25])
+    vps = np.convolve(vp, kern, mode="same")
     pos = vps[vps > 0]
     if pos.size == 0:
         return []
     thr = float(np.percentile(pos, 70))
+
     max_width_price = max_width_frac * (pmax - pmin)
     if atr20 is not None and atr20 > 0:
         max_width_price = min(max_width_price, atr_width_mult * atr20)
@@ -184,23 +202,32 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
                 if share < min_share:
                     continue
                 zage = float(va[l:h + 1].sum() / zv) if zv > 0 else float(age[-1])
-                zones.append({"lo": float(price_bins[l]), "hi": float(price_bins[h + 1]),
-                              "center": float((price_bins[l] + price_bins[h + 1]) / 2),
-                              "share": share, "age": zage})
+                zones.append({
+                    "lo": float(price_bins[l]),
+                    "hi": float(price_bins[h + 1]),
+                    "center": float((price_bins[l] + price_bins[h + 1]) / 2),
+                    "share": share,
+                    "age": zage,
+                })
             i = j + 1
         else:
             i += 1
+
     if not zones:
         return []
+
     mx = max(z["share"] for z in zones)
     for z in zones:
         rec = float(np.exp(-z["age"] / half_life_years))
         z["recency"] = rec
         z["score"] = int(round(100 * (0.6 * (z["share"] / mx) + 0.4 * rec)))
+
     zones.sort(key=lambda z: -z["score"])
     return zones[:max_zones]
 
 def zone_component(price: float, zones: list[dict], atr20: float) -> float:
+    """Componente 0-100: dentro una zona pesa lo score della zona,
+    fuori decade con la distanza (in ATR)."""
     if not zones or atr20 <= 0:
         return 50.0
     best = None
@@ -224,6 +251,11 @@ def anchored_vwap_from(wdf: pd.DataFrame, i: int) -> float:
 
 def structural_anchors(wdf: pd.DataFrame, k: int = 13, min_gap_weeks: int = 26,
                        max_n: int = 3, earnings: list | None = None) -> list[dict]:
+    """
+    Minimi strutturali settimanali (pivot low ±k), distanziati ≥ min_gap_weeks,
+    bonus ×1.25 se a ±30gg da una trimestrale. Da ogni ancora: VWAP a oggi.
+    Ritorna [VWA1 (recente), VWA2, VWA3] con date, prezzo, vwap, near.
+    """
     n = len(wdf)
     if n < 3 * k or not {"High", "Low"}.issubset(wdf.columns):
         return []
@@ -232,6 +264,7 @@ def structural_anchors(wdf: pd.DataFrame, k: int = 13, min_gap_weeks: int = 26,
     mask = (low <= roll + 1e-12) & roll.notna()
     fut_max = high.iloc[::-1].rolling(2 * k, min_periods=k).max().iloc[::-1]
     rise = (fut_max / low - 1) * 100
+
     cand = []
     for i in np.flatnonzero(mask.to_numpy()):
         r_ = rise.iloc[i]
@@ -243,13 +276,16 @@ def structural_anchors(wdf: pd.DataFrame, k: int = 13, min_gap_weeks: int = 26,
             near = any(abs((d - e).days) <= 30 for e in earnings)
         cand.append((float(r_) * (1.25 if near else 1.0), int(i), bool(near)))
     cand.sort(key=lambda x: -x[0])
+
     chosen = []
     for sel, i, near in cand:
         if all(abs(i - c["i"]) >= min_gap_weeks for c in chosen):
-            chosen.append({"i": i, "date": wdf.index[i], "price": float(low.iloc[i]),
+            chosen.append({"i": i, "date": wdf.index[i],
+                           "price": float(low.iloc[i]),
                            "near": near, "rise": float(rise.iloc[i])})
         if len(chosen) >= max_n:
             break
+
     chosen.sort(key=lambda z: z["date"], reverse=True)
     out = []
     for n_i, z in enumerate(chosen, 1):
@@ -268,6 +304,7 @@ def get_info(ticker: str) -> dict:
         return {}
 
 def company_name(ticker: str) -> str:
+    """Nome società da info (longName o shortName). '—' se assente."""
     info = get_info(ticker)
     return str(info.get("longName") or info.get("shortName") or "—")
 
@@ -279,15 +316,21 @@ def health_check(ticker: str) -> dict:
         checks.append({"name": name, "ok": bool(ok), "detail": detail})
 
     roe = info.get("returnOnEquity")
-    add("ROE ≥ 15%", roe is not None and roe >= 0.15, f"{roe:.1%}" if roe is not None else "n/d")
+    add("ROE ≥ 15%", roe is not None and roe >= 0.15,
+        f"{roe:.1%}" if roe is not None else "n/d")
     de = info.get("debtToEquity")
-    add("D/E ≤ 100", de is not None and de <= 100, f"{de:.0f}" if de is not None else "n/d")
+    add("D/E ≤ 100", de is not None and de <= 100,
+        f"{de:.0f}" if de is not None else "n/d")
     om = info.get("operatingMargins")
-    add("Margine operativo ≥ 10%", om is not None and om >= 0.10, f"{om:.1%}" if om is not None else "n/d")
+    add("Margine operativo ≥ 10%", om is not None and om >= 0.10,
+        f"{om:.1%}" if om is not None else "n/d")
     rg = info.get("revenueGrowth")
-    add("Crescita ricavi > 0", rg is not None and rg > 0, f"{rg:.1%}" if rg is not None else "n/d")
+    add("Crescita ricavi > 0", rg is not None and rg > 0,
+        f"{rg:.1%}" if rg is not None else "n/d")
     fc = info.get("freeCashflow")
-    add("FCF positivo", fc is not None and fc > 0, f"{fc/1e9:.1f}B" if fc is not None else "n/d")
+    add("FCF positivo", fc is not None and fc > 0,
+        f"{fc/1e9:.1f}B" if fc is not None else "n/d")
+
     score = int(round(100 * sum(c["ok"] for c in checks) / len(checks)))
     return {"ticker": ticker, "score": score, "checks": checks}
 
@@ -319,7 +362,7 @@ def bottom_score(df: pd.DataFrame, zones: list[dict] | None = None) -> dict:
     return {"score": int(round(float(np.nan_to_num(total)))), "drawdown": drawdown,
             "rsi": r, "roc10": roc_now, "decel": decel, "components": components}
 
-# ── REVERSAL STATE (punti 🟡/) ────────────────────────────
+# ── REVERSAL STATE (punti 🟡/🟢) ───────────────────────────
 def _cross_recent(above: np.ndarray, lookback: int = 5) -> bool:
     n = len(above)
     if n < 2:
@@ -435,6 +478,7 @@ def earnings_dates_list(ticker: str) -> list:
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def earnings_snapshot(ticker: str) -> dict:
+    """Ultima trimestrale riportata + trend ricavi. positive = True/False/None."""
     out = {"positive": None, "surprise": None, "date": None, "rev_yoy": None, "quarters": None}
     t = yf.Ticker(ticker)
     try:
@@ -468,6 +512,7 @@ def earnings_snapshot(ticker: str) -> dict:
 
 # ── Cache screening ────────────────────────────────────────
 def save_screening_cache(df: pd.DataFrame, meta: dict) -> None:
+    """Salva l'ultima scansione su disco (persistente tra sessioni)."""
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         df.to_csv(SCREENING_CACHE_CSV, index=False)
@@ -478,6 +523,7 @@ def save_screening_cache(df: pd.DataFrame, meta: dict) -> None:
         pass
 
 def load_screening_cache() -> tuple[pd.DataFrame | None, dict]:
+    """Carica l'ultima scansione salvata. (None, {}) se assente."""
     try:
         if not SCREENING_CACHE_CSV.exists():
             return None, {}
@@ -512,6 +558,7 @@ def load_index_constituents(name: str) -> list[str]:
     return list(DEFAULT_SAMPLE.get(name, []))
 
 def _weekly_for(data_w, t, sub):
+    """Weekly del ticker dal download multiplo, o daily come estremo ripiego."""
     if data_w is not None:
         try:
             cw = data_w["Close"][t].dropna()
@@ -527,6 +574,7 @@ def _weekly_for(data_w, t, sub):
     return sub
 
 def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
+    """Screening multi-titolo: daily 2y + zone/VWA su settimanale lungo."""
     def _log(msg):
         if log is not None:
             try:
@@ -636,3 +684,27 @@ def resolve_ticker(raw: str) -> str | None:
         except Exception:
             continue
     return None
+
+# ── Mappatura TradingView ─────────────────────────────────
+TV_EXCHANGES = {
+    "":    "NASDAQ",      # USA senza suffisso (fallback; NYSE/American coperti per ricerca)
+    ".MI": "MIL",         # Milano
+    ".PA": "EURONEXT",    # Parigi
+    ".DE": "XETR",        # Francoforte
+    ".MC": "BMAD",        # Madrid
+    ".AS": "EURONEXT",    # Amsterdam
+    ".L":  "LSE",         # Londra
+    ".SW": "SIX",         # Svizzera
+    ".ST": "OMX",         # Stoccolma
+    ".BR": "EURONEXT",    # Bruxelles
+}
+
+def tradingview_url(ticker: str) -> str:
+    """URL diretto al chart TradingView per il ticker."""
+    if "." in ticker:
+        base, suffix = ticker.rsplit(".", 1)
+        suffix = "." + suffix.upper()
+    else:
+        base, suffix = ticker, ""
+    ex = TV_EXCHANGES.get(suffix, "NASDAQ")
+    return f"https://www.tradingview.com/chart/?symbol={ex}:{base}"
