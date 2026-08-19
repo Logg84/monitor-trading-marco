@@ -1,33 +1,26 @@
 name: screening-daily
-
 on:
   schedule:
-    - cron: "30 21 * * 1-5"   # 21:30 UTC, lun-ven (post chiusura USA)
+    - cron: "30 7,12,16 * * 1-5"   # 3 volte/giorno lun-ven (UTC)
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Installa dipendenze
         run: pip install -r requirements.txt
-
-      - name: Screening + riconciliazione watchlist
+      - name: Screening + auto-popolazione + pruning
         run: python scripts/run_screening.py
-
       - name: Commit risultati
         run: |
           git config user.name "argo-bot"
           git config user.email "argo-bot@users.noreply.github.com"
-          git add data/screening_latest.csv data/watchlist.json
+          git add data/screening_latest.csv data/screening_meta.json data/watchlist.json
           git diff --cached --quiet || git commit -m "chore: screening daily"
           git push
