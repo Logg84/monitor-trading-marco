@@ -1,8 +1,8 @@
 """
 Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple
-(soglia adattiva + larghezza massima), VWAP ancorati a minimi strutturali,
-Bottom Score, segnale, trimestrali, cache ultima scansione screening,
-universo, risoluzione ticker.
+(soglia adattiva + larghezza massima = min(15% range, 8×ATR20)),
+VWAP ancorati a minimi strutturali, Bottom Score, segnale, trimestrali,
+cache ultima scansione screening, universo, risoluzione ticker.
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
@@ -150,13 +150,15 @@ def _split_run(vps: np.ndarray, l: int, h: int, max_bins: int) -> list[tuple[int
 
 def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
                  half_life_years: float = 4.0, min_share: float = 0.02,
-                 max_width_frac: float = 0.15) -> list[dict]:
+                 max_width_frac: float = 0.15, atr20: float | None = None,
+                 atr_width_mult: float = 8.0) -> list[dict]:
     """
     Zone volumetriche su storico lungo.
     Regole:
     - mensole = bin continui con volume ≥ soglia adattiva (70° percentile
       dei volumi positivi);
-    - larghezza massima = 15% del range prezzo (split alle valli);
+    - larghezza massima = min(15% del range prezzo, atr_width_mult × ATR20):
+      il vincolo ATR rende le zone leggibili sulla volatilità corrente;
     - score = 100 · (0.6·dimensione_normalizzata + 0.4·recency),
       recency = e^(−age/half_life).
     """
@@ -173,6 +175,7 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
         return []
 
     price_bins = np.linspace(pmin, pmax, bins + 1)
+    bin_w = (pmax - pmin) / bins
     idx = np.clip(np.searchsorted(price_bins, close.to_numpy(), side="right") - 1,
                   0, bins - 1)
     v = vol.to_numpy()
@@ -185,7 +188,11 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
     if pos.size == 0:
         return []
     thr = float(np.percentile(pos, 70))
-    max_bins = max(4, int(bins * max_width_frac))
+
+    max_width_price = max_width_frac * (pmax - pmin)
+    if atr20 is not None and atr20 > 0:
+        max_width_price = min(max_width_price, atr_width_mult * atr20)
+    max_bins = max(4, int(max_width_price / bin_w))
 
     above = vps >= thr
     zones = []
@@ -549,7 +556,7 @@ def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
             vwap60 = vwap_anchored(sub)
             a20 = atr(sub)
             wdf = _weekly_for(data_w, t, sub)
-            zones = volume_zones(wdf)
+            zones = volume_zones(wdf, atr20=a20)
             anchors = structural_anchors(wdf)  # senza bonus trimestrali (prestazioni)
             bs = bottom_score(sub, zones=zones)
             hc = health_check(t)
