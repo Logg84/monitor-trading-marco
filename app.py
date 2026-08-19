@@ -2,6 +2,7 @@
 Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
 link TradingView, zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali;
 aggiunta manuale con L1/L2/L3; storico alert; analisi singola.
+Write-through GitHub: le modifiche sopravvivono ai redeploy.
 Lettura, mai ordine — non è consulenza.
 """
 import streamlit as st
@@ -18,6 +19,7 @@ from core.data_engine import (
     build_universe, resolve_ticker, tradingview_url,
 )
 from core.reversal import analyze_ticker, prune_watchlist
+from core.gh_sync import publish_watchlist
 from core.watchlist_io import (
     load_watchlist, add_entry, remove_entry, touch_review, update_levels,
     is_stale, reconcile,
@@ -79,6 +81,8 @@ for t, a in analyses.items():
 entries, msgs = reconcile(entries, {k: v for k, v in metrics.items() if v})
 for m in msgs:
     st.warning(m)
+if msgs:
+    publish_watchlist()
 
 with st.expander("➕ Aggiungi titolo (👤 manuale)"):
     with st.form("add_form"):
@@ -100,6 +104,7 @@ with st.expander("➕ Aggiungi titolo (👤 manuale)"):
                 lv["L3"] = l3
             if lv:
                 update_levels(t, lv)
+            publish_watchlist()
             st.rerun()
     st.caption("L1/L2/L3 sono i tuoi livelli personali: non entrano nel calcolo di zone/VWAP; vengono disegnati sul grafico e sono reattivi per gli alert.")
 
@@ -187,9 +192,11 @@ else:
         c1, c2 = st.columns(2)
         if c1.button("✅ Revisionato oggi", key="rev"):
             touch_review(sel)
+            publish_watchlist()
             st.rerun()
         if c2.button("🗑 Rimuovi dalla watchlist", key="rm"):
             remove_entry(sel)
+            publish_watchlist()
             st.rerun()
 
         a = analyses.get(sel)
@@ -252,6 +259,7 @@ else:
                     submitted = st.form_submit_button("Salva livelli", type="primary")
                     if submitted:
                         update_levels(sel, {"L1": l1, "L2": l2, "L3": l3})
+                        publish_watchlist()
                         st.success("Livelli salvati")
                         st.rerun()
 
@@ -371,6 +379,7 @@ if ticker:
     if st.button("➕ Promuovi in watchlist (🤖 auto)", type="primary"):
         add_entry(ticker, origin="auto",
                   poc=a["zones"][0]["center"] if a["zones"] else None)
+        publish_watchlist()
         st.success(f"{ticker} promosso in watchlist come 🤖")
 
     with st.expander("📅 Trimestrali"):
