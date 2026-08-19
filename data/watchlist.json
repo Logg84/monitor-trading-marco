@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-19T15:48:58.159222+00:00",
+  "updated": "2026-08-19T15:54:30.206691+00:00",
   "entries": [
     {
       "ticker": "RNO.PA",
@@ -20,17 +20,6 @@
       "poc": 26.4912,
       "poc_origin": "auto",
       "vwap": 75.4812,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "DSY.PA",
-      "origin": "auto",
-      "created": "2026-08-19T15:44:17.778845+00:00",
-      "last_reviewed": "2026-08-19T15:44:17.778855+00:00",
-      "poc": 4.1822,
-      "poc_origin": "auto",
-      "vwap": 19.0127,
       "levels": {},
       "notes": ""
     },
