@@ -1,6 +1,6 @@
 """
-Navbar con chip regime live + navigazione alta.
-La sidebar resta solo per toggle tema + disclaimer.
+Navbar con chip regime live + navigazione alta + toggle tema.
+Sidebar eliminata: tutto vive nella barra alta.
 """
 import streamlit as st
 
@@ -25,7 +25,7 @@ def _live_regime() -> str:
         return "NEUTRO"
 
 def render_navbar(regime: str | None = None, title: str = "Terminale") -> None:
-    """Barra alta: titolo + chip regime + bottoni di navigazione."""
+    """Barra alta: titolo + chip regime + bottoni pagina + toggle tema."""
     regime = regime or _live_regime()
     label, cls = REGIME_LABELS.get(regime.upper(), REGIME_LABELS["NEUTRO"])
 
@@ -39,8 +39,8 @@ def render_navbar(regime: str | None = None, title: str = "Terminale") -> None:
         unsafe_allow_html=True,
     )
 
-    cols = st.columns(len(PAGES), gap="small")
-    for c, (path, plabel, icon) in zip(cols, PAGES):
+    cols = st.columns([1, 1, 1, 1, 0.55], gap="small")
+    for c, (path, plabel, icon) in zip(cols[:4], PAGES):
         if plabel == title:
             c.markdown(
                 f'<div class="argo-navlink active">{icon} {plabel}</div>',
@@ -49,12 +49,15 @@ def render_navbar(regime: str | None = None, title: str = "Terminale") -> None:
         else:
             c.page_link(path, label=plabel, icon=icon, use_container_width=True)
 
+    theme_label = "☀️ Chiaro" if st.session_state.get("dark_mode", True) else "🌙 Scuro"
+    if cols[4].button(theme_label, use_container_width=True,
+                      key="navbar_theme_toggle"):
+        st.session_state.dark_mode = not st.session_state.get("dark_mode", True)
+        st.rerun()
+
 def sidebar_nav() -> None:
-    """Sidebar minimale: toggle tema + disclaimer. Niente duplicati di navigazione."""
-    with st.sidebar:
-        st.markdown("---")
-        label = "☀️ Tema chiaro" if st.session_state.get("dark_mode", True) else "🌙 Tema scuro"
-        if st.button(label, use_container_width=True, key="sidebar_theme_toggle"):
-            st.session_state.dark_mode = not st.session_state.get("dark_mode", True)
-            st.rerun()
-        st.caption("Lettura, mai ordine — non è consulenza")
+    """
+    No-op mantenuta per compatibilità con le pagine che la chiamano.
+    La sidebar è stata eliminata: navigazione e tema sono nella navbar alta.
+    """
+    return None
