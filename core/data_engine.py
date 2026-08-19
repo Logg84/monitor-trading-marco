@@ -13,8 +13,8 @@ import yfinance as yf
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INDICES_DIR = DATA_DIR / "indices"
 
-# Campioni legacy: restano definiti solo per compatibilità di eventuali
-# import esterni. NON sono più esposti nella UI di screening.
+# Campioni legacy: definiti solo per compatibilità di eventuali import
+# esterni. NON sono più esposti nella UI di screening.
 DEFAULT_SAMPLE = {
     "SP500_SAMPLE": ["AAPL", "MSFT", "NVDA", "JNJ", "PG", "KO", "XOM", "HD", "V", "UNH"],
     "EURO_SAMPLE": ["ASML.AS", "SAP.DE", "TTE.PA", "SAN.MC", "ENI.MI", "UCG.MI"],
@@ -254,24 +254,41 @@ def load_index_constituents(name: str) -> list[str]:
                 return out
     return list(DEFAULT_SAMPLE.get(name, []))
 
-def screening(tickers: list[str]) -> tuple[pd.DataFrame, dict]:
+def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
     """
-    Screening multi-titolo con diagnostica.
+    Screening multi-titolo con diagnostica e log opzionale.
+
+    Args:
+        tickers: lista ticker unici da analizzare.
+        log: callable(msg) opzionale per avanzamento (es. st.status.write).
 
     Returns:
         (DataFrame risultati, dict diagnostica)
     """
+    def _log(msg: str) -> None:
+        if log is not None:
+            try:
+                log(msg)
+            except Exception:
+                pass
+
     total = len(tickers)
     if total == 0:
         return pd.DataFrame(), {"total": 0, "valid": 0, "discarded": 0}
 
+    _log(f"Ticker richiesti: {total}")
+    _log("Download chiusure a blocchi (lento la prima volta, poi cache 1h)…")
     try:
         data = download_closes_chunked(tuple(tickers))
     except Exception:
+        _log("Download fallito: nessuna serie valida.")
         return pd.DataFrame(), {"total": total, "valid": 0, "discarded": total}
+    _log("Download completato. Elaborazione titoli (score, health check)…")
 
     rows = []
-    for t in tickers:
+    for i, t in enumerate(tickers):
+        if i and i % 100 == 0:
+            _log(f"… elaborati {i}/{total}")
         try:
             c = data["Close"][t].dropna()
             v = data["Volume"][t].dropna()
@@ -308,6 +325,7 @@ def screening(tickers: list[str]) -> tuple[pd.DataFrame, dict]:
         "valid": len(rows),
         "discarded": total - len(rows),
     }
+    _log(f"Completato: {len(rows)} validi, {total - len(rows)} scartati.")
     return out, diagnostics
 
 # ── Universo & risoluzione ticker ──────────────────────────
