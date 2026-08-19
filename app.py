@@ -1,8 +1,8 @@
 """
-Watchlist — home. Tabella 👤/ cliccabile con Nome società, zone
-volumetriche (vincolo ATR), VWAP ancorati, segnale, trimestrali; aggiunta
-manuale con 3 livelli personali (L1/L2/L3, reattivi per alert futuri);
-storico alert; analisi singola. Nessun motore immagini: lettura manuale.
+Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
+zone volumetriche, VWAP ancorati, Segnale 🟡/, trimestrali; aggiunta
+manuale con L1/L2/L3; storico alert; analisi singola.
+Lettura, mai ordine — non è consulenza.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -14,11 +14,10 @@ st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide",
 from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
-    get_prices, get_prices_long, atr, vwap_anchored,
-    volume_zones, structural_anchors, earnings_dates_list, company_name,
-    health_check, bottom_score, rebound_signal, earnings_snapshot,
+    atr, vwap_anchored, company_name, health_check, bottom_score,
     build_universe, resolve_ticker,
 )
+from core.reversal import analyze_ticker, prune_watchlist
 from core.watchlist_io import (
     load_watchlist, add_entry, remove_entry, touch_review, update_levels,
     is_stale, reconcile,
@@ -46,62 +45,37 @@ def zones_caption(zones: list[dict]) -> None:
     else:
         st.caption("Zone volumetriche: nessuna mensola significativa sullo storico lungo.")
 
-def build_analysis(ticker: str) -> dict | None:
-    try:
-        df = get_prices(ticker)
-    except Exception:
-        return None
-    vwap60 = vwap_anchored(df)
-    a20 = atr(df)
-    price = float(df["Close"].iloc[-1])
-    ath = float(df["Close"].max())
-    dd = (price / ath - 1) * 100
-
-    try:
-        wdf = get_prices_long(ticker)
-    except Exception:
-        wdf = df
-    zones = volume_zones(wdf, atr20=a20)
-    anchors = structural_anchors(wdf, earnings=earnings_dates_list(ticker))
-    bs = bottom_score(df, zones=zones)
-
-    in_lbl = ""
-    for zi, z in enumerate(zones, 1):
-        if z["lo"] <= price <= z["hi"]:
-            in_lbl = f"Z{zi}"
-            break
-    vwa1 = anchors[0]["vwap"] if anchors else None
-    below = bool((vwa1 is not None and price <= vwa1) or price <= vwap60)
-
-    return {
-        "df": df, "vwap60": vwap60, "zones": zones, "anchors": anchors,
-        "bs": bs, "price": price, "dd": dd, "in_lbl": in_lbl,
-        "signal": rebound_signal(dd, bs["decel"], bs["rsi"], bool(in_lbl), below),
-        "es": earnings_snapshot(ticker),
-    }
-
 st.markdown("## Watchlist")
 st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
     "larghezza max = min(15% range, 8×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali (≥26 sett. apart), bonus se a ±30gg da trimestrale. "
-    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
+    "Segnale 🟡 = A + punti ≥3 · 🟢 = A + punti ≥5 + D (G pesa doppio). "
+    "Uscite automatiche: 🤖 se DD>−20% o punti<3 per 5 chiusure; 👤 se punti<3 e sotto il livello minimo inserito per 5 chiusure. "
     "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
 )
+
+# ── Pruning automatico (🤖 e 👤) ───────────────────────────
+removed = prune_watchlist()
+for t, motivo in removed:
+    st.warning(f"🗑 {t} rimosso automaticamente dalla watchlist: {motivo}.")
+
 entries = load_watchlist()
 
 analyses = {}
 for e in entries:
-    a = build_analysis(e["ticker"])
+    a = analyze_ticker(e["ticker"])
     if a is not None:
         analyses[e["ticker"]] = a
 
-metrics = {
-    t: {"vwap": round(a["vwap60"], 4),
-        "poc_auto": round(a["zones"][0]["center"], 4) if a["zones"] else None,
-        "drawdown": a["dd"]}
-    for t, a in analyses.items()
-}
+metrics = {}
+for t, a in analyses.items():
+    dfx = a["df"]
+    price = float(dfx["Close"].iloc[-1])
+    ath = float(dfx["Close"].max())
+    metrics[t] = {"vwap": round(vwap_anchored(dfx), 4),
+                  "poc_auto": round(a["zones"][0]["center"], 4) if a["zones"] else None,
+                  "drawdown": (price / ath - 1) * 100}
 entries, msgs = reconcile(entries, {k: v for k, v in metrics.items() if v})
 for m in msgs:
     st.warning(m)
@@ -127,7 +101,7 @@ with st.expander("➕ Aggiungi titolo (👤 manuale)"):
             if lv:
                 update_levels(t, lv)
             st.rerun()
-    st.caption("L1/L2/L3 sono i tuoi livelli personali: non entrano nel calcolo di zone volumetriche o VWAP; vengono disegnati sul grafico e saranno reattivi per gli alert.")
+    st.caption("L1/L2/L3 sono i tuoi livelli personali: non entrano nel calcolo di zone/VWAP; vengono disegnati sul grafico e sono reattivi per gli alert.")
 
 if not entries:
     st.info("Watchlist vuota. Aggiungi un titolo o promuovilo dallo Screening.")
@@ -137,26 +111,35 @@ else:
         a = analyses.get(e["ticker"])
         if a is None:
             continue
+        dfx = a["df"]
+        rev = a["rev"]
         es = a["es"]
-        trim = "✅" if es["positive"] is True else ("❌" if es["positive"] is False else "n/d")
+        bs = bottom_score(dfx, zones=a["zones"])
+        price = float(dfx["Close"].iloc[-1])
         vwa1 = a["anchors"][0]["vwap"] if a["anchors"] else None
+        in_lbl = ""
+        for zi, z in enumerate(a["zones"], 1):
+            if z["lo"] <= price <= z["hi"]:
+                in_lbl = f"Z{zi}"
+                break
+        trim = "✅" if es["positive"] is True else ("❌" if es["positive"] is False else "n/d")
         rows.append({
             "Orig.": "👤" if e["origin"] == "manual" else "🤖",
             "Ticker": e["ticker"],
             "Nome": company_name(e["ticker"]),
-            "Prezzo": round(a["price"], 2),
-            "DD%": round(a["dd"], 1),
-            "RSI": round(a["bs"]["rsi"], 0),
-            "VWAP60": round(a["vwap60"], 2),
+            "Prezzo": round(price, 2),
+            "DD%": round(bs["drawdown"], 1),
+            "RSI": round(bs["rsi"], 0),
+            "VWAP60": round(vwap_anchored(dfx), 2),
             "VWA1": round(vwa1, 2) if vwa1 else "—",
             "VWA2": round(a["anchors"][1]["vwap"], 2) if len(a["anchors"]) > 1 else "—",
             "VWA3": round(a["anchors"][2]["vwap"], 2) if len(a["anchors"]) > 2 else "—",
             "Z1": zstr(a["zones"][0] if a["zones"] else None),
             "Z2": zstr(a["zones"][1] if len(a["zones"]) > 1 else None),
-            "In zona": a["in_lbl"],
-            "Segnale": a["signal"],
+            "In zona": in_lbl,
+            "Segnale": f"{rev['kind']} {rev['points']}/6" if rev["kind"] else "—",
             "Trim.": trim,
-            "Bottom": a["bs"]["score"],
+            "Bottom": bs["score"],
             "Stale": "⚠️" if is_stale(e) else "",
         })
 
@@ -185,7 +168,7 @@ else:
 
     entry_tickers = [e["ticker"] for e in entries]
     stored = st.session_state.get("wl_sel")
-    sel = stored if stored in entry_tickers else entry_tickers[0]
+    sel = stored if stored in entry_tickers else (entry_tickers[0] if entry_tickers else None)
     sel_entry = next((e for e in entries if e["ticker"] == sel), None)
 
     if sel_entry is not None:
@@ -202,9 +185,10 @@ else:
             st.warning(f"Dati prezzo non disponibili per {sel}.")
         else:
             df = a["df"]
-            price = a["price"]
-            bs = a["bs"]
-            hc = health_check(sel)
+            price = float(df["Close"].iloc[-1])
+            bs = bottom_score(df, zones=a["zones"])
+            hc = a["hc"]
+            vwap60 = vwap_anchored(df)
 
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Prezzo", f"{price:,.2f}")
@@ -231,7 +215,7 @@ else:
                         tag += " 📅"
                     fig.add_hline(y=an["vwap"], line_color=col["positive"],
                                   line_dash="dot", annotation_text=tag)
-            fig.add_hline(y=a["vwap60"], line_color=col["text_muted"],
+            fig.add_hline(y=vwap60, line_color=col["text_muted"],
                           line_dash="dot", annotation_text="VWAP60")
             levels = sel_entry.get("levels", {})
             for lvl_name, lvl_val in levels.items():
@@ -242,6 +226,11 @@ else:
             style_fig(fig, st.session_state.dark_mode, height=420)
             st.plotly_chart(fig, use_container_width=True)
             zones_caption(a["zones"])
+            st.caption(
+                f"Segnale: {a['rev']['kind'] or '—'} {a['rev']['points']}/6 · "
+                f"flag B/C/G/D/E = "
+                + "/".join("✔" if a["rev"]["flags"][k] else "·" for k in ("B", "C", "G", "D", "E"))
+            )
 
             with st.expander("Livelli manuali (👤)"):
                 with st.form("levels_form"):
@@ -284,7 +273,7 @@ else:
     with st.expander("🔔 Storico alert"):
         hist = load_alert_state().get("history", [])
         if not hist:
-            st.caption("Nessun alert archiviato. (Alert automatici disattivati.)")
+            st.caption("Nessun alert archiviato.")
         else:
             rows_a = [{"Data": a["ts"][:16].replace("T", " "),
                        "Ticker": a["ticker"], "Tipo": a["kind"],
@@ -309,15 +298,16 @@ else:
             st.caption(f"Risolto come {ticker}")
 
 if ticker:
-    a = build_analysis(ticker)
+    a = analyze_ticker(ticker)
     if a is None:
         st.error(f"Dati non disponibili per {ticker}.")
         st.stop()
 
     df = a["df"]
-    price = a["price"]
-    bs = a["bs"]
-    hc = health_check(ticker)
+    price = float(df["Close"].iloc[-1])
+    bs = bottom_score(df, zones=a["zones"])
+    hc = a["hc"]
+    vwap60 = vwap_anchored(df)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Prezzo", f"{price:,.2f}",
@@ -329,7 +319,7 @@ if ticker:
     vwa = a["anchors"]
     c5, c6, c7, c8 = st.columns(4)
     c5.metric("RSI(14)", f"{bs['rsi']:.0f}")
-    c6.metric("VWAP60", f"{a['vwap60']:,.2f}")
+    c6.metric("VWAP60", f"{vwap60:,.2f}")
     c7.metric("VWA1", f"{vwa[0]['vwap']:,.2f}" if vwa else "—")
     c8.metric("VWA2", f"{vwa[1]['vwap']:,.2f}" if len(vwa) > 1 else "—")
 
@@ -352,12 +342,17 @@ if ticker:
                 tag += " 📅"
             fig.add_hline(y=an["vwap"], line_color=col["positive"],
                           line_dash="dot", annotation_text=tag)
-    fig.add_hline(y=a["vwap60"], line_color=col["text_muted"],
+    fig.add_hline(y=vwap60, line_color=col["text_muted"],
                   line_dash="dot", annotation_text="VWAP60")
     fig.update_yaxes(range=[ylo, yhi])
     style_fig(fig, st.session_state.dark_mode, height=420)
     st.plotly_chart(fig, use_container_width=True)
     zones_caption(a["zones"])
+    st.caption(
+        f"Segnale: {a['rev']['kind'] or '—'} {a['rev']['points']}/6 · "
+        f"flag B/C/G/D/E = "
+        + "/".join("✔" if a["rev"]["flags"][k] else "·" for k in ("B", "C", "G", "D", "E"))
+    )
 
     if st.button("➕ Promuovi in watchlist (🤖 auto)", type="primary"):
         add_entry(ticker, origin="auto",
