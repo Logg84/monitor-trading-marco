@@ -1,10 +1,12 @@
 """
 Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple,
 VWAP ancorati a minimi strutturali, Bottom Score, segnale, trimestrali,
-universo, risoluzione ticker.
+cache ultima scansione screening, universo, risoluzione ticker.
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
+import datetime as _dt
+import json
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -13,6 +15,8 @@ import yfinance as yf
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INDICES_DIR = DATA_DIR / "indices"
+SCREENING_CACHE_CSV = DATA_DIR / "screening_latest.csv"
+SCREENING_CACHE_META = DATA_DIR / "screening_meta.json"
 
 DEFAULT_SAMPLE = {
     "SP500_SAMPLE": ["AAPL", "MSFT", "NVDA", "JNJ", "PG", "KO", "XOM", "HD", "V", "UNH"],
@@ -276,6 +280,11 @@ def get_info(ticker: str) -> dict:
     except Exception:
         return {}
 
+def company_name(ticker: str) -> str:
+    """Nome società da info (longName o shortName). '—' se assente."""
+    info = get_info(ticker)
+    return str(info.get("longName") or info.get("shortName") or "—")
+
 def health_check(ticker: str) -> dict:
     info = get_info(ticker)
     checks = []
@@ -405,6 +414,33 @@ def earnings_snapshot(ticker: str) -> dict:
         out["positive"] = out["rev_yoy"] > 0
     return out
 
+# ── Cache ultima scansione screening ───────────────────────
+def save_screening_cache(df: pd.DataFrame, meta: dict) -> None:
+    """Salva l'ultima scansione su disco (persistente tra sessioni)."""
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        df.to_csv(SCREENING_CACHE_CSV, index=False)
+        meta = dict(meta)
+        meta["saved_at"] = _dt.datetime.now().isoformat(timespec="seconds")
+        SCREENING_CACHE_META.write_text(json.dumps(meta, ensure_ascii=False))
+    except Exception:
+        pass
+
+def load_screening_cache() -> tuple[pd.DataFrame | None, dict]:
+    """Carica l'ultima scansione salvata. (None, {}) se assente."""
+    try:
+        if not SCREENING_CACHE_CSV.exists():
+            return None, {}
+        df = pd.read_csv(SCREENING_CACHE_CSV)
+        meta = {}
+        if SCREENING_CACHE_META.exists():
+            meta = json.loads(SCREENING_CACHE_META.read_text())
+        if df.empty:
+            return None, meta
+        return df, meta
+    except Exception:
+        return None, {}
+
 # ── Indici & screening ─────────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_index_constituents(name: str) -> list[str]:
@@ -507,6 +543,7 @@ def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
 
             rows.append({
                 "Ticker": t,
+                "Nome": company_name(t),
                 "Prezzo": round(price, 2),
                 "DD%": round(bs["drawdown"], 1),
                 "RSI": round(bs["rsi"], 0),
