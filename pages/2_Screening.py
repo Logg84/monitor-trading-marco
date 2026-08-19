@@ -1,5 +1,5 @@
 """
-Screening: titoli in sconto + alert POC/VWAP + POC20y + segnale +
+Screening: titoli in sconto + zone volumetriche + VWAP ancorati + segnale +
 grafico di decelerazione. Log di avanzamento per le operazioni lunghe.
 """
 import streamlit as st
@@ -14,7 +14,8 @@ from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     INDICES_DIR, load_index_constituents, screening,
-    get_prices, vwap_anchored, poc_zone_from_profile, bottom_score,
+    get_prices, get_prices_long, vwap_anchored,
+    volume_zones, structural_anchors, bottom_score,
 )
 from core.watchlist_io import add_entry, load_watchlist
 
@@ -28,7 +29,6 @@ sidebar_nav()
 st.markdown("## Screening")
 st.caption("Lettura, mai ordine — non è consulenza.")
 
-# Lista indici disponibili: solo i CSV presenti in data/indices.
 available = []
 if INDICES_DIR.exists():
     available = sorted(p.stem for p in INDICES_DIR.glob("*.csv"))
@@ -71,7 +71,7 @@ if run:
     with st.status(f"Analisi di {len(tickers)} titoli…", expanded=True) as status:
         status.write(f"Indice selezionato: {index_name}")
         if index_name == ALL_INDICES:
-            status.write(f"Unione indici: {gross} costituenti lordi → {len(tickers)} unici (duplicati rimossi)")
+            status.write(f"Unione indici: {gross} lordi → {len(tickers)} unici")
         df, diagnostics = screening(tickers, log=status.write)
         st.session_state["screening_result"] = df
         st.session_state["screening_diagnostics"] = diagnostics
@@ -96,7 +96,6 @@ if df is None or df.empty:
         st.info("Nessun risultato in memoria. Avvia lo screening.")
     st.stop()
 
-# ── Diagnostica conteggi ───────────────────────────────────
 if per_index:
     detail = " · ".join(f"{k}: {v}" for k, v in sorted(per_index.items()))
     st.caption(f"Costituenti per indice → {detail}")
@@ -113,29 +112,19 @@ if diagnostics:
     m4.metric("Titoli validi", diagnostics["valid"])
     m5.metric("Scartati download", diagnostics["discarded"])
 
-    if duplicati > 0:
-        st.caption(
-            "I 'duplicati tra indici' sono titoli presenti in più indici "
-            "(es. AAPL in SP500 e NASDAQ100): nello screening unificato "
-            "vengono analizzati una sola volta."
-        )
-
 st.caption(
-    "POC20y: volume profile su storico settimanale lungo. Zona: ±0.6·ATR(20). "
-    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona POC20y o ≤VWAP60); "
-    "🟡 = DD≤−20% + decel>0. Lettura, mai ordine."
+    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
+    "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
+    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). Lettura, mai ordine."
 )
 
-# ── Filtri: alert è sottoinsieme di "in sconto" ────────────
 discount = df[df["DD%"] <= -20].copy()
 alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
 
-# ── Ordinamento esplicito ──────────────────────────────────
 sc1, sc2 = st.columns([2, 1])
 sort_col = sc1.selectbox(
     "Ordina per",
-    ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60",
-     "ΔPOC%", "ΔVWAP%", "Ticker"],
+    ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "VWA1", "Ticker"],
     index=0,
 )
 sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
@@ -167,22 +156,38 @@ except Exception as e:
     st.error(f"Dati non disponibili per {sel}: {e}")
     st.stop()
 
-price = float(full["Close"].iloc[-1])
-poc, lo, hi = poc_zone_from_profile(full)
-vwap = vwap_anchored(full)
-bs = bottom_score(full, poc=poc)
+try:
+    wdf = get_prices_long(sel)
+except Exception:
+    wdf = full
+zones = volume_zones(wdf)
+anchors = structural_anchors(wdf)
+vwap60 = vwap_anchored(full)
+bs = bottom_score(full, zones=zones)
 
+price = float(full["Close"].iloc[-1])
 col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                     row_heights=[0.7, 0.3], vertical_spacing=0.03)
 fig.add_trace(go.Scatter(x=full.index, y=full["Close"], name="Close",
                          line=dict(color=col["accent"], width=1.5)), 1, 1)
-fig.add_hrect(y0=lo, y1=hi, fillcolor=col["warning"], opacity=0.15,
-              line_width=0, annotation_text="Zona POC (volume profile)", row=1, col=1)
-fig.add_hline(y=poc, line_color=col["text"], line_dash="dash",
-              annotation_text="POC", row=1, col=1)
-fig.add_hline(y=vwap, line_color=col["text_muted"], line_dash="dot",
-              annotation_text="VWAP", row=1, col=1)
+ylo = float(full["Low"].min()) * 0.97
+yhi = float(full["High"].max()) * 1.03
+for zi, z in enumerate(zones[:3], 1):
+    if z["hi"] < ylo or z["lo"] > yhi:
+        continue
+    fig.add_hrect(y0=z["lo"], y1=z["hi"], fillcolor=col["warning"],
+                  opacity=0.08 + 0.20 * z["score"] / 100,
+                  line_width=0, annotation_text=f"Z{zi} ·{z['score']}",
+                  row=1, col=1)
+for an in anchors:
+    if ylo <= an["vwap"] <= yhi:
+        fig.add_hline(y=an["vwap"], line_color=col["positive"], line_dash="dot",
+                      annotation_text=f"{an['label']} {an['date'].strftime('%m/%y')}",
+                      row=1, col=1)
+fig.add_hline(y=vwap60, line_color=col["text_muted"], line_dash="dot",
+              annotation_text="VWAP60", row=1, col=1)
+fig.update_yaxes(range=[ylo, yhi], row=1, col=1)
 roc = full["Close"].pct_change(10) * 100
 fig.add_trace(go.Bar(x=full.index, y=roc, name="ROC 10g",
                      marker_color=[col["negative"] if v < 0 else col["positive"]
@@ -198,16 +203,17 @@ m4.metric("ROC 10g", f"{bs['roc10']:+.1f}%")
 m5.metric("Decelerazione", f"{bs['decel']:+.1f}")
 
 if bs["score"] >= 70:
-    st.success(f"**Operazione Potenziale** — sconto profondo e discesa in decelerazione. {sel} nella zona di accumulo.")
+    st.success(f"**Operazione Potenziale** — sconto profondo e discesa in decelerazione. {sel} a ridosso di una zona volumetrica.")
 elif bs["score"] >= 50:
-    st.warning(f"**Da osservare** — {sel} mostra elementi parziali; attendi conferma dalla zona POC.")
+    st.warning(f"**Da osservare** — {sel} mostra elementi parziali; attendi conferma dalla zona.")
 else:
     st.info(f"**Nessun setup** — {sel} non soddisfa i criteri di sconto/decelerazione.")
 
 in_wl = any(e["ticker"] == sel for e in load_watchlist())
 if not in_wl:
     if st.button(f"➕ Promuovi {sel} in watchlist (🤖 auto)", type="primary"):
-        add_entry(sel, origin="auto", poc=poc)
+        add_entry(sel, origin="auto",
+                  poc=zones[0]["center"] if zones else None)
         st.success(f"{sel} promosso in watchlist come 🤖")
 else:
     st.caption(f"{sel} è già in watchlist.")
