@@ -1,6 +1,6 @@
 """
 Screening schedulato: unione indici → screening → cache → auto-popolazione
-watchlist 🤖 → pruning (🤖 e ). I risultati vengono committati dal workflow.
+watchlist 🤖 → pruning (🤖 e 👤). I risultati vengono committati dal workflow.
 """
 import sys
 from pathlib import Path
