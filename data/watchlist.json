@@ -1,4 +1,38 @@
 {
-  "updated": "2026-08-19T15:41:44.178975+00:00",
-  "entries": []
+  "updated": "2026-08-19T15:44:17.779076+00:00",
+  "entries": [
+    {
+      "ticker": "RNO.PA",
+      "origin": "auto",
+      "created": "2026-08-19T15:44:17.775410+00:00",
+      "last_reviewed": "2026-08-19T15:44:17.775421+00:00",
+      "poc": 20.1086,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "SAN.PA",
+      "origin": "auto",
+      "created": "2026-08-19T15:44:17.776890+00:00",
+      "last_reviewed": "2026-08-19T15:44:17.776897+00:00",
+      "poc": 28.2617,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "DSY.PA",
+      "origin": "auto",
+      "created": "2026-08-19T15:44:17.778845+00:00",
+      "last_reviewed": "2026-08-19T15:44:17.778855+00:00",
+      "poc": 3.5212,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    }
+  ]
 }
