@@ -1,7 +1,7 @@
 """
 Screening: ultima scansione persistente, zone volumetriche, VWAP ancorati,
-Segnale 🟡/, auto-popolazione watchlist 🤖, pruning, selezione titolo col
-click su QUALSIASI tabella, grafico di decelerazione. Log operazioni lunghe.
+Segnale 🟡/ (🟡 a ≥2 punti), auto-popolazione watchlist 🤖, pruning,
+selezione titolo col click su QUALSIASI tabella, grafico di decelerazione.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -151,7 +151,7 @@ st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
     "larghezza max = min(15% range, 8×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
-    "Segnale 🟡 = A + punti ≥3 · 🟢 = A + punti ≥5 + D (G pesa doppio). "
+    "Segnale 🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D (G pesa doppio). "
     "Clicca una riga in una delle tre tabelle per aprire l'analisi di decelerazione. Lettura, mai ordine."
 )
 
