@@ -4,12 +4,10 @@ allo score, gauge composite, SPX con flip-line e ±2σ, termometro VIX/VVIX.
 """
 import streamlit as st
 import plotly.graph_objects as go
-import pandas as pd
-import numpy as np
 
 st.set_page_config(page_title="Regime", page_icon="🧭", layout="wide")
 
-from ui.theme import inject_css, COLORS, FONT_MONO
+from ui.theme import inject_css, COLORS, FONT_MONO, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.regime import compute_regime
 from core.data_engine import get_prices
@@ -21,12 +19,10 @@ inject_css(dark=st.session_state.dark_mode)
 render_navbar(title="Regime")
 sidebar_nav()
 
-
 def _rgba(hex_color: str, alpha: float) -> str:
     h = hex_color.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{alpha:.3f})"
-
 
 def score_bg(score: float, col: dict, max_alpha: float = 0.55) -> str:
     """Verde se positivo, rosso se negativo; alpha ∝ |score|."""
@@ -34,7 +30,6 @@ def score_bg(score: float, col: dict, max_alpha: float = 0.55) -> str:
     alpha = abs(s) / 100 * max_alpha
     base = col["positive"] if s >= 0 else col["negative"]
     return _rgba(base, alpha)
-
 
 col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
 
@@ -49,10 +44,10 @@ g1, g2 = st.columns([2, 1])
 with g1:
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=round(reg["composite"], 1),
-        number={"font": {"size": 30, "color": col["text"]}},
+        number={"font": {"size": 30, "color": col["text"], "family": FONT_MONO}},
         gauge={
             "axis": {"range": [-100, 100], "tickcolor": col["text_muted"],
-                     "tickfont": {"color": col["text_muted"]}},
+                     "tickfont": {"color": col["text_muted"], "family": FONT_MONO}},
             "bar": {"color": col["accent"], "thickness": 0.3},
             "bgcolor": col["surface"],
             "bordercolor": col["border"],
@@ -72,7 +67,7 @@ with g2:
     st.markdown(
         f"""
         <div style="background:{reg_bg}; border:1px solid {col['border']};
-                    border-radius:4px; padding:20px; text-align:center; margin-bottom:12px;">
+             border-radius:4px; padding:20px; text-align:center; margin-bottom:12px;">
             <div style="color:{col['text_muted']}; font-size:12px;">REGIME</div>
             <div style="color:{col['text']}; font-size:28px; font-weight:700;">{reg['regime']}</div>
         </div>
@@ -102,7 +97,7 @@ st.markdown(
         border-bottom:1px solid {col['border']}; }}
     table.argo-table td {{ padding:10px 12px; border-bottom:1px solid {col['border']};
         color:{col['text']}; }}
-    table.argo-table td.num {{ font-family:{FONT_MONO}; font-weight:600; }}
+    table.argo-table td.num {{ font-family:{FONT_MONO}; font-weight:600; text-align:right; }}
     .kcard {{ border:1px solid {col['border']}; border-radius:4px; padding:16px;
         text-align:center; }}
     .klabel {{ color:{col['text_muted']}; font-size:12px; }}
@@ -110,7 +105,7 @@ st.markdown(
     .ksub {{ color:{col['text_muted']}; font-size:11px; }}
     </style>
     <table class="argo-table">
-        <thead><tr><th>Attore</th><th>Score</th><th>Fonte</th><th>Dettaglio</th></tr></thead>
+        <thead> <tr> <th>Attore</th> <th>Score</th> <th>Fonte</th> <th>Dettaglio</th> </tr> </thead>
         <tbody>{rows_html}</tbody>
     </table>
     """,
@@ -137,13 +132,8 @@ try:
                              line=dict(color=col["positive"], width=1, dash="dot"),
                              fill="tonexty",
                              fillcolor=_rgba(col["positive"], 0.07)))
-    fig.update_layout(
-        template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
-        paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
-        font=dict(color=col["text"], family="Inter"),
-        margin=dict(l=10, r=10, t=20, b=10), height=420, showlegend=True,
-        legend=dict(orientation="h", y=1.08),
-    )
+    style_fig(fig, st.session_state.dark_mode, height=420,
+              showlegend=True, legend_top=True)
     st.plotly_chart(fig, use_container_width=True)
 except Exception as e:
     st.error(f"SPX non disponibile: {e}")
