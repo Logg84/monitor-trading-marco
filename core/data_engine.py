@@ -1,6 +1,6 @@
 """
 Data engine: prezzi, indicatori, Health Check, POC (volume profile),
-VWAP, Bottom Score, universo, risoluzione ticker.
+VWAP, Bottom Score, segnale, trimestrali, universo, risoluzione ticker.
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
@@ -33,6 +33,22 @@ def get_prices(ticker: str, period: str = "2y", interval: str = "1d") -> pd.Data
         raise ValueError(f"Nessun dato valido per {ticker}")
     return df
 
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def get_prices_long(ticker: str) -> pd.DataFrame:
+    """
+    Storico lungo (massimo disponibile, target ≥20 anni) a frequenza
+    settimanale: tiene il calcolo del volume profile sostenibile.
+    """
+    df = yf.Ticker(ticker).history(period="max", interval="1wk", auto_adjust=True)
+    if df.empty:
+        raise ValueError(f"Nessun dato lungo per {ticker}")
+    df.index = pd.to_datetime(df.index)
+    df = df[["High", "Low", "Close", "Volume"]]
+    df = df.dropna(subset=["Close"])
+    if df.empty:
+        raise ValueError(f"Nessun dato lungo valido per {ticker}")
+    return df
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def download_closes(tickers: tuple, period: str = "2y") -> pd.DataFrame:
     """Un solo download per tutti i titoli (Close + Volume)."""
@@ -45,11 +61,7 @@ def download_closes(tickers: tuple, period: str = "2y") -> pd.DataFrame:
 @st.cache_data(ttl=3600, show_spinner=False)
 def download_closes_chunked(tickers: tuple, period: str = "2y",
                             chunk_size: int = 100) -> pd.DataFrame:
-    """
-    Download multiplo a blocchi, per universi grandi
-    (es. VISUALIZZA TUTTI INSIEME). Più robusto di un singolo
-    download con centinaia di ticker.
-    """
+    """Download multiplo daily a blocchi, per universi grandi."""
     tk = list(tickers)
     frames = []
     for i in range(0, len(tk), chunk_size):
@@ -62,7 +74,6 @@ def download_closes_chunked(tickers: tuple, period: str = "2y",
         if raw is None or raw.empty:
             continue
         if not isinstance(raw.columns, pd.MultiIndex):
-            # blocco con un solo ticker: colonne non multi-livello
             t0 = block[0]
             raw = pd.DataFrame({
                 ("Close", t0): raw["Close"],
@@ -71,6 +82,34 @@ def download_closes_chunked(tickers: tuple, period: str = "2y",
         frames.append(raw[["Close", "Volume"]])
     if not frames:
         raise ValueError("Download multiplo fallito")
+    return pd.concat(frames, axis=1)
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def download_weekly_chunked(tickers: tuple, chunk_size: int = 100) -> pd.DataFrame:
+    """
+    Download multiplo SETTIMANALE lungo (period=max) a blocchi:
+    serve al volume profile ≥20 anni nello screening.
+    """
+    tk = list(tickers)
+    frames = []
+    for i in range(0, len(tk), chunk_size):
+        block = tk[i:i + chunk_size]
+        try:
+            raw = yf.download(block, period="max", interval="1wk",
+                              auto_adjust=True, progress=False, threads=True)
+        except Exception:
+            continue
+        if raw is None or raw.empty:
+            continue
+        if not isinstance(raw.columns, pd.MultiIndex):
+            t0 = block[0]
+            raw = pd.DataFrame({
+                ("Close", t0): raw["Close"],
+                ("Volume", t0): raw["Volume"],
+            })
+        frames.append(raw[["Close", "Volume"]])
+    if not frames:
+        raise ValueError("Download settimanale fallito")
     return pd.concat(frames, axis=1)
 
 # ── Indicatori ─────────────────────────────────────────────
@@ -104,17 +143,18 @@ def poc_zone(poc: float, atr20: float, f: float = 0.6) -> tuple[float, float]:
     return (poc - half, poc + half)
 
 # ── Volume Profile ─────────────────────────────────────────
-def volume_profile(df: pd.DataFrame, bins: int = 50) -> dict:
+def volume_profile(df: pd.DataFrame, bins: int = 80) -> dict:
     close = df["Close"]
     vol = df["Volume"].fillna(0)
     price_min, price_max = float(close.min()), float(close.max())
+    if price_max <= price_min:
+        return {"poc": float(close.iloc[-1]), "hvn": [], "lvn": [],
+                "profile": np.zeros(bins), "bins": np.array([price_min, price_max])}
     price_bins = np.linspace(price_min, price_max, bins + 1)
-    vol_profile = np.zeros(bins)
     prices = close.to_numpy()
     volumes = vol.to_numpy()
     idx = np.clip(np.searchsorted(price_bins, prices, side="right") - 1, 0, bins - 1)
-    for i in range(bins):
-        vol_profile[i] = float(np.nansum(volumes[idx == i]))
+    vol_profile = np.bincount(idx, weights=volumes, minlength=bins).astype(float)
     if vol_profile.sum() == 0:
         return {"poc": float(close.iloc[-1]), "hvn": [], "lvn": [],
                 "profile": vol_profile, "bins": price_bins}
@@ -134,6 +174,12 @@ def poc_zone_from_profile(df: pd.DataFrame, f: float = 0.6) -> tuple[float, floa
     poc = vp["poc"]
     lo, hi = poc_zone(poc, atr(df), f)
     return poc, lo, hi
+
+def poc_long_weekly(wdf: pd.DataFrame, bins: int = 80) -> float | None:
+    """POC su storico settimanale lungo (≥20 anni ove disponibile)."""
+    if wdf is None or len(wdf) < 40:
+        return None
+    return volume_profile(wdf, bins=bins)["poc"]
 
 # ── Health Check (qualità) ─────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -228,14 +274,67 @@ def bottom_score(df: pd.DataFrame, poc: float | None = None, f: float = 0.6) -> 
     return {"score": score, "drawdown": drawdown, "rsi": r,
             "roc10": roc_now, "decel": decel, "components": components}
 
+# ── Segnale (lettura rule-based, mai ordine) ───────────────
+def rebound_signal(dd: float, decel: float, rsi_v: float,
+                   in_zone: bool, below_vwap: bool) -> str:
+    """
+    🟢 SETUP  = DD ≤ −20% AND decel > 0 AND RSI < 45 AND (in zona POC20y OR prezzo ≤ VWAP60)
+    🟡 OSSERVA = DD ≤ −20% AND decel > 0
+    —         = altrimenti
+    """
+    if dd <= -20 and decel > 0 and rsi_v < 45 and (in_zone or below_vwap):
+        return "🟢 SETUP"
+    if dd <= -20 and decel > 0:
+        return "🟡 OSSERVA"
+    return "—"
+
+# ── Trimestrali ────────────────────────────────────────────
+@st.cache_data(ttl=86400, show_spinner=False)
+def earnings_snapshot(ticker: str) -> dict:
+    """
+    Ultima trimestrale riportata + trend ricavi trimestrali.
+    positive = True/False/None (n/d). Copertura yfinance variabile,
+    specie su titoli europei: mai zeri finti.
+    """
+    out = {"positive": None, "surprise": None, "date": None,
+           "rev_yoy": None, "quarters": None}
+    t = yf.Ticker(ticker)
+    try:
+        ed = t.earnings_dates
+        if ed is not None and not ed.empty and "Reported EPS" in ed.columns:
+            reported = ed[ed["Reported EPS"].notna()]
+            if not reported.empty:
+                last = reported.iloc[-1]
+                sur = last.get("Surprise %")
+                out["date"] = str(reported.index[-1].date())
+                if sur is not None and not np.isnan(float(sur)):
+                    out["surprise"] = float(sur)
+                    out["positive"] = out["surprise"] > 0
+    except Exception:
+        pass
+    try:
+        qf = t.quarterly_financials
+        if qf is not None and not qf.empty and "Total Revenue" in qf.index:
+            rev = qf.loc["Total Revenue"].dropna().sort_index()
+            if len(rev) >= 2:
+                out["quarters"] = rev
+                if len(rev) >= 5:
+                    last_v = float(rev.iloc[-1])
+                    prev_v = float(rev.iloc[-5])
+                    if prev_v:
+                        out["rev_yoy"] = (last_v / prev_v - 1) * 100
+    except Exception:
+        pass
+    if out["positive"] is None and out["rev_yoy"] is not None:
+        out["positive"] = out["rev_yoy"] > 0
+    return out
+
 # ── Indici & screening ─────────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_index_constituents(name: str) -> list[str]:
     """
     Legge i costituenti di un indice da data/indices/<name>.csv.
-
     Difensivo: un file vuoto o corrotto NON deve crashare il portale.
-    In tal caso ritorna [] (o il campione legacy solo per i nomi legacy).
     """
     path = INDICES_DIR / f"{name}.csv"
     if path.exists():
@@ -257,13 +356,7 @@ def load_index_constituents(name: str) -> list[str]:
 def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
     """
     Screening multi-titolo con diagnostica e log opzionale.
-
-    Args:
-        tickers: lista ticker unici da analizzare.
-        log: callable(msg) opzionale per avanzamento (es. st.status.write).
-
-    Returns:
-        (DataFrame risultati, dict diagnostica)
+    Metriche daily (2y) + POC20y su settimanale lungo + segnale.
     """
     def _log(msg: str) -> None:
         if log is not None:
@@ -277,14 +370,21 @@ def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
         return pd.DataFrame(), {"total": 0, "valid": 0, "discarded": 0}
 
     _log(f"Ticker richiesti: {total}")
-    _log("Download chiusure a blocchi (lento la prima volta, poi cache 1h)…")
+    _log("Download daily a blocchi (cache 1h)…")
     try:
         data = download_closes_chunked(tuple(tickers))
     except Exception:
-        _log("Download fallito: nessuna serie valida.")
+        _log("Download daily fallito.")
         return pd.DataFrame(), {"total": total, "valid": 0, "discarded": total}
-    _log("Download completato. Elaborazione titoli (score, health check)…")
 
+    _log("Download settimanale lungo a blocchi (cache 6h, primo avvio lento)…")
+    try:
+        data_w = download_weekly_chunked(tuple(tickers))
+    except Exception:
+        data_w = None
+        _log("Settimanale non disponibile: POC20y assente in questa corsa.")
+
+    _log("Elaborazione titoli (score, volumi, health check)…")
     rows = []
     for i, t in enumerate(tickers):
         if i and i % 100 == 0:
@@ -301,8 +401,26 @@ def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
 
             price = float(c.iloc[-1])
             vwap = vwap_anchored(sub)
+            a20 = atr(sub)
             bs = bottom_score(sub, poc=vwap)
             hc = health_check(t)
+
+            pocL = None
+            if data_w is not None:
+                try:
+                    cw = data_w["Close"][t].dropna()
+                    vw = data_w["Volume"][t].dropna()
+                    wdf = pd.DataFrame({"Close": cw, "Volume": vw.reindex(cw.index)})
+                    pocL = poc_long_weekly(wdf)
+                except Exception:
+                    pocL = None
+            if pocL is None:
+                pocL = volume_profile(sub)["poc"]
+
+            lo, hi = poc_zone(pocL, a20)
+            in_zone = bool(lo <= price <= hi)
+            signal = rebound_signal(bs["drawdown"], bs["decel"], bs["rsi"],
+                                    in_zone, price <= vwap)
 
             rows.append({
                 "Ticker": t,
@@ -310,6 +428,12 @@ def screening(tickers: list[str], log=None) -> tuple[pd.DataFrame, dict]:
                 "DD%": round(bs["drawdown"], 1),
                 "RSI": round(bs["rsi"], 0),
                 "VWAP60": round(vwap, 2),
+                "ΔVWAP%": round((price / vwap - 1) * 100, 1) if vwap else None,
+                "POC20y": round(pocL, 2),
+                "Zona POC": f"{lo:.2f}–{hi:.2f}",
+                "ΔPOC%": round((price / pocL - 1) * 100, 1) if pocL else None,
+                "In zona": "✅" if in_zone else "",
+                "Segnale": signal,
                 "Health": hc["score"],
                 "Bottom": bs["score"],
             })
