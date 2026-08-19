@@ -1,6 +1,7 @@
 """
-Screening: titoli in sconto + zone volumetriche + VWAP ancorati + segnale +
-grafico di decelerazione. Log di avanzamento per le operazioni lunghe.
+Screening: ultima scansione persistente, zone volumetriche, VWAP ancorati,
+segnale, selezione titolo col click sulla riga, grafico di decelerazione.
+Log di avanzamento per le operazioni lunghe.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -14,6 +15,7 @@ from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     INDICES_DIR, load_index_constituents, screening,
+    save_screening_cache, load_screening_cache,
     get_prices, get_prices_long, vwap_anchored,
     volume_zones, structural_anchors, bottom_score,
 )
@@ -54,12 +56,10 @@ if run:
             raw_tickers.extend(tks)
         gross = len(raw_tickers)
         tickers = sorted(set(raw_tickers))
-        st.session_state["screening_per_index"] = per_index
-        st.session_state["screening_gross"] = gross
     else:
         tickers = load_index_constituents(index_name)
-        st.session_state["screening_per_index"] = {index_name: len(tickers)}
-        st.session_state["screening_gross"] = len(tickers)
+        per_index = {index_name: len(tickers)}
+        gross = len(tickers)
 
     if not tickers:
         st.error(
@@ -73,28 +73,48 @@ if run:
         if index_name == ALL_INDICES:
             status.write(f"Unione indici: {gross} lordi → {len(tickers)} unici")
         df, diagnostics = screening(tickers, log=status.write)
-        st.session_state["screening_result"] = df
-        st.session_state["screening_diagnostics"] = diagnostics
         if diagnostics["valid"] > 0:
+            save_screening_cache(df, {
+                "index": index_name,
+                "diagnostics": diagnostics,
+                "per_index": per_index,
+                "gross": gross,
+            })
+            st.session_state["screening_result"] = df
+            st.session_state["screening_diagnostics"] = diagnostics
+            st.session_state["screening_per_index"] = per_index
+            st.session_state["screening_gross"] = gross
+            st.session_state["screening_saved_at"] = "adesso"
+            st.session_state["screening_index_label"] = index_name
             status.update(label=f"Screening completato: {diagnostics['valid']} titoli validi",
                           state="complete")
         else:
             status.update(label="Screening completato senza dati validi", state="error")
 
+# ── Recupero ultima scansione se la sessione è vuota ───────
+if st.session_state.get("screening_result") is None:
+    df_c, meta = load_screening_cache()
+    if df_c is not None:
+        st.session_state["screening_result"] = df_c
+        st.session_state["screening_diagnostics"] = meta.get("diagnostics", {})
+        st.session_state["screening_per_index"] = meta.get("per_index")
+        st.session_state["screening_gross"] = meta.get("gross")
+        st.session_state["screening_saved_at"] = meta.get("saved_at", "n/d")
+        st.session_state["screening_index_label"] = meta.get("index", "n/d")
+
 df = st.session_state.get("screening_result")
 diagnostics = st.session_state.get("screening_diagnostics")
 per_index = st.session_state.get("screening_per_index")
 gross = st.session_state.get("screening_gross")
+saved_at = st.session_state.get("screening_saved_at")
+index_label = st.session_state.get("screening_index_label")
 
 if df is None or df.empty:
-    if diagnostics and diagnostics.get("total", 0) > 0:
-        st.error(
-            f"Download dati fallito: {diagnostics['total']} ticker richiesti, 0 validi. "
-            "Riprova più tardi (yfinance potrebbe aver limitato le richieste)."
-        )
-    else:
-        st.info("Nessun risultato in memoria. Avvia lo screening.")
+    st.info("Nessuna scansione in memoria né salvata. Avvia lo screening.")
     st.stop()
+
+if saved_at:
+    st.caption(f"Ultima scansione: {saved_at} · indice: {index_label}")
 
 if per_index:
     detail = " · ".join(f"{k}: {v}" for k, v in sorted(per_index.items()))
@@ -115,7 +135,8 @@ if diagnostics:
 st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
     "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
-    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). Lettura, mai ordine."
+    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
+    "Clicca una riga nella tabella 'Tutti' per aprire l'analisi di decelerazione. Lettura, mai ordine."
 )
 
 discount = df[df["DD%"] <= -20].copy()
@@ -124,7 +145,7 @@ alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
 sc1, sc2 = st.columns([2, 1])
 sort_col = sc1.selectbox(
     "Ordina per",
-    ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "VWA1", "Ticker"],
+    ["Bottom", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "VWA1", "Nome", "Ticker"],
     index=0,
 )
 sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
@@ -140,15 +161,29 @@ tab1, tab2, tab3 = st.tabs([
     f"Alert POC/VWAP ({len(alert_sorted)})",
 ])
 with tab1:
-    st.dataframe(df_sorted, use_container_width=True, hide_index=True)
+    ev = st.dataframe(df_sorted, use_container_width=True, hide_index=True,
+                      on_select="rerun", selection_mode="single-row")
 with tab2:
     st.dataframe(discount_sorted, use_container_width=True, hide_index=True)
 with tab3:
     st.dataframe(alert_sorted, use_container_width=True, hide_index=True)
 
+# ── Titolo selezionato col click sulla riga ────────────────
+sel = None
+if ev is not None and ev.selection and ev.selection["rows"]:
+    idx = ev.selection["rows"][0]
+    if idx < len(df_sorted):
+        sel = df_sorted.iloc[idx]["Ticker"]
+        st.session_state["decel_ticker"] = sel
+
+stored = st.session_state.get("decel_ticker")
+if stored in df_sorted["Ticker"].tolist():
+    sel = stored
+if sel is None:
+    sel = df_sorted.iloc[0]["Ticker"]
+
 # ── Analisi di decelerazione ───────────────────────────────
-st.markdown("### Analisi di decelerazione")
-sel = st.selectbox("Titolo dai risultati", df_sorted["Ticker"].tolist())
+st.markdown(f"### Analisi di decelerazione — {sel}")
 
 try:
     full = get_prices(sel)
@@ -165,7 +200,6 @@ anchors = structural_anchors(wdf)
 vwap60 = vwap_anchored(full)
 bs = bottom_score(full, zones=zones)
 
-price = float(full["Close"].iloc[-1])
 col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                     row_heights=[0.7, 0.3], vertical_spacing=0.03)
