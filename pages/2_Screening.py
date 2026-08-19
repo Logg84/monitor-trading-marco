@@ -1,7 +1,7 @@
 """
-Screening: ultima scansione persistente, zone volumetriche, VWAP ancorati,
-segnale, selezione titolo col click su QUALSIASI tabella, grafico di
-decelerazione. Log di avanzamento per le operazioni lunghe.
+Screening: ultima scansione persistente, zone volumetriche (vincolo ATR),
+VWAP ancorati, segnale, selezione titolo col click su QUALSIASI tabella,
+grafico di decelerazione. Log di avanzamento per le operazioni lunghe.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -16,7 +16,7 @@ from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     INDICES_DIR, load_index_constituents, screening,
     save_screening_cache, load_screening_cache,
-    get_prices, get_prices_long, vwap_anchored,
+    get_prices, get_prices_long, atr, vwap_anchored,
     volume_zones, structural_anchors, bottom_score,
 )
 from core.watchlist_io import add_entry, load_watchlist
@@ -133,7 +133,8 @@ if diagnostics:
     m5.metric("Scartati download", diagnostics["discarded"])
 
 st.caption(
-    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
+    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
+    "larghezza max = min(15% range, 8×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
     "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
     "Clicca una riga in una delle tre tabelle per aprire l'analisi di decelerazione. Lettura, mai ordine."
@@ -205,7 +206,7 @@ try:
     wdf = get_prices_long(sel)
 except Exception:
     wdf = full
-zones = volume_zones(wdf)
+zones = volume_zones(wdf, atr20=atr(full))
 anchors = structural_anchors(wdf)
 vwap60 = vwap_anchored(full)
 bs = bottom_score(full, zones=zones)
