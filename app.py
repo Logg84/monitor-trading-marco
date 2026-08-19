@@ -1,7 +1,7 @@
 """
 Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
-zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali; aggiunta
-manuale con L1/L2/L3; storico alert; analisi singola.
+link TradingView, zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali;
+aggiunta manuale con L1/L2/L3; storico alert; analisi singola.
 Lettura, mai ordine — non è consulenza.
 """
 import streamlit as st
@@ -15,7 +15,7 @@ from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     atr, vwap_anchored, company_name, health_check, bottom_score,
-    build_universe, resolve_ticker,
+    build_universe, resolve_ticker, tradingview_url,
 )
 from core.reversal import analyze_ticker, prune_watchlist
 from core.watchlist_io import (
@@ -55,7 +55,7 @@ st.caption(
     "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
 )
 
-# ── Pruning automatico (🤖 e ) ───────────────────────────
+# ── Pruning automatico (🤖 e 👤) ───────────────────────────
 removed = prune_watchlist()
 for t, motivo in removed:
     st.warning(f"🗑 {t} rimosso automaticamente dalla watchlist: {motivo}.")
@@ -126,6 +126,7 @@ else:
         rows.append({
             "Orig.": "👤" if e["origin"] == "manual" else "🤖",
             "Ticker": e["ticker"],
+            "TV": tradingview_url(e["ticker"]),
             "Nome": company_name(e["ticker"]),
             "Prezzo": round(price, 2),
             "DD%": round(bs["drawdown"], 1),
@@ -155,7 +156,18 @@ else:
         df_w = pd.DataFrame(rows).sort_values(
             sort_col, ascending=(sort_dir == "Ascendente")
         ).reset_index(drop=True)
+
+        column_config = {
+            "TV": st.column_config.LinkColumn(
+                "TV",
+                help="Apri il grafico su TradingView (nuova scheda)",
+                display_text="📈",
+                width="small",
+            ),
+        }
+
         ev_w = st.dataframe(df_w, use_container_width=True, hide_index=True,
+                            column_config=column_config,
                             on_select="rerun", selection_mode="single-row",
                             key="tbl_watchlist")
 
@@ -353,6 +365,8 @@ if ticker:
         f"flag B/C/G/D/E = "
         + "/".join("✔" if a["rev"]["flags"][k] else "·" for k in ("B", "C", "G", "D", "E"))
     )
+
+    st.markdown(f"[📈 Apri **{ticker}** su TradingView]({tradingview_url(ticker)})")
 
     if st.button("➕ Promuovi in watchlist (🤖 auto)", type="primary"):
         add_entry(ticker, origin="auto",
