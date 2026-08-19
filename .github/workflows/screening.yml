@@ -1,9 +1,7 @@
 name: screening-daily
 on:
   schedule:
-    # 2 corse complete/giorno lun-ven (UTC):
-    # 06:30 → ~8:30 locali: USA consolidati, prepari gli ingressi del pomeriggio
-    # 14:30 → ~16:30 locali: fasi finali europee, prepari gli ingressi di domani
+    # 06:30 e 14:30 UTC, lun-ven: ~8:30 e ~16:30 locali (estate)
     - cron: "30 6,14 * * 1-5"
   workflow_dispatch:
 permissions:
