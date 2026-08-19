@@ -1,7 +1,7 @@
 """
-Screening: ultima scansione persistente, zone volumetriche (vincolo ATR),
-VWAP ancorati, segnale, selezione titolo col click su QUALSIASI tabella,
-grafico di decelerazione. Log di avanzamento per le operazioni lunghe.
+Screening: ultima scansione persistente, zone volumetriche, VWAP ancorati,
+Segnale 🟡/, auto-popolazione watchlist 🤖, pruning, selezione titolo col
+click su QUALSIASI tabella, grafico di decelerazione. Log operazioni lunghe.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -19,6 +19,7 @@ from core.data_engine import (
     get_prices, get_prices_long, atr, vwap_anchored,
     volume_zones, structural_anchors, bottom_score,
 )
+from core.reversal import auto_populate, prune_watchlist
 from core.watchlist_io import add_entry, load_watchlist
 
 if "dark_mode" not in st.session_state:
@@ -80,12 +81,18 @@ if run:
                 "per_index": per_index,
                 "gross": gross,
             })
+            added = auto_populate(df.to_dict("records"))
+            removed = prune_watchlist()
             st.session_state["screening_result"] = df
             st.session_state["screening_diagnostics"] = diagnostics
             st.session_state["screening_per_index"] = per_index
             st.session_state["screening_gross"] = gross
             st.session_state["screening_saved_at"] = "adesso"
             st.session_state["screening_index_label"] = index_name
+            st.session_state["screening_ops"] = {"added": added, "removed": removed}
+            status.write(f"Auto-popolazione watchlist: {len(added)} 🤖 aggiunti")
+            for t, motivo in removed:
+                status.write(f"Pruning: rimosso {t} ({motivo})")
             status.update(label=f"Screening completato: {diagnostics['valid']} titoli validi",
                           state="complete")
         else:
@@ -108,6 +115,7 @@ per_index = st.session_state.get("screening_per_index")
 gross = st.session_state.get("screening_gross")
 saved_at = st.session_state.get("screening_saved_at")
 index_label = st.session_state.get("screening_index_label")
+ops = st.session_state.get("screening_ops")
 
 if df is None or df.empty:
     st.info("Nessuna scansione in memoria né salvata. Avvia lo screening.")
@@ -115,6 +123,13 @@ if df is None or df.empty:
 
 if saved_at:
     st.caption(f"Ultima scansione: {saved_at} · indice: {index_label}")
+
+if ops:
+    added, removed = ops.get("added", []), ops.get("removed", [])
+    if added:
+        st.caption(f"🤖 aggiunti in watchlist: {', '.join(added)}")
+    for t, motivo in removed:
+        st.caption(f"🗑 rimosso {t}: {motivo}")
 
 if per_index:
     detail = " · ".join(f"{k}: {v}" for k, v in sorted(per_index.items()))
@@ -136,7 +151,7 @@ st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
     "larghezza max = min(15% range, 8×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
-    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
+    "Segnale 🟡 = A + punti ≥3 · 🟢 = A + punti ≥5 + D (G pesa doppio). "
     "Clicca una riga in una delle tre tabelle per aprire l'analisi di decelerazione. Lettura, mai ordine."
 )
 
