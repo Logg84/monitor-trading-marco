@@ -6,7 +6,8 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide",
+                   initial_sidebar_state="collapsed")
 
 from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
@@ -236,7 +237,7 @@ if ticker:
     style_fig(fig, st.session_state.dark_mode, height=420)
     st.plotly_chart(fig, use_container_width=True)
 
-    if st.button(f"➕ Promuovi in watchlist (🤖 auto)", type="primary"):
+    if st.button("➕ Promuovi in watchlist (🤖 auto)", type="primary"):
         add_entry(ticker, origin="auto", poc=poc)
         st.success(f"{ticker} promosso in watchlist come 🤖")
 
