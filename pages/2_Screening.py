@@ -1,7 +1,7 @@
 """
 Screening: ultima scansione persistente, zone volumetriche, VWAP ancorati,
-segnale, selezione titolo col click sulla riga, grafico di decelerazione.
-Log di avanzamento per le operazioni lunghe.
+segnale, selezione titolo col click su QUALSIASI tabella, grafico di
+decelerazione. Log di avanzamento per le operazioni lunghe.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -136,7 +136,7 @@ st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
     "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
     "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
-    "Clicca una riga nella tabella 'Tutti' per aprire l'analisi di decelerazione. Lettura, mai ordine."
+    "Clicca una riga in una delle tre tabelle per aprire l'analisi di decelerazione. Lettura, mai ordine."
 )
 
 discount = df[df["DD%"] <= -20].copy()
@@ -161,26 +161,36 @@ tab1, tab2, tab3 = st.tabs([
     f"Alert POC/VWAP ({len(alert_sorted)})",
 ])
 with tab1:
-    ev = st.dataframe(df_sorted, use_container_width=True, hide_index=True,
-                      on_select="rerun", selection_mode="single-row")
+    ev_all = st.dataframe(df_sorted, use_container_width=True, hide_index=True,
+                          on_select="rerun", selection_mode="single-row",
+                          key="tbl_tutti")
 with tab2:
-    st.dataframe(discount_sorted, use_container_width=True, hide_index=True)
+    ev_disc = st.dataframe(discount_sorted, use_container_width=True, hide_index=True,
+                           on_select="rerun", selection_mode="single-row",
+                           key="tbl_sconto")
 with tab3:
-    st.dataframe(alert_sorted, use_container_width=True, hide_index=True)
+    ev_alert = st.dataframe(alert_sorted, use_container_width=True, hide_index=True,
+                            on_select="rerun", selection_mode="single-row",
+                            key="tbl_alert")
 
-# ── Titolo selezionato col click sulla riga ────────────────
-sel = None
-if ev is not None and ev.selection and ev.selection["rows"]:
-    idx = ev.selection["rows"][0]
-    if idx < len(df_sorted):
-        sel = df_sorted.iloc[idx]["Ticker"]
-        st.session_state["decel_ticker"] = sel
+# ── Click su qualsiasi tabella: vince la selezione cambiata ─
+for key, ev, dfx in (
+    ("tbl_tutti", ev_all, df_sorted),
+    ("tbl_sconto", ev_disc, discount_sorted),
+    ("tbl_alert", ev_alert, alert_sorted),
+):
+    rows = list(ev.selection["rows"]) if ev is not None and ev.selection else []
+    prev = st.session_state.get(f"prevsel_{key}")
+    if rows != prev:
+        st.session_state[f"prevsel_{key}"] = rows
+        if rows and rows[0] < len(dfx):
+            st.session_state["decel_ticker"] = dfx.iloc[rows[0]]["Ticker"]
 
+all_tickers = df_sorted["Ticker"].tolist()
 stored = st.session_state.get("decel_ticker")
-if stored in df_sorted["Ticker"].tolist():
-    sel = stored
+sel = stored if stored in all_tickers else (all_tickers[0] if all_tickers else None)
 if sel is None:
-    sel = df_sorted.iloc[0]["Ticker"]
+    st.stop()
 
 # ── Analisi di decelerazione ───────────────────────────────
 st.markdown(f"### Analisi di decelerazione — {sel}")
