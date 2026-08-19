@@ -353,7 +353,8 @@ def reversal_state(df: pd.DataFrame, wdf: pd.DataFrame, zones: list[dict],
     Punteggio reversal (A = cancello DD ≤ −20%):
     B decel>0 =1 · C confluenza =1 · G chiusura fresca sopra SMA20 =2 ·
     D conferma (D1/D2/D3) =1 · E qualità+persistenza =1. Max 6.
-    🟡 = A + punti ≥3 · 🟢 = A + punti ≥5 + D.
+    🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano).
+    🟢 = A + punti ≥5 + D (senza G non si arriva: è il suo valore doppio).
     """
     close = df["Close"]
     if len(close) < 30:
@@ -392,7 +393,7 @@ def reversal_state(df: pd.DataFrame, wdf: pd.DataFrame, zones: list[dict],
     if dd <= -20:
         if points >= 5 and D:
             kind = "🟢"
-        elif points >= 3:
+        elif points >= 2:
             kind = "🟡"
     return {"dd": dd, "points": points, "kind": kind,
             "flags": {"B": B, "C": C, "G": G, "D": D, "E": E}}
