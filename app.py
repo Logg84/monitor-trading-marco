@@ -1,6 +1,6 @@
 """
 Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
-zone volumetriche, VWAP ancorati, Segnale 🟡/, trimestrali; aggiunta
+zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali; aggiunta
 manuale con L1/L2/L3; storico alert; analisi singola.
 Lettura, mai ordine — non è consulenza.
 """
@@ -50,12 +50,12 @@ st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
     "larghezza max = min(15% range, 8×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali (≥26 sett. apart), bonus se a ±30gg da trimestrale. "
-    "Segnale 🟡 = A + punti ≥3 · 🟢 = A + punti ≥5 + D (G pesa doppio). "
-    "Uscite automatiche: 🤖 se DD>−20% o punti<3 per 5 chiusure; 👤 se punti<3 e sotto il livello minimo inserito per 5 chiusure. "
+    "Segnale 🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D (G pesa doppio). "
+    "Uscite automatiche: 🤖 se DD>−20% o punti<2 per 5 chiusure; 👤 se punti<2 e sotto il livello minimo inserito per 5 chiusure. "
     "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
 )
 
-# ── Pruning automatico (🤖 e 👤) ───────────────────────────
+# ── Pruning automatico (🤖 e ) ───────────────────────────
 removed = prune_watchlist()
 for t, motivo in removed:
     st.warning(f"🗑 {t} rimosso automaticamente dalla watchlist: {motivo}.")
