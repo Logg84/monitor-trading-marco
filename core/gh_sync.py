@@ -1,10 +1,11 @@
 """
 Write-through dei file di stato su GitHub (solo su Streamlit Cloud, dove
 esistono GITHUB_TOKEN e GITHUB_REPO). In locale è no-op.
-Rende persistenti watchlist/alerts tra i redeploy.
+Include il fetch di ripristino: il portale può rileggere lo stato dal repo.
 """
 from __future__ import annotations
 import base64
+import json
 import os
 from pathlib import Path
 import requests
@@ -51,3 +52,20 @@ def publish_file(rel_path: str, message: str, branch: str = "main") -> bool:
 def publish_watchlist() -> bool:
     return publish_file("data/watchlist.json",
                         "chore(portale): aggiorna watchlist")
+
+def fetch_json_from_github(rel_path: str) -> dict | None:
+    """Legge un file JSON di stato direttamente dal repo (fonte di verità)."""
+    token = _secret("GITHUB_TOKEN")
+    repo = _secret("GITHUB_REPO")
+    if not token or not repo:
+        return None
+    url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
+    try:
+        r = requests.get(url, headers={"Authorization": f"token {token}",
+                                       "Accept": "application/vnd.github+json"},
+                         timeout=15)
+        if not r.ok:
+            return None
+        return json.loads(base64.b64decode(r.json()["content"]))
+    except Exception:
+        return None
