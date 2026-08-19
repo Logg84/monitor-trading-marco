@@ -1,7 +1,8 @@
 """
-Screening: ultima scansione persistente, zone volumetriche, VWAP ancorati,
-Segnale 🟡/ (🟡 a ≥2 punti), auto-popolazione watchlist 🤖, pruning,
-selezione titolo col click su QUALSIASI tabella, grafico di decelerazione.
+Screening: ultima scansione persistente, calcolo in BACKGROUND (la navigazione
+non lo interrompe), zone volumetriche, VWAP ancorati, Segnale 🟡/🟢,
+auto-popolazione watchlist 🤖, pruning, selezione titolo col click su
+QUALSIASI tabella, grafico di decelerazione.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -14,11 +15,12 @@ st.set_page_config(page_title="Screening", page_icon="🎛️", layout="wide",
 from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
-    INDICES_DIR, load_index_constituents, screening,
+    INDICES_DIR, load_index_constituents,
     save_screening_cache, load_screening_cache,
     get_prices, get_prices_long, atr, vwap_anchored,
     volume_zones, structural_anchors, bottom_score,
 )
+from core import bg_screening as bg
 from core.reversal import auto_populate, prune_watchlist
 from core.watchlist_io import add_entry, load_watchlist
 
@@ -41,7 +43,9 @@ options = [ALL_INDICES] + available
 
 c1, c2 = st.columns([3, 1])
 index_name = c1.selectbox("Indice", options)
-run = c2.button("🚀 Avvia screening", type="primary")
+snap0 = bg.snapshot()
+run = c2.button("🚀 Avvia screening", type="primary",
+                disabled=snap0["running"])
 
 if run:
     if not available:
@@ -69,34 +73,37 @@ if run:
         )
         st.stop()
 
-    with st.status(f"Analisi di {len(tickers)} titoli…", expanded=True) as status:
-        status.write(f"Indice selezionato: {index_name}")
-        if index_name == ALL_INDICES:
-            status.write(f"Unione indici: {gross} lordi → {len(tickers)} unici")
-        df, diagnostics = screening(tickers, log=status.write)
-        if diagnostics["valid"] > 0:
-            save_screening_cache(df, {
-                "index": index_name,
-                "diagnostics": diagnostics,
-                "per_index": per_index,
-                "gross": gross,
-            })
-            added = auto_populate(df.to_dict("records"))
-            removed = prune_watchlist()
-            st.session_state["screening_result"] = df
-            st.session_state["screening_diagnostics"] = diagnostics
-            st.session_state["screening_per_index"] = per_index
-            st.session_state["screening_gross"] = gross
-            st.session_state["screening_saved_at"] = "adesso"
-            st.session_state["screening_index_label"] = index_name
-            st.session_state["screening_ops"] = {"added": added, "removed": removed}
-            status.write(f"Auto-popolazione watchlist: {len(added)} 🤖 aggiunti")
-            for t, motivo in removed:
-                status.write(f"Pruning: rimosso {t} ({motivo})")
-            status.update(label=f"Screening completato: {diagnostics['valid']} titoli validi",
-                          state="complete")
-        else:
-            status.update(label="Screening completato senza dati validi", state="error")
+    started = bg.start(tickers, per_index, gross, index_name)
+    if not started:
+        st.info("Screening già in corso.")
+
+# ── Stato background: log live + consumo risultato ─────────
+snap = bg.snapshot()
+if snap["running"]:
+    with st.status("Screening in corso in background: puoi navigare su Regime/COT, non si interrompe.",
+                   expanded=True) as status:
+        for line in snap["log"]:
+            status.write(line)
+    st.button("🔄 Aggiorna stato")
+
+if (snap["done"] and snap["df"] is not None
+        and st.session_state.get("bg_consumed") != snap["started_at"]):
+    df = snap["df"]
+    diagnostics = snap["diag"] or {}
+    per_index = snap["per_index"] or {}
+    gross = snap["gross"]
+    if diagnostics.get("valid", 0) > 0:
+        added = auto_populate(df.to_dict("records"))
+        removed = prune_watchlist()
+        st.session_state["screening_result"] = df
+        st.session_state["screening_diagnostics"] = diagnostics
+        st.session_state["screening_per_index"] = per_index
+        st.session_state["screening_gross"] = gross
+        st.session_state["screening_saved_at"] = snap["started_at"]
+        st.session_state["screening_index_label"] = snap["index_label"]
+        st.session_state["screening_ops"] = {"added": added, "removed": removed}
+    st.session_state["bg_consumed"] = snap["started_at"]
+    st.rerun()
 
 # ── Recupero ultima scansione se la sessione è vuota ───────
 if st.session_state.get("screening_result") is None:
