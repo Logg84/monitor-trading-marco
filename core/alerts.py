@@ -1,15 +1,16 @@
 """
-Alert: tocco VWAP ±2% e prezzo dentro zona POC.
-Cooldown dinamico (Proposta 2), niente duplicati a mercati chiusi,
-Telegram opzionale se il token esiste.
+Alert: CANDIDATO / INVERSIONE / LIVELLO (L1-L3).
+Regole rumore:
+- max 1 alert/giorno/titolo;
+- stessa tipologia sullo stesso titolo: non prima di 5 giorni;
+- prezzo invariato → mercati chiusi → skip.
+Telegram opzionale se i token esistono.
 """
 from __future__ import annotations
-
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-
 import requests
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -25,64 +26,68 @@ def load_alert_state() -> dict:
                 return json.load(f)
         except Exception:
             pass
-    return {"history": [], "last_sent": {}, "last_price": {}}
+    return {"history": [], "last_sent": {}, "last_price": {}, "day_lock": {}}
 
 def save_alert_state(state: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(ALERTS_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
-def cooldown_days(rsi: float, price: float, vwap: float | None) -> int:
-    """Proposta 2: 1g se RSI>70 e prezzo sopra VWAP (trend forte),
-    altrimenti 3g (laterale)."""
-    if vwap and rsi > 70 and price > vwap:
-        return 1
-    return 3
-
-def check_alerts(entries: list[dict], metrics: dict[str, dict]) -> list[dict]:
-    """metrics: {ticker: {price, vwap, poc_lo, poc_hi, rsi}}"""
-    state = load_alert_state()
-    new_alerts = []
-
+def check_alerts(entries: list[dict], states: dict) -> list[dict]:
+    """
+    states: {ticker: {"price", "prev_close", "kind" (None/🟡/🟢), "points"}}
+    entries: watchlist (con levels per i 👤).
+    """
+    st_ = load_alert_state()
+    st_.setdefault("day_lock", {})
+    today = _now().date().isoformat()
+    out = []
     for e in entries:
         t = e["ticker"]
-        m = metrics.get(t)
-        if not m:
+        s = states.get(t)
+        if not s:
             continue
-        price = m["price"]
-
-        # Prezzo invariato → mercati chiusi → skip (niente duplicati)
-        if state["last_price"].get(t) == price:
-            continue
-        state["last_price"][t] = price
+        price = s["price"]
+        if st_["last_price"].get(t) == price:
+            continue  # mercati chiusi
+        st_["last_price"][t] = price
+        if st_["day_lock"].get(t) == today:
+            continue  # max 1 alert/giorno/titolo
 
         kinds = []
-        vwap = m.get("vwap")
-        if vwap and abs(price - vwap) / vwap <= 0.02:
-            kinds.append("VWAP_TOUCH")
-        lo, hi = m.get("poc_lo"), m.get("poc_hi")
-        if lo is not None and hi is not None and lo <= price <= hi:
-            kinds.append("POC_ZONE")
+        prev = s.get("prev_close")
+        for lvl, val in (e.get("levels") or {}).items():
+            if val and prev is not None and ((prev < val <= price) or (prev > val >= price)):
+                kinds.append((f"LIVELLO_{lvl}",
+                              f"📏 {t} chiude {price:.2f} e incrocia {lvl} @ {val:.2f}"))
+        if s.get("kind") == "🟡":
+            kinds.append(("CANDIDATO",
+                          f"🟡 {t} CANDIDATO ({s['points']}/6) @ {price:.2f}"))
+        if s.get("kind") == "🟢":
+            kinds.append(("INVERSIONE",
+                          f"🟢 {t} INVERSIONE IN ATTO ({s['points']}/6) @ {price:.2f}"))
 
-        for k in kinds:
-            key = f"{t}:{k}"
-            cd = cooldown_days(m.get("rsi", 50.0), price, vwap)
-            last = state["last_sent"].get(key)
+        fired = False
+        for kind, text in kinds:
+            key = f"{t}:{kind}"
+            last = st_["last_sent"].get(key)
             if last:
                 try:
-                    if (_now() - datetime.fromisoformat(last)).days < cd:
-                        continue
+                    if (_now() - datetime.fromisoformat(last)).days < 5:
+                        continue  # stessa tipologia: non prima di 5 giorni
                 except Exception:
                     pass
-            alert = {"ticker": t, "kind": k, "price": price,
-                     "rsi": m.get("rsi"), "ts": _now().isoformat()}
-            new_alerts.append(alert)
-            state["last_sent"][key] = _now().isoformat()
-            state["history"].append(alert)
-
-    state["history"] = state["history"][-200:]
-    save_alert_state(state)
-    return new_alerts
+            alert = {"ticker": t, "kind": kind, "price": price,
+                     "ts": _now().isoformat(), "text": text}
+            out.append(alert)
+            st_["last_sent"][key] = _now().isoformat()
+            st_["history"].append(alert)
+            fired = True
+        if fired:
+            st_["day_lock"][t] = today
+    st_["history"] = st_["history"][-200:]
+    save_alert_state(st_)
+    return out
 
 def send_telegram(text: str) -> bool:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
