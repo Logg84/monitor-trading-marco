@@ -34,10 +34,7 @@ def save_alert_state(state: dict) -> None:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 def check_alerts(entries: list[dict], states: dict) -> list[dict]:
-    """
-    states: {ticker: {"price", "prev_close", "kind" (None/🟡/🟢), "points"}}
-    entries: watchlist (con levels per i 👤).
-    """
+    """states: {ticker: {price, prev_close, kind (None/🟡/), points}}"""
     st_ = load_alert_state()
     st_.setdefault("day_lock", {})
     today = _now().date().isoformat()
@@ -49,10 +46,10 @@ def check_alerts(entries: list[dict], states: dict) -> list[dict]:
             continue
         price = s["price"]
         if st_["last_price"].get(t) == price:
-            continue  # mercati chiusi
+            continue
         st_["last_price"][t] = price
         if st_["day_lock"].get(t) == today:
-            continue  # max 1 alert/giorno/titolo
+            continue
 
         kinds = []
         prev = s.get("prev_close")
@@ -74,7 +71,7 @@ def check_alerts(entries: list[dict], states: dict) -> list[dict]:
             if last:
                 try:
                     if (_now() - datetime.fromisoformat(last)).days < 5:
-                        continue  # stessa tipologia: non prima di 5 giorni
+                        continue
                 except Exception:
                     pass
             alert = {"ticker": t, "kind": kind, "price": price,
