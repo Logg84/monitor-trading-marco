@@ -1,7 +1,8 @@
 """
-Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple,
-VWAP ancorati a minimi strutturali, Bottom Score, segnale, trimestrali,
-cache ultima scansione screening, universo, risoluzione ticker.
+Data engine: prezzi, indicatori, Health Check, ZONE VOLUMETRICHE multiple
+(soglia adattiva + larghezza massima), VWAP ancorati a minimi strutturali,
+Bottom Score, segnale, trimestrali, cache ultima scansione screening,
+universo, risoluzione ticker.
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
@@ -128,12 +129,36 @@ def vwap_anchored(df: pd.DataFrame, lookback: int = 60) -> float:
     return float(w["Close"].iloc[-1]) if np.isnan(val) else val
 
 # ── Zone volumetriche multiple ─────────────────────────────
+def _split_run(vps: np.ndarray, l: int, h: int, max_bins: int) -> list[tuple[int, int]]:
+    """Spezza una mensola troppo larga alla valle interna più profonda."""
+    segs = []
+    stack = [(l, h)]
+    while stack:
+        l, h = stack.pop()
+        w = h - l + 1
+        if w <= max_bins or w < 6:
+            segs.append((l, h))
+            continue
+        inner = vps[l + 1:h]
+        if inner.size == 0:
+            segs.append((l, h))
+            continue
+        m = l + 1 + int(np.argmin(inner))
+        stack.append((l, m))
+        stack.append((m, h))
+    return segs
+
 def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
-                 half_life_years: float = 4.0, min_share: float = 0.03) -> list[dict]:
+                 half_life_years: float = 4.0, min_share: float = 0.02,
+                 max_width_frac: float = 0.15) -> list[dict]:
     """
     Zone volumetriche su storico lungo.
-    Score = 100 · (0.6·dimensione_normalizzata + 0.4·recency),
-    recency = e^(−age/half_life). Zone = mensole del profilo, non un solo POC.
+    Regole:
+    - mensole = bin continui con volume ≥ soglia adattiva (70° percentile
+      dei volumi positivi);
+    - larghezza massima = 15% del range prezzo (split alle valli);
+    - score = 100 · (0.6·dimensione_normalizzata + 0.4·recency),
+      recency = e^(−age/half_life).
     """
     if wdf is None or len(wdf) < 40:
         return []
@@ -143,11 +168,11 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
     if total_vol <= 0:
         return []
     age = ((wdf.index[-1] - wdf.index).days / 365.25).to_numpy()
-    price_min, price_max = float(close.min()), float(close.max())
-    if price_max <= price_min:
+    pmin, pmax = float(close.min()), float(close.max())
+    if pmax <= pmin:
         return []
 
-    price_bins = np.linspace(price_min, price_max, bins + 1)
+    price_bins = np.linspace(pmin, pmax, bins + 1)
     idx = np.clip(np.searchsorted(price_bins, close.to_numpy(), side="right") - 1,
                   0, bins - 1)
     v = vol.to_numpy()
@@ -156,45 +181,45 @@ def volume_zones(wdf: pd.DataFrame, bins: int = 120, max_zones: int = 5,
 
     kern = np.array([0.25, 0.5, 0.25])
     vps = np.convolve(vp, kern, mode="same")
-    thr = 0.20 * vps.max()
+    pos = vps[vps > 0]
+    if pos.size == 0:
+        return []
+    thr = float(np.percentile(pos, 70))
+    max_bins = max(4, int(bins * max_width_frac))
 
-    peaks = [i for i in range(1, bins - 1)
-             if vps[i] >= thr and vps[i] >= vps[i - 1] and vps[i] >= vps[i + 1]]
-
+    above = vps >= thr
     zones = []
-    used = np.zeros(bins, dtype=bool)
-    for p in sorted(peaks, key=lambda i: -vps[i]):
-        if used[p]:
-            continue
-        lo_i, hi_i = p, p
-        while lo_i - 1 >= 0 and vps[lo_i - 1] >= 0.5 * vps[p] and not used[lo_i - 1]:
-            lo_i -= 1
-        while hi_i + 1 < bins and vps[hi_i + 1] >= 0.5 * vps[p] and not used[hi_i + 1]:
-            hi_i += 1
-        used[lo_i:hi_i + 1] = True
-        zv = float(vp[lo_i:hi_i + 1].sum())
-        share = zv / total_vol
-        if share < min_share:
-            continue
-        zage = float(va[lo_i:hi_i + 1].sum() / zv) if zv > 0 else float(age[-1])
-        center = float((price_bins[lo_i] + price_bins[hi_i + 1]) / 2)
-        zones.append({
-            "lo": float(price_bins[lo_i]),
-            "hi": float(price_bins[hi_i + 1]),
-            "center": center,
-            "share": float(share),
-            "age": zage,
-        })
+    i = 0
+    while i < bins:
+        if above[i]:
+            j = i
+            while j + 1 < bins and above[j + 1]:
+                j += 1
+            for (l, h) in _split_run(vps, i, j, max_bins):
+                zv = float(vp[l:h + 1].sum())
+                share = zv / total_vol
+                if share < min_share:
+                    continue
+                zage = float(va[l:h + 1].sum() / zv) if zv > 0 else float(age[-1])
+                zones.append({
+                    "lo": float(price_bins[l]),
+                    "hi": float(price_bins[h + 1]),
+                    "center": float((price_bins[l] + price_bins[h + 1]) / 2),
+                    "share": share,
+                    "age": zage,
+                })
+            i = j + 1
+        else:
+            i += 1
 
     if not zones:
         return []
 
-    max_share = max(z["share"] for z in zones)
+    mx = max(z["share"] for z in zones)
     for z in zones:
-        size_n = z["share"] / max_share
         rec = float(np.exp(-z["age"] / half_life_years))
         z["recency"] = rec
-        z["score"] = int(round(100 * (0.6 * size_n + 0.4 * rec)))
+        z["score"] = int(round(100 * (0.6 * (z["share"] / mx) + 0.4 * rec)))
 
     zones.sort(key=lambda z: -z["score"])
     return zones[:max_zones]
