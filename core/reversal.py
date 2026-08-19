@@ -1,8 +1,8 @@
 """
 Operazioni watchlist basate sul reversal state:
 - analyze_ticker: pacchetto completo per un ticker
-- auto_populate: promuove 🟡/🟢 dello screening in watchlist 🤖 (write-through GitHub)
-- prune_watchlist: uscite automatiche (🤖 e ) con persistenza 5 chiusure (write-through).
+- auto_populate: promuove 🟡/ dello screening in watchlist  (write-through GitHub)
+- prune_watchlist: uscite automatiche (🤖 e 👤) con persistenza 5 chiusure (write-through).
 Regole uscita (punti come da reversal_state, 🟡 a ≥2):
  🤖: (DD > −20% OR punti < 2) per 5 chiusure consecutive.
  👤: (punti < 2 AND chiusura < livello minimo inserito) per 5 chiusure consecutive.
@@ -38,14 +38,14 @@ def analyze_ticker(ticker: str) -> dict | None:
             "hc": hc, "es": es, "rev": rev}
 
 def auto_populate(rows) -> list[str]:
-    """Aggiunge in watchlist (🤖) i ticker 🟡/🟢 assenti. Ritorna i ticker aggiunti."""
+    """Aggiunge in watchlist (🤖) i ticker 🟡/ assenti. Ritorna i ticker aggiunti."""
     entries = load_watchlist()
     have = {e["ticker"] for e in entries}
     added = []
     for r in rows:
         sig = str(r.get("Segnale", ""))
         t = r["Ticker"]
-        if sig.startswith(("🟡", "🟢")) and t not in have:
+        if sig.startswith(("🟡", "")) and t not in have:
             try:
                 add_entry(t, origin="auto", poc=r.get("Z1c"))
                 added.append(t)
