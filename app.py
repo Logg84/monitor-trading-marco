@@ -1,6 +1,6 @@
 """
-Watchlist — home. Tabella 👤/🤖 con POC20y/zone/Δ%/segnale/trimestrali,
-flag stale, livelli L1/L2/L3, storico alert, analisi singola,
+Watchlist — home. Tabella 👤/🤖 con zone volumetriche, VWAP ancorati,
+segnale, trimestrali; livelli L1/L2/L3; storico alert; analisi singola;
 lettura grafico Groq (opzionale, manuale se non disponibile).
 """
 import streamlit as st
@@ -13,8 +13,8 @@ st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide",
 from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
-    get_prices, get_prices_long, atr, vwap_anchored, poc_zone,
-    poc_zone_from_profile, volume_profile, poc_long_weekly,
+    get_prices, get_prices_long, atr, vwap_anchored,
+    volume_zones, structural_anchors, earnings_dates_list,
     health_check, bottom_score, rebound_signal, earnings_snapshot,
     build_universe, resolve_ticker,
 )
@@ -32,41 +32,50 @@ inject_css(dark=st.session_state.dark_mode)
 render_navbar(title="Watchlist")
 sidebar_nav()
 
-# ── Analisi per ticker (una sola chiamata get_prices) ──────
+def zstr(z: dict | None) -> str:
+    if z is None:
+        return "—"
+    return f"{z['lo']:.2f}–{z['hi']:.2f} ·{z['score']}"
+
 def build_analysis(ticker: str) -> dict | None:
     try:
         df = get_prices(ticker)
     except Exception:
         return None
-    vwap = vwap_anchored(df)
+    vwap60 = vwap_anchored(df)
+    a20 = atr(df)
     price = float(df["Close"].iloc[-1])
     ath = float(df["Close"].max())
     dd = (price / ath - 1) * 100
-    a20 = atr(df)
-    bs = bottom_score(df, poc=vwap)
 
     try:
         wdf = get_prices_long(ticker)
-        pocL = poc_long_weekly(wdf)
     except Exception:
-        pocL = None
-    if pocL is None:
-        pocL = volume_profile(df)["poc"]
-    lo, hi = poc_zone(pocL, a20)
-    in_zone = bool(lo <= price <= hi)
+        wdf = df
+    zones = volume_zones(wdf)
+    anchors = structural_anchors(wdf, earnings=earnings_dates_list(ticker))
+    bs = bottom_score(df, zones=zones)
+
+    in_lbl = ""
+    for zi, z in enumerate(zones, 1):
+        if z["lo"] <= price <= z["hi"]:
+            in_lbl = f"Z{zi}"
+            break
+    vwa1 = anchors[0]["vwap"] if anchors else None
+    below = bool((vwa1 is not None and price <= vwa1) or price <= vwap60)
 
     return {
-        "df": df, "vwap": vwap, "pocL": pocL, "lo": lo, "hi": hi,
-        "in_zone": in_zone, "bs": bs, "price": price, "dd": dd,
-        "signal": rebound_signal(dd, bs["decel"], bs["rsi"], in_zone, price <= vwap),
+        "df": df, "vwap60": vwap60, "zones": zones, "anchors": anchors,
+        "bs": bs, "price": price, "dd": dd, "in_lbl": in_lbl,
+        "signal": rebound_signal(dd, bs["decel"], bs["rsi"], bool(in_lbl), below),
         "es": earnings_snapshot(ticker),
     }
 
 st.markdown("## Watchlist")
 st.caption(
-    "POC20y: volume profile su storico settimanale lungo. Zona: ±0.6·ATR(20). "
-    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWAP). "
-    "Lettura, mai ordine."
+    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
+    "VWA1-3: VWAP ancorati a minimi strutturali (≥26 sett. apart), bonus se a ±30gg da trimestrale. "
+    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). Lettura, mai ordine."
 )
 entries = load_watchlist()
 
@@ -77,11 +86,12 @@ for e in entries:
         analyses[e["ticker"]] = a
 
 metrics = {
-    t: {"vwap": round(a["vwap"], 4), "poc_auto": round(a["pocL"], 4),
+    t: {"vwap": round(a["vwap60"], 4),
+        "poc_auto": round(a["zones"][0]["center"], 4) if a["zones"] else None,
         "drawdown": a["dd"]}
     for t, a in analyses.items()
 }
-entries, msgs = reconcile(entries, metrics)
+entries, msgs = reconcile(entries, {k: v for k, v in metrics.items() if v})
 for m in msgs:
     st.warning(m)
 
@@ -106,18 +116,20 @@ else:
             continue
         es = a["es"]
         trim = "✅" if es["positive"] is True else ("❌" if es["positive"] is False else "n/d")
+        vwa1 = a["anchors"][0]["vwap"] if a["anchors"] else None
         rows.append({
             "Orig.": "👤" if e["origin"] == "manual" else "🤖",
             "Ticker": e["ticker"],
             "Prezzo": round(a["price"], 2),
             "DD%": round(a["dd"], 1),
             "RSI": round(a["bs"]["rsi"], 0),
-            "VWAP": f"{e['vwap']:.2f}" if e.get("vwap") else "—",
-            "ΔVWAP%": round((a["price"] / a["vwap"] - 1) * 100, 1) if a["vwap"] else None,
-            "POC20y": f"{a['pocL']:.2f}",
-            "Zona POC": f"{a['lo']:.2f}–{a['hi']:.2f}",
-            "ΔPOC%": round((a["price"] / a["pocL"] - 1) * 100, 1) if a["pocL"] else None,
-            "In zona": "✅" if a["in_zone"] else "",
+            "VWAP60": round(a["vwap60"], 2),
+            "VWA1": round(vwa1, 2) if vwa1 else "—",
+            "VWA2": round(a["anchors"][1]["vwap"], 2) if len(a["anchors"]) > 1 else "—",
+            "VWA3": round(a["anchors"][2]["vwap"], 2) if len(a["anchors"]) > 2 else "—",
+            "Z1": zstr(a["zones"][0] if a["zones"] else None),
+            "Z2": zstr(a["zones"][1] if len(a["zones"]) > 1 else None),
+            "In zona": a["in_lbl"],
             "Segnale": a["signal"],
             "Trim.": trim,
             "Bottom": a["bs"]["score"],
@@ -128,7 +140,7 @@ else:
         sc1, sc2 = st.columns([2, 1])
         sort_col = sc1.selectbox(
             "Ordina per",
-            ["Bottom", "DD%", "RSI", "Prezzo", "ΔPOC%", "ΔVWAP%", "Ticker"],
+            ["Bottom", "DD%", "RSI", "Prezzo", "VWA1", "Ticker"],
             index=0, key="wl_sort",
         )
         sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"],
@@ -156,7 +168,6 @@ else:
         else:
             df = a["df"]
             price = a["price"]
-            pocL, lo, hi = a["pocL"], a["lo"], a["hi"]
             bs = a["bs"]
             hc = health_check(sel)
 
@@ -170,18 +181,29 @@ else:
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Close",
                                      line=dict(color=col["accent"], width=1.5)))
-            fig.add_hrect(y0=lo, y1=hi, fillcolor=col["warning"], opacity=0.15,
-                          line_width=0, annotation_text="Zona POC20y")
-            fig.add_hline(y=pocL, line_color=col["text"], line_dash="dash",
-                          annotation_text=f"POC20y {'👤' if sel_entry.get('poc_origin') == 'manual' else '🤖'}")
-            if sel_entry.get("vwap"):
-                fig.add_hline(y=sel_entry["vwap"], line_color=col["positive"],
-                              line_dash="dot", annotation_text="VWAP")
+            ylo = float(df["Low"].min()) * 0.97
+            yhi = float(df["High"].max()) * 1.03
+            for zi, z in enumerate(a["zones"][:3], 1):
+                if z["hi"] < ylo or z["lo"] > yhi:
+                    continue
+                fig.add_hrect(y0=z["lo"], y1=z["hi"], fillcolor=col["warning"],
+                              opacity=0.08 + 0.20 * z["score"] / 100,
+                              line_width=0, annotation_text=f"Z{zi} ·{z['score']}")
+            for an in a["anchors"]:
+                if ylo <= an["vwap"] <= yhi:
+                    tag = f"{an['label']} {an['date'].strftime('%m/%y')}"
+                    if an["near"]:
+                        tag += " 📅"
+                    fig.add_hline(y=an["vwap"], line_color=col["positive"],
+                                  line_dash="dot", annotation_text=tag)
+            fig.add_hline(y=a["vwap60"], line_color=col["text_muted"],
+                          line_dash="dot", annotation_text="VWAP60")
             levels = sel_entry.get("levels", {})
             for lvl_name, lvl_val in levels.items():
                 if lvl_val and lvl_val > 0:
-                    fig.add_hline(y=lvl_val, line_color=col["accent"], line_dash="solid",
-                                  annotation_text=f"{lvl_name} (👤)")
+                    fig.add_hline(y=lvl_val, line_color=col["accent"],
+                                  line_dash="solid", annotation_text=f"{lvl_name} (👤)")
+            fig.update_yaxes(range=[ylo, yhi])
             style_fig(fig, st.session_state.dark_mode, height=420)
             st.plotly_chart(fig, use_container_width=True)
 
@@ -211,10 +233,9 @@ else:
                     st.caption(f"Ricavi ultimi 12 mesi vs anno prima: {es['rev_yoy']:+.1f}%")
                 if es["quarters"] is not None and len(es["quarters"]) >= 2:
                     q = es["quarters"].iloc[-8:]
-                    figq = go.Figure(go.Bar(
-                        x=[str(c.date()) for c in q.index],
-                        y=q.values / 1e9,
-                        marker_color=col["accent"]))
+                    figq = go.Figure(go.Bar(x=[str(c.date()) for c in q.index],
+                                            y=q.values / 1e9,
+                                            marker_color=col["accent"]))
                     style_fig(figq, st.session_state.dark_mode, height=240)
                     st.plotly_chart(figq, use_container_width=True)
                     st.caption("Ricavi trimestrali, miliardi.")
@@ -258,18 +279,13 @@ if ticker:
         st.error(f"Dati non disponibili per {ticker}: {e}")
         st.stop()
 
-    price = float(df["Close"].iloc[-1])
-    vwap = vwap_anchored(df)
-    a20 = atr(df)
-    try:
-        wdf = get_prices_long(ticker)
-        pocL = poc_long_weekly(wdf)
-    except Exception:
-        pocL = None
-    if pocL is None:
-        pocL = volume_profile(df)["poc"]
-    lo, hi = poc_zone(pocL, a20)
-    bs = bottom_score(df, poc=pocL)
+    a = build_analysis(ticker)
+    if a is None:
+        st.error(f"Analisi non disponibile per {ticker}.")
+        st.stop()
+
+    price = a["price"]
+    bs = a["bs"]
     hc = health_check(ticker)
 
     c1, c2, c3, c4 = st.columns(4)
@@ -279,31 +295,45 @@ if ticker:
     c3.metric("Health", f"{hc['score']}/100")
     c4.metric("Bottom Score", f"{bs['score']}/100")
 
+    vwa = a["anchors"]
     c5, c6, c7, c8 = st.columns(4)
     c5.metric("RSI(14)", f"{bs['rsi']:.0f}")
-    c6.metric("VWAP(60)", f"{vwap:,.2f}")
-    c7.metric("POC20y", f"{pocL:,.2f}")
-    c8.metric("Zona POC20y", f"{lo:.2f} – {hi:.2f}")
+    c6.metric("VWAP60", f"{a['vwap60']:,.2f}")
+    c7.metric("VWA1", f"{vwa[0]['vwap']:,.2f}" if vwa else "—")
+    c8.metric("VWA2", f"{vwa[1]['vwap']:,.2f}" if len(vwa) > 1 else "—")
 
     col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Close",
                              line=dict(color=col["accent"], width=1.5)))
-    fig.add_hrect(y0=lo, y1=hi, fillcolor=col["warning"], opacity=0.15,
-                  line_width=0, annotation_text="Zona POC20y")
-    fig.add_hline(y=pocL, line_color=col["text_muted"], line_dash="dash",
-                  annotation_text="POC20y")
-    fig.add_hline(y=vwap, line_color=col["positive"], line_dash="dot",
-                  annotation_text="VWAP")
+    ylo = float(df["Low"].min()) * 0.97
+    yhi = float(df["High"].max()) * 1.03
+    for zi, z in enumerate(a["zones"][:3], 1):
+        if z["hi"] < ylo or z["lo"] > yhi:
+            continue
+        fig.add_hrect(y0=z["lo"], y1=z["hi"], fillcolor=col["warning"],
+                      opacity=0.08 + 0.20 * z["score"] / 100,
+                      line_width=0, annotation_text=f"Z{zi} ·{z['score']}")
+    for an in a["anchors"]:
+        if ylo <= an["vwap"] <= yhi:
+            tag = f"{an['label']} {an['date'].strftime('%m/%y')}"
+            if an["near"]:
+                tag += " 📅"
+            fig.add_hline(y=an["vwap"], line_color=col["positive"],
+                          line_dash="dot", annotation_text=tag)
+    fig.add_hline(y=a["vwap60"], line_color=col["text_muted"],
+                  line_dash="dot", annotation_text="VWAP60")
+    fig.update_yaxes(range=[ylo, yhi])
     style_fig(fig, st.session_state.dark_mode, height=420)
     st.plotly_chart(fig, use_container_width=True)
 
     if st.button("➕ Promuovi in watchlist (🤖 auto)", type="primary"):
-        add_entry(ticker, origin="auto", poc=pocL)
+        add_entry(ticker, origin="auto",
+                  poc=a["zones"][0]["center"] if a["zones"] else None)
         st.success(f"{ticker} promosso in watchlist come 🤖")
 
     with st.expander("📅 Trimestrali"):
-        es = earnings_snapshot(ticker)
+        es = a["es"]
         if es["positive"] is True:
             st.success("Ultima trimestrale: positiva.")
         elif es["positive"] is False:
@@ -312,10 +342,9 @@ if ticker:
             st.caption("Trimestrali: dati non disponibili (n/d).")
         if es["quarters"] is not None and len(es["quarters"]) >= 2:
             q = es["quarters"].iloc[-8:]
-            figq = go.Figure(go.Bar(
-                x=[str(c.date()) for c in q.index],
-                y=q.values / 1e9,
-                marker_color=col["accent"]))
+            figq = go.Figure(go.Bar(x=[str(c.date()) for c in q.index],
+                                    y=q.values / 1e9,
+                                    marker_color=col["accent"]))
             style_fig(figq, st.session_state.dark_mode, height=240)
             st.plotly_chart(figq, use_container_width=True)
             st.caption("Ricavi trimestrali, miliardi.")
@@ -344,8 +373,8 @@ if ticker:
                     status.update(label="Motore non disponibile", state="error")
                     st.warning(
                         f"Lettura automatica non disponibile ({e}). "
-                        "Si passa alla lettura manuale: i livelli calcolati "
-                        "(POC20y, zona, VWAP) restano a video."
+                        "Si passa alla lettura manuale: zone e VWAP calcolati "
+                        "restano a video."
                     )
                     res = None
 
@@ -367,6 +396,6 @@ if ticker:
                     st.code(res["text"])
                 st.caption(
                     "Lettura automatica: può contenere errori, soprattutto sui "
-                    "prezzi esatti. I livelli del portale restano la fonte di "
+                    "prezzi esatti. Le zone del portale restano la fonte di "
                     "verità. Mai usare come ordine."
                 )
