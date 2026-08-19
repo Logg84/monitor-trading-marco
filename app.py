@@ -1,7 +1,7 @@
 """
-Watchlist — home. Tabella 👤/🤖 con zone volumetriche, VWAP ancorati,
-segnale, trimestrali; livelli L1/L2/L3; storico alert; analisi singola;
-lettura grafico Groq (opzionale, manuale se non disponibile).
+Watchlist — home. Tabella 👤/🤖 con Nome società, zone volumetriche,
+VWAP ancorati, segnale, trimestrali; livelli L1/L2/L3; storico alert;
+analisi singola; lettura grafico Groq (opzionale, manuale se non disponibile).
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -14,7 +14,7 @@ from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     get_prices, get_prices_long, atr, vwap_anchored,
-    volume_zones, structural_anchors, earnings_dates_list,
+    volume_zones, structural_anchors, earnings_dates_list, company_name,
     health_check, bottom_score, rebound_signal, earnings_snapshot,
     build_universe, resolve_ticker,
 )
@@ -120,6 +120,7 @@ else:
         rows.append({
             "Orig.": "👤" if e["origin"] == "manual" else "🤖",
             "Ticker": e["ticker"],
+            "Nome": company_name(e["ticker"]),
             "Prezzo": round(a["price"], 2),
             "DD%": round(a["dd"], 1),
             "RSI": round(a["bs"]["rsi"], 0),
@@ -140,7 +141,7 @@ else:
         sc1, sc2 = st.columns([2, 1])
         sort_col = sc1.selectbox(
             "Ordina per",
-            ["Bottom", "DD%", "RSI", "Prezzo", "VWA1", "Ticker"],
+            ["Bottom", "DD%", "RSI", "Prezzo", "VWA1", "Nome", "Ticker"],
             index=0, key="wl_sort",
         )
         sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"],
@@ -273,17 +274,12 @@ else:
             st.caption(f"Risolto come {ticker}")
 
 if ticker:
-    try:
-        df = get_prices(ticker)
-    except Exception as e:
-        st.error(f"Dati non disponibili per {ticker}: {e}")
-        st.stop()
-
     a = build_analysis(ticker)
     if a is None:
-        st.error(f"Analisi non disponibile per {ticker}.")
+        st.error(f"Dati non disponibili per {ticker}.")
         st.stop()
 
+    df = a["df"]
     price = a["price"]
     bs = a["bs"]
     hc = health_check(ticker)
