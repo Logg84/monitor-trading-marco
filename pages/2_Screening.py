@@ -46,16 +46,19 @@ if run:
 
     if index_name == ALL_INDICES:
         per_index = {}
-        tickers = []
+        raw_tickers = []
         for n in available:
             tks = load_index_constituents(n)
             per_index[n] = len(tks)
-            tickers.extend(tks)
-        tickers = sorted(set(tickers))
+            raw_tickers.extend(tks)
+        gross = len(raw_tickers)
+        tickers = sorted(set(raw_tickers))
         st.session_state["screening_per_index"] = per_index
+        st.session_state["screening_gross"] = gross
     else:
         tickers = load_index_constituents(index_name)
         st.session_state["screening_per_index"] = {index_name: len(tickers)}
+        st.session_state["screening_gross"] = len(tickers)
 
     if not tickers:
         st.error(
@@ -72,6 +75,7 @@ if run:
 df = st.session_state.get("screening_result")
 diagnostics = st.session_state.get("screening_diagnostics")
 per_index = st.session_state.get("screening_per_index")
+gross = st.session_state.get("screening_gross")
 
 if df is None or df.empty:
     if diagnostics and diagnostics.get("total", 0) > 0:
@@ -83,16 +87,29 @@ if df is None or df.empty:
         st.info("Nessun risultato in memoria. Avvia lo screening.")
     st.stop()
 
-# ── Diagnostica ────────────────────────────────────────────
+# ── Diagnostica conteggi ───────────────────────────────────
 if per_index:
     detail = " · ".join(f"{k}: {v}" for k, v in sorted(per_index.items()))
     st.caption(f"Costituenti per indice → {detail}")
 
 if diagnostics:
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Titoli indice", diagnostics["total"])
-    m2.metric("Titoli validi", diagnostics["valid"])
-    m3.metric("Titoli scartati", diagnostics["discarded"])
+    unici = diagnostics["total"]
+    lordi = gross if gross is not None else unici
+    duplicati = max(0, lordi - unici)
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Costituenti lordi", lordi)
+    m2.metric("Titoli unici", unici)
+    m3.metric("Duplicati tra indici", duplicati)
+    m4.metric("Titoli validi", diagnostics["valid"])
+    m5.metric("Scartati download", diagnostics["discarded"])
+
+    if duplicati > 0:
+        st.caption(
+            "I 'duplicati tra indici' sono titoli presenti in più indici "
+            "(es. AAPL in SP500 e NASDAQ100): nello screening unificato "
+            "vengono analizzati una sola volta."
+        )
 
 # ── Filtri: alert è sottoinsieme di "in sconto" ────────────
 discount = df[df["DD%"] <= -20].copy()
