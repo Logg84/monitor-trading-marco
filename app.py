@@ -1,7 +1,7 @@
 """
-Watchlist — home. Tabella 👤/🤖 con Nome società, zone volumetriche,
-VWAP ancorati, segnale, trimestrali; livelli L1/L2/L3; storico alert;
-analisi singola; lettura grafico Groq (opzionale, manuale se non disponibile).
+Watchlist — home. Tabella 👤/🤖 cliccabile con Nome società, zone
+volumetriche, VWAP ancorati, segnale, trimestrali; livelli L1/L2/L3;
+storico alert; analisi singola; lettura grafico Groq (opzionale).
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -75,7 +75,8 @@ st.markdown("## Watchlist")
 st.caption(
     "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
     "VWA1-3: VWAP ancorati a minimi strutturali (≥26 sett. apart), bonus se a ±30gg da trimestrale. "
-    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). Lettura, mai ordine."
+    "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
+    "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
 )
 entries = load_watchlist()
 
@@ -149,9 +150,20 @@ else:
         df_w = pd.DataFrame(rows).sort_values(
             sort_col, ascending=(sort_dir == "Ascendente")
         ).reset_index(drop=True)
-        st.dataframe(df_w, use_container_width=True, hide_index=True)
+        ev_w = st.dataframe(df_w, use_container_width=True, hide_index=True,
+                            on_select="rerun", selection_mode="single-row",
+                            key="tbl_watchlist")
 
-    sel = st.selectbox("Titolo da analizzare", [e["ticker"] for e in entries])
+        rows_sel = list(ev_w.selection["rows"]) if ev_w is not None and ev_w.selection else []
+        prev = st.session_state.get("prevsel_wl")
+        if rows_sel != prev:
+            st.session_state["prevsel_wl"] = rows_sel
+            if rows_sel and rows_sel[0] < len(df_w):
+                st.session_state["wl_sel"] = df_w.iloc[rows_sel[0]]["Ticker"]
+
+    entry_tickers = [e["ticker"] for e in entries]
+    stored = st.session_state.get("wl_sel")
+    sel = stored if stored in entry_tickers else entry_tickers[0]
     sel_entry = next((e for e in entries if e["ticker"] == sel), None)
 
     if sel_entry is not None:
