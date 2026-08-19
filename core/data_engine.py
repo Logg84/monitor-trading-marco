@@ -4,9 +4,7 @@ VWAP, Bottom Score, universo, risoluzione ticker.
 Ogni funzione è pura e cachata; nessuna decisione, solo letture.
 """
 from __future__ import annotations
-
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -28,7 +26,7 @@ def get_prices(ticker: str, period: str = "2y", interval: str = "1d") -> pd.Data
         raise ValueError(f"Nessun dato per {ticker}")
     df.index = pd.to_datetime(df.index)
     df = df[["Open", "High", "Low", "Close", "Volume"]]
-    df = df.dropna(subset=["Close"])          # niente righe sporche a valle
+    df = df.dropna(subset=["Close"])
     if df.empty:
         raise ValueError(f"Nessun dato valido per {ticker}")
     return df
@@ -79,28 +77,22 @@ def volume_profile(df: pd.DataFrame, bins: int = 50) -> dict:
     price_min, price_max = float(close.min()), float(close.max())
     price_bins = np.linspace(price_min, price_max, bins + 1)
     vol_profile = np.zeros(bins)
-
     prices = close.to_numpy()
     volumes = vol.to_numpy()
     idx = np.clip(np.searchsorted(price_bins, prices, side="right") - 1, 0, bins - 1)
     for i in range(bins):
         vol_profile[i] = float(np.nansum(volumes[idx == i]))
-
     if vol_profile.sum() == 0:
         return {"poc": float(close.iloc[-1]), "hvn": [], "lvn": [],
                 "profile": vol_profile, "bins": price_bins}
-
     poc_idx = int(np.argmax(vol_profile))
     poc_price = float((price_bins[poc_idx] + price_bins[poc_idx + 1]) / 2)
-
     threshold_high = np.percentile(vol_profile, 75)
     threshold_low = np.percentile(vol_profile, 25)
-
     hvn = [(float(price_bins[i]), float(price_bins[i + 1]))
            for i, v in enumerate(vol_profile) if v >= threshold_high]
     lvn = [(float(price_bins[i]), float(price_bins[i + 1]))
            for i, v in enumerate(vol_profile) if 0 < v <= threshold_low]
-
     return {"poc": poc_price, "hvn": hvn, "lvn": lvn,
             "profile": vol_profile, "bins": price_bins}
 
@@ -121,30 +113,30 @@ def get_info(ticker: str) -> dict:
 def health_check(ticker: str) -> dict:
     info = get_info(ticker)
     checks = []
-
+    
     def add(name: str, ok: bool, detail: str) -> None:
         checks.append({"name": name, "ok": bool(ok), "detail": detail})
-
+    
     roe = info.get("returnOnEquity")
     add("ROE ≥ 15%", roe is not None and roe >= 0.15,
         f"{roe:.1%}" if roe is not None else "n/d")
-
+    
     de = info.get("debtToEquity")
     add("D/E ≤ 100", de is not None and de <= 100,
         f"{de:.0f}" if de is not None else "n/d")
-
+    
     om = info.get("operatingMargins")
     add("Margine operativo ≥ 10%", om is not None and om >= 0.10,
         f"{om:.1%}" if om is not None else "n/d")
-
+    
     rg = info.get("revenueGrowth")
     add("Crescita ricavi > 0", rg is not None and rg > 0,
         f"{rg:.1%}" if rg is not None else "n/d")
-
+    
     fc = info.get("freeCashflow")
     add("FCF positivo", fc is not None and fc > 0,
         f"{fc/1e9:.1f}B" if fc is not None else "n/d")
-
+    
     score = int(round(100 * sum(c["ok"] for c in checks) / len(checks)))
     return {"ticker": ticker, "score": score, "checks": checks}
 
@@ -156,28 +148,30 @@ def bottom_score(df: pd.DataFrame, poc: float | None = None, f: float = 0.6) -> 
                 "decel": 0.0,
                 "components": {"drawdown": 0.0, "rsi": 50.0,
                                "poc": 50.0, "decel": 50.0}}
-
+    
     price = float(close.iloc[-1])
     ath = float(close.max())
     drawdown = (price / ath - 1) * 100.0
-
+    
     r = float(rsi(close).iloc[-1])
     if np.isnan(r):
         r = 50.0
-
+    
     a = atr(df)
-
     roc = close.pct_change(10) * 100
     roc_now = float(roc.iloc[-1])
     if np.isnan(roc_now):
         roc_now = 0.0
+    
     roc_prev = float(roc.iloc[-11]) if len(roc) > 11 else roc_now
     if np.isnan(roc_prev):
         roc_prev = roc_now
+    
     decel = roc_now - roc_prev
-
+    
     dd_c = float(np.clip(-drawdown / 0.6, 0, 100))
     rsi_c = float(np.clip((70 - r) / 0.4, 0, 100))
+    
     if poc is not None and a > 0:
         lo, hi = poc_zone(poc, a, f)
         if lo <= price <= hi:
@@ -187,16 +181,17 @@ def bottom_score(df: pd.DataFrame, poc: float | None = None, f: float = 0.6) -> 
             poc_c = float(np.clip(100 - dist * 25, 0, 100))
     else:
         poc_c = 50.0
+    
     decel_c = float(np.clip(50 + decel * 5, 0, 100))
-
+    
     components = {"drawdown": dd_c, "rsi": rsi_c, "poc": poc_c, "decel": decel_c}
     components = {k: (0.0 if np.isnan(v) else float(v))
                   for k, v in components.items()}
-
+    
     total = (0.4 * components["drawdown"] + 0.2 * components["rsi"] +
              0.2 * components["poc"] + 0.2 * components["decel"])
     score = int(round(float(np.nan_to_num(total))))
-
+    
     return {"score": score, "drawdown": drawdown, "rsi": r,
             "roc10": roc_now, "decel": decel, "components": components}
 
@@ -210,9 +205,23 @@ def load_index_constituents(name: str) -> list[str]:
         return [str(t).strip() for t in df[col].tolist()]
     return DEFAULT_SAMPLE.get(name, [])
 
-def screening(tickers: list[str]) -> pd.DataFrame:
-    data = download_closes(tuple(tickers))
+def screening(tickers: list[str]) -> tuple[pd.DataFrame, dict]:
+    """
+    Esegue screening su una lista di ticker.
+    
+    Returns:
+        tuple: (DataFrame con risultati, dict con diagnostica)
+    """
+    total_tickers = len(tickers)
+    
+    try:
+        data = download_closes(tuple(tickers))
+    except Exception:
+        return pd.DataFrame(), {"total": total_tickers, "valid": 0, "discarded": total_tickers}
+    
     rows = []
+    valid_count = 0
+    
     for t in tickers:
         try:
             c = data["Close"][t].dropna()
@@ -223,10 +232,12 @@ def screening(tickers: list[str]) -> pd.DataFrame:
             sub["High"] = sub["Close"]
             sub["Low"] = sub["Close"]
             sub["Volume"] = v.reindex(c.index)
+            
             price = float(c.iloc[-1])
             vwap = vwap_anchored(sub)
             bs = bottom_score(sub, poc=vwap)
             hc = health_check(t)
+            
             rows.append({
                 "Ticker": t,
                 "Prezzo": round(price, 2),
@@ -236,12 +247,21 @@ def screening(tickers: list[str]) -> pd.DataFrame:
                 "Health": hc["score"],
                 "Bottom": bs["score"],
             })
+            valid_count += 1
         except Exception:
             continue
+    
     out = pd.DataFrame(rows)
     if not out.empty:
         out = out.sort_values("Bottom", ascending=False).reset_index(drop=True)
-    return out
+    
+    diagnostics = {
+        "total": total_tickers,
+        "valid": valid_count,
+        "discarded": total_tickers - valid_count
+    }
+    
+    return out, diagnostics
 
 # ── Universo & risoluzione ticker ──────────────────────────
 SUFFIXES = ["", ".MI", ".PA", ".DE", ".MC", ".AS", ".L", ".SW", ".ST", ".BR"]
