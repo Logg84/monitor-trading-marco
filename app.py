@@ -1,8 +1,8 @@
 """
 Watchlist — home. Tabella 👤/ cliccabile con Nome società, zone
-volumetriche, VWAP ancorati, segnale, trimestrali; aggiunta manuale con
-3 livelli personali (L1/L2/L3); storico alert; analisi singola.
-Nessun motore immagini: lettura grafica manuale.
+volumetriche (vincolo ATR), VWAP ancorati, segnale, trimestrali; aggiunta
+manuale con 3 livelli personali (L1/L2/L3, reattivi per alert futuri);
+storico alert; analisi singola. Nessun motore immagini: lettura manuale.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -61,7 +61,7 @@ def build_analysis(ticker: str) -> dict | None:
         wdf = get_prices_long(ticker)
     except Exception:
         wdf = df
-    zones = volume_zones(wdf)
+    zones = volume_zones(wdf, atr20=a20)
     anchors = structural_anchors(wdf, earnings=earnings_dates_list(ticker))
     bs = bottom_score(df, zones=zones)
 
@@ -82,7 +82,8 @@ def build_analysis(ticker: str) -> dict | None:
 
 st.markdown("## Watchlist")
 st.caption(
-    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y). "
+    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
+    "larghezza max = min(15% range, 8×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali (≥26 sett. apart), bonus se a ±30gg da trimestrale. "
     "Segnale 🟢 = DD≤−20% + decel>0 + RSI<45 + (in zona o ≤VWA1). "
     "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
@@ -126,7 +127,7 @@ with st.expander("➕ Aggiungi titolo (👤 manuale)"):
             if lv:
                 update_levels(t, lv)
             st.rerun()
-    st.caption("L1/L2/L3 sono i tuoi livelli personali: non entrano nel calcolo di zone volumetriche o VWAP; vengono disegnati sul grafico.")
+    st.caption("L1/L2/L3 sono i tuoi livelli personali: non entrano nel calcolo di zone volumetriche o VWAP; vengono disegnati sul grafico e saranno reattivi per gli alert.")
 
 if not entries:
     st.info("Watchlist vuota. Aggiungi un titolo o promuovilo dallo Screening.")
