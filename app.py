@@ -1,7 +1,8 @@
 """
-Watchlist — home. Tabella 👤/🤖 cliccabile con Nome società, zone
-volumetriche, VWAP ancorati, segnale, trimestrali; livelli L1/L2/L3;
-storico alert; lettura grafico Groq in alto; analisi singola.
+Watchlist — home. Tabella 👤/ cliccabile con Nome società, zone
+volumetriche, VWAP ancorati, segnale, trimestrali; aggiunta manuale con
+3 livelli personali (L1/L2/L3); storico alert; analisi singola.
+Nessun motore immagini: lettura grafica manuale.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -23,7 +24,6 @@ from core.watchlist_io import (
     is_stale, reconcile,
 )
 from core.alerts import load_alert_state
-from core.vision import read_chart
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -36,6 +36,15 @@ def zstr(z: dict | None) -> str:
     if z is None:
         return "—"
     return f"{z['lo']:.2f}–{z['hi']:.2f} ·{z['score']}"
+
+def zones_caption(zones: list[dict]) -> None:
+    if zones:
+        ztxt = " · ".join(
+            f"Z{i} {z['lo']:.2f}–{z['hi']:.2f} ·{z['score']}"
+            for i, z in enumerate(zones[:3], 1))
+        st.caption(f"Zone volumetriche trovate: {ztxt}")
+    else:
+        st.caption("Zone volumetriche: nessuna mensola significativa sullo storico lungo.")
 
 def build_analysis(ticker: str) -> dict | None:
     try:
@@ -98,56 +107,26 @@ for m in msgs:
 
 with st.expander("➕ Aggiungi titolo (👤 manuale)"):
     with st.form("add_form"):
-        c1, c2 = st.columns([2, 1])
+        c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
         new_ticker = c1.text_input("Ticker (es. CPR.MI o CPR)", value="")
-        new_poc = c2.number_input("POC manuale (opzionale)", value=0.0, step=0.1)
+        l1 = c2.number_input("L1 (supporto forte)", value=0.0, step=0.1)
+        l2 = c3.number_input("L2 (supporto medio)", value=0.0, step=0.1)
+        l3 = c4.number_input("L3 (resistenza)", value=0.0, step=0.1)
         submitted = st.form_submit_button("Aggiungi", type="primary")
         if submitted and new_ticker.strip():
             t = resolve_ticker(new_ticker) or new_ticker.strip().upper()
-            add_entry(t, origin="manual", poc=new_poc if new_poc > 0 else None)
+            add_entry(t, origin="manual")
+            lv = {}
+            if l1 > 0:
+                lv["L1"] = l1
+            if l2 > 0:
+                lv["L2"] = l2
+            if l3 > 0:
+                lv["L3"] = l3
+            if lv:
+                update_levels(t, lv)
             st.rerun()
-
-# ── Lettura grafico Groq (unica, non critica) — in alto ────
-with st.expander("📷 Lettura grafico (Groq, opzionale)"):
-    up = st.file_uploader("Screenshot grafico (PNG/JPG/WEBP)",
-                          type=["png", "jpg", "jpeg", "webp"], key="vision_up")
-    if st.button("Leggi grafico", type="primary",
-                 disabled=(up is None), key="vision_run"):
-        with st.status("Lettura in corso…", expanded=True) as status:
-            try:
-                res = read_chart(up.getvalue(), mime=up.type or "image/png")
-                status.update(label=f"Lettura completata ({res['model']})",
-                              state="complete")
-            except Exception as e:
-                status.update(label="Motore non disponibile", state="error")
-                st.warning(
-                    f"Lettura automatica non disponibile ({e}). "
-                    "Si passa alla lettura manuale: zone e VWAP calcolati "
-                    "restano a video."
-                )
-                res = None
-
-        if res is not None:
-            j = res.get("json")
-            if j:
-                v1, v2 = st.columns(2)
-                v1.markdown(f"**Trend breve**: {j.get('trend_breve', 'n/d')}")
-                v1.markdown(f"**Trend medio**: {j.get('trend_medio', 'n/d')}")
-                v2.markdown(f"**Prezzo vs VWAP**: {j.get('prezzo_vs_vwap', 'n/d')}")
-                v2.markdown(f"**Zona volumi**: {j.get('zona_volumi', 'n/d')}")
-                lv = j.get("livelli_chiave") or []
-                if lv:
-                    st.markdown("**Livelli chiave**: " + " · ".join(str(x) for x in lv))
-                if j.get("incoerenze"):
-                    st.markdown(f"**Incoerenze**: {j['incoerenze']}")
-                st.markdown(f"**Sintesi**: {j.get('sintesi', '')}")
-            else:
-                st.code(res["text"])
-            st.caption(
-                "Lettura automatica: può contenere errori, soprattutto sui "
-                "prezzi esatti. Le zone del portale restano la fonte di "
-                "verità. Mai usare come ordine."
-            )
+    st.caption("L1/L2/L3 sono i tuoi livelli personali: non entrano nel calcolo di zone volumetriche o VWAP; vengono disegnati sul grafico.")
 
 if not entries:
     st.info("Watchlist vuota. Aggiungi un titolo o promuovilo dallo Screening.")
@@ -261,6 +240,7 @@ else:
             fig.update_yaxes(range=[ylo, yhi])
             style_fig(fig, st.session_state.dark_mode, height=420)
             st.plotly_chart(fig, use_container_width=True)
+            zones_caption(a["zones"])
 
             with st.expander("Livelli manuali (👤)"):
                 with st.form("levels_form"):
@@ -376,6 +356,7 @@ if ticker:
     fig.update_yaxes(range=[ylo, yhi])
     style_fig(fig, st.session_state.dark_mode, height=420)
     st.plotly_chart(fig, use_container_width=True)
+    zones_caption(a["zones"])
 
     if st.button("➕ Promuovi in watchlist (🤖 auto)", type="primary"):
         add_entry(ticker, origin="auto",
