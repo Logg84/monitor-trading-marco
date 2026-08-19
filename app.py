@@ -1,8 +1,9 @@
 """
-Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
+Watchlist — home. Pruning automatico (🤖 e ), tabella cliccabile con Nome,
 link TradingView, zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali;
 aggiunta manuale con L1/L2/L3; storico alert; analisi singola.
-Write-through GitHub: le modifiche sopravvivono ai redeploy.
+Write-through GitHub con circuito di protezione: reconcile/prune non possono
+pubblicare una watchlist vuota (solo azioni esplicite dell'utente).
 Lettura, mai ordine — non è consulenza.
 """
 import streamlit as st
@@ -57,7 +58,7 @@ st.caption(
     "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
 )
 
-# ── Pruning automatico (🤖 e 👤) ───────────────────────────
+# ── Pruning automatico (🤖 e 👤) con guard ─────────────────
 removed = prune_watchlist()
 for t, motivo in removed:
     st.warning(f"🗑 {t} rimosso automaticamente dalla watchlist: {motivo}.")
@@ -78,11 +79,19 @@ for t, a in analyses.items():
     metrics[t] = {"vwap": round(vwap_anchored(dfx), 4),
                   "poc_auto": round(a["zones"][0]["center"], 4) if a["zones"] else None,
                   "drawdown": (price / ath - 1) * 100}
+
+n_before = len(entries)
 entries, msgs = reconcile(entries, {k: v for k, v in metrics.items() if v})
 for m in msgs:
     st.warning(m)
 if msgs:
-    publish_watchlist()
+    if len(entries) > 0:
+        publish_watchlist()
+    else:
+        st.error(
+            f"Reconcile avrebbe svuotato la watchlist ({n_before} → 0): "
+            "pubblicazione su GitHub bloccata (circuito di protezione). "
+            "Incollami core/watchlist_io.py per capire la regola che rimuove.")
 
 with st.expander("➕ Aggiungi titolo (👤 manuale)"):
     with st.form("add_form"):
