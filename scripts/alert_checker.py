@@ -1,6 +1,7 @@
 """
-Checker alert standalone (Actions o locale).
+Checker alert standalone (GitHub Actions o locale).
 Costruisce gli stati reversal per la watchlist e invia Telegram.
+Tipi: CANDIDATO / INVERSIONE / LIVELLO_L1..L3.
 """
 import sys
 from pathlib import Path
