@@ -1,7 +1,7 @@
 """
 Watchlist — home. Tabella 👤/🤖 cliccabile con Nome società, zone
 volumetriche, VWAP ancorati, segnale, trimestrali; livelli L1/L2/L3;
-storico alert; analisi singola; lettura grafico Groq (opzionale).
+storico alert; lettura grafico Groq in alto; analisi singola.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -106,6 +106,48 @@ with st.expander("➕ Aggiungi titolo (👤 manuale)"):
             t = resolve_ticker(new_ticker) or new_ticker.strip().upper()
             add_entry(t, origin="manual", poc=new_poc if new_poc > 0 else None)
             st.rerun()
+
+# ── Lettura grafico Groq (unica, non critica) — in alto ────
+with st.expander("📷 Lettura grafico (Groq, opzionale)"):
+    up = st.file_uploader("Screenshot grafico (PNG/JPG/WEBP)",
+                          type=["png", "jpg", "jpeg", "webp"], key="vision_up")
+    if st.button("Leggi grafico", type="primary",
+                 disabled=(up is None), key="vision_run"):
+        with st.status("Lettura in corso…", expanded=True) as status:
+            try:
+                res = read_chart(up.getvalue(), mime=up.type or "image/png")
+                status.update(label=f"Lettura completata ({res['model']})",
+                              state="complete")
+            except Exception as e:
+                status.update(label="Motore non disponibile", state="error")
+                st.warning(
+                    f"Lettura automatica non disponibile ({e}). "
+                    "Si passa alla lettura manuale: zone e VWAP calcolati "
+                    "restano a video."
+                )
+                res = None
+
+        if res is not None:
+            j = res.get("json")
+            if j:
+                v1, v2 = st.columns(2)
+                v1.markdown(f"**Trend breve**: {j.get('trend_breve', 'n/d')}")
+                v1.markdown(f"**Trend medio**: {j.get('trend_medio', 'n/d')}")
+                v2.markdown(f"**Prezzo vs VWAP**: {j.get('prezzo_vs_vwap', 'n/d')}")
+                v2.markdown(f"**Zona volumi**: {j.get('zona_volumi', 'n/d')}")
+                lv = j.get("livelli_chiave") or []
+                if lv:
+                    st.markdown("**Livelli chiave**: " + " · ".join(str(x) for x in lv))
+                if j.get("incoerenze"):
+                    st.markdown(f"**Incoerenze**: {j['incoerenze']}")
+                st.markdown(f"**Sintesi**: {j.get('sintesi', '')}")
+            else:
+                st.code(res["text"])
+            st.caption(
+                "Lettura automatica: può contenere errori, soprattutto sui "
+                "prezzi esatti. Le zone del portale restano la fonte di "
+                "verità. Mai usare come ordine."
+            )
 
 if not entries:
     st.info("Watchlist vuota. Aggiungi un titolo o promuovilo dallo Screening.")
@@ -365,45 +407,3 @@ if ticker:
     with st.expander("Bottom Score — componenti"):
         for k, v in bs["components"].items():
             st.markdown(f"- **{k}**: {v:.0f}/100")
-
-    # ── Lettura grafico Groq (unica, non critica) ──────────
-    with st.expander("📷 Lettura grafico (Groq, opzionale)"):
-        up = st.file_uploader("Screenshot grafico (PNG/JPG)",
-                              type=["png", "jpg", "jpeg"], key="vision_up")
-        if st.button("Leggi grafico", type="primary",
-                     disabled=(up is None), key="vision_run"):
-            with st.status("Lettura in corso…", expanded=True) as status:
-                try:
-                    res = read_chart(up.getvalue(), mime=up.type or "image/png")
-                    status.update(label=f"Lettura completata ({res['model']})",
-                                  state="complete")
-                except Exception as e:
-                    status.update(label="Motore non disponibile", state="error")
-                    st.warning(
-                        f"Lettura automatica non disponibile ({e}). "
-                        "Si passa alla lettura manuale: zone e VWAP calcolati "
-                        "restano a video."
-                    )
-                    res = None
-
-            if res is not None:
-                j = res.get("json")
-                if j:
-                    v1, v2 = st.columns(2)
-                    v1.markdown(f"**Trend breve**: {j.get('trend_breve', 'n/d')}")
-                    v1.markdown(f"**Trend medio**: {j.get('trend_medio', 'n/d')}")
-                    v2.markdown(f"**Prezzo vs VWAP**: {j.get('prezzo_vs_vwap', 'n/d')}")
-                    v2.markdown(f"**Zona volumi**: {j.get('zona_volumi', 'n/d')}")
-                    lv = j.get("livelli_chiave") or []
-                    if lv:
-                        st.markdown("**Livelli chiave**: " + " · ".join(str(x) for x in lv))
-                    if j.get("incoerenze"):
-                        st.markdown(f"**Incoerenze**: {j['incoerenze']}")
-                    st.markdown(f"**Sintesi**: {j.get('sintesi', '')}")
-                else:
-                    st.code(res["text"])
-                st.caption(
-                    "Lettura automatica: può contenere errori, soprattutto sui "
-                    "prezzi esatti. Le zone del portale restano la fonte di "
-                    "verità. Mai usare come ordine."
-                )
