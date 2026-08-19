@@ -1,15 +1,16 @@
 """
 Screening: titoli in sconto + alert POC/VWAP + grafico di decelerazione.
-Usa volume profile reale.
+Usa volume profile reale. Log di avanzamento per le operazioni lunghe.
 """
 import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 
-st.set_page_config(page_title="Screening", page_icon="🎛️", layout="wide")
+st.set_page_config(page_title="Screening", page_icon="🎛️", layout="wide",
+                   initial_sidebar_state="collapsed")
 
-from ui.theme import inject_css, COLORS
+from ui.theme import inject_css, COLORS, style_fig
 from ui.nav import render_navbar, sidebar_nav
 from core.data_engine import (
     INDICES_DIR, load_index_constituents, screening,
@@ -67,10 +68,18 @@ if run:
         )
         st.stop()
 
-    with st.spinner(f"Analisi di {len(tickers)} titoli…"):
-        df, diagnostics = screening(tickers)
+    with st.status(f"Analisi di {len(tickers)} titoli…", expanded=True) as status:
+        status.write(f"Indice selezionato: {index_name}")
+        if index_name == ALL_INDICES:
+            status.write(f"Unione indici: {gross} costituenti lordi → {len(tickers)} unici (duplicati rimossi)")
+        df, diagnostics = screening(tickers, log=status.write)
         st.session_state["screening_result"] = df
         st.session_state["screening_diagnostics"] = diagnostics
+        if diagnostics["valid"] > 0:
+            status.update(label=f"Screening completato: {diagnostics['valid']} titoli validi",
+                          state="complete")
+        else:
+            status.update(label="Screening completato senza dati validi", state="error")
 
 df = st.session_state.get("screening_result")
 diagnostics = st.session_state.get("screening_diagnostics")
@@ -171,12 +180,7 @@ roc = full["Close"].pct_change(10) * 100
 fig.add_trace(go.Bar(x=full.index, y=roc, name="ROC 10g",
                      marker_color=[col["negative"] if v < 0 else col["positive"]
                                    for v in roc]), 2, 1)
-fig.update_layout(
-    template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
-    paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
-    font=dict(color=col["text"], family="JetBrains Mono"),
-    margin=dict(l=10, r=10, t=20, b=10), height=520, showlegend=False,
-)
+style_fig(fig, st.session_state.dark_mode, height=520)
 st.plotly_chart(fig, use_container_width=True)
 
 m1, m2, m3, m4, m5 = st.columns(5)
@@ -195,7 +199,7 @@ else:
 
 in_wl = any(e["ticker"] == sel for e in load_watchlist())
 if not in_wl:
-    if st.button(f"➕ Promuovi {sel} in watchlist (🤖 auto)"):
+    if st.button(f"➕ Promuovi {sel} in watchlist (🤖 auto)", type="primary"):
         add_entry(sel, origin="auto", poc=poc)
         st.success(f"{sel} promosso in watchlist come 🤖")
 else:
