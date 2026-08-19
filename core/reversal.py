@@ -1,9 +1,9 @@
 """
 Operazioni watchlist basate sul reversal state:
 - analyze_ticker: pacchetto completo per un ticker
-- auto_populate: promuove 🟡/🟢 dello screening in watchlist 🤖
-- prune_watchlist: uscite automatiche (🤖 e 👤) con persistenza 5 chiusure.
-Regole uscita (punti come da reversal_state, 🟡 ora a ≥2):
+- auto_populate: promuove 🟡/🟢 dello screening in watchlist 🤖 (write-through GitHub)
+- prune_watchlist: uscite automatiche (🤖 e ) con persistenza 5 chiusure (write-through).
+Regole uscita (punti come da reversal_state, 🟡 a ≥2):
  🤖: (DD > −20% OR punti < 2) per 5 chiusure consecutive.
  👤: (punti < 2 AND chiusura < livello minimo inserito) per 5 chiusure consecutive.
  👤 senza livelli inseriti: nessuna uscita automatica.
@@ -16,6 +16,7 @@ from core.data_engine import (
     candidate_at,
 )
 from core.watchlist_io import load_watchlist, add_entry, remove_entry
+from core.gh_sync import publish_watchlist
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_ticker(ticker: str) -> dict | None:
@@ -51,6 +52,11 @@ def auto_populate(rows) -> list[str]:
                 have.add(t)
             except Exception:
                 continue
+    if added:
+        try:
+            publish_watchlist()
+        except Exception:
+            pass
     return added
 
 def _bad_series(a: dict, origin: str, min_lvl: float | None) -> bool:
@@ -85,7 +91,7 @@ def prune_watchlist() -> list[tuple[str, str]]:
         if e["origin"] == "manual":
             lv = [v for v in (e.get("levels") or {}).values() if v]
             if not lv:
-                continue  # 👤 senza livelli: nessuna uscita automatica
+                continue
             min_lvl = min(lv)
         if _bad_series(a, e["origin"], min_lvl):
             motivo = ("sconto recuperato o sotto soglia candidato"
@@ -96,4 +102,9 @@ def prune_watchlist() -> list[tuple[str, str]]:
                 removed.append((e["ticker"], motivo))
             except Exception:
                 continue
+    if removed:
+        try:
+            publish_watchlist()
+        except Exception:
+            pass
     return removed
