@@ -1,5 +1,6 @@
 """
-Watchlist — home. Tabella con origini 👤/🤖, flag stale, analisi singola, livelli L1/L2/L3.
+Watchlist — home. Tabella 👤/, flag stale, livelli L1/L2/L3,
+storico alert, analisi singola.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -17,6 +18,7 @@ from core.watchlist_io import (
     load_watchlist, add_entry, remove_entry, touch_review, update_levels,
     is_stale, reconcile,
 )
+from core.alerts import load_alert_state
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -78,7 +80,6 @@ else:
             continue
         price = float(df_p["Close"].iloc[-1])
         poc, lo, hi = poc_zone_from_profile(df_p)
-        a = atr(df_p)
         bs = bottom_score(df_p, poc=poc)
         rows.append({
             "": "👤" if e["origin"] == "manual" else "🤖",
@@ -128,14 +129,13 @@ else:
     if sel_entry.get("vwap"):
         fig.add_hline(y=sel_entry["vwap"], line_color=col["positive"],
                       line_dash="dot", annotation_text="VWAP")
-    
-    # Livelli manuali L1/L2/L3
+
     levels = sel_entry.get("levels", {})
     for lvl_name, lvl_val in levels.items():
         if lvl_val and lvl_val > 0:
             fig.add_hline(y=lvl_val, line_color=col["accent"], line_dash="solid",
                           annotation_text=f"{lvl_name} (👤)")
-    
+
     fig.update_layout(
         template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
         paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
@@ -159,6 +159,16 @@ else:
         for chk in hc["checks"]:
             icon = "✅" if chk["ok"] else "❌"
             st.markdown(f"{icon} **{chk['name']}** — {chk['detail']}")
+
+    with st.expander("🔔 Storico alert"):
+        hist = load_alert_state().get("history", [])
+        if not hist:
+            st.caption("Nessun alert archiviato. (Alert automatici disattivati.)")
+        else:
+            rows_a = [{"Data": a["ts"][:16].replace("T", " "),
+                       "Ticker": a["ticker"], "Tipo": a["kind"],
+                       "Prezzo": a["price"]} for a in reversed(hist)]
+            st.dataframe(pd.DataFrame(rows_a), use_container_width=True, hide_index=True)
 
 # ── Analisi singola libera ─────────────────────────────────
 st.markdown("### Analisi singola")

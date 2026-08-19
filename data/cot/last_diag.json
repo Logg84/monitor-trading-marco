@@ -1,0 +1,270 @@
+[
+  {
+    "file": "dea_fut_xls_2025.zip",
+    "n_xls": 1,
+    "xls_in_zip": [
+      "annual.xls"
+    ],
+    "shape": [
+      17316,
+      126
+    ],
+    "columns": [
+      "Market_and_Exchange_Names",
+      "As_of_Date_In_Form_YYMMDD",
+      "Report_Date_as_MM_DD_YYYY",
+      "CFTC_Contract_Market_Code",
+      "CFTC_Market_Code",
+      "CFTC_Region_Code",
+      "CFTC_Commodity_Code",
+      "Open_Interest_All",
+      "NonComm_Positions_Long_All",
+      "NonComm_Positions_Short_All",
+      "NonComm_Postions_Spread_All",
+      "Comm_Positions_Long_All",
+      "Comm_Positions_Short_All",
+      "Tot_Rept_Positions_Long_All",
+      "Tot_Rept_Positions_Short_All",
+      "NonRept_Positions_Long_All",
+      "NonRept_Positions_Short_All",
+      "Open_Interest_Old",
+      "NonComm_Positions_Long_Old",
+      "NonComm_Positions_Short_Old",
+      "NonComm_Positions_Spread_Old",
+      "Comm_Positions_Long_Old",
+      "Comm_Positions_Short_Old",
+      "Tot_Rept_Positions_Long_Old",
+      "Tot_Rept_Positions_Short_Old",
+      "NonRept_Positions_Long_Old",
+      "NonRept_Positions_Short_Old",
+      "Open_Interest_Other",
+      "NonComm_Positions_Long_Other",
+      "NonComm_Positions_Short_Other"
+    ],
+    "colmap": {
+      "mm": {
+        "L": "NonComm_Positions_Long_All",
+        "S": "NonComm_Positions_Short_All"
+      }
+    },
+    "date_min": "2025-01-07",
+    "date_max": "2025-12-30",
+    "markets_sample": [
+      "WHEAT-SRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRSPRING - MIAX FUTURES EXCHANGE",
+      "CORN - CHICAGO BOARD OF TRADE",
+      "OATS - CHICAGO BOARD OF TRADE",
+      "SOYBEANS - CHICAGO BOARD OF TRADE",
+      "NJ SRECS - ICE FUTURES ENERGY DIV",
+      "PJM TRI-RECS CLASS 1 - ICE FUTURES ENERGY DIV"
+    ],
+    "fx_matched": 6,
+    "comm_matched": 15
+  },
+  {
+    "file": "dea_fut_xls_2026.zip",
+    "n_xls": 1,
+    "xls_in_zip": [
+      "annual.xls"
+    ],
+    "shape": [
+      11436,
+      126
+    ],
+    "columns": [
+      "Market_and_Exchange_Names",
+      "As_of_Date_In_Form_YYMMDD",
+      "Report_Date_as_MM_DD_YYYY",
+      "CFTC_Contract_Market_Code",
+      "CFTC_Market_Code",
+      "CFTC_Region_Code",
+      "CFTC_Commodity_Code",
+      "Open_Interest_All",
+      "NonComm_Positions_Long_All",
+      "NonComm_Positions_Short_All",
+      "NonComm_Postions_Spread_All",
+      "Comm_Positions_Long_All",
+      "Comm_Positions_Short_All",
+      "Tot_Rept_Positions_Long_All",
+      "Tot_Rept_Positions_Short_All",
+      "NonRept_Positions_Long_All",
+      "NonRept_Positions_Short_All",
+      "Open_Interest_Old",
+      "NonComm_Positions_Long_Old",
+      "NonComm_Positions_Short_Old",
+      "NonComm_Positions_Spread_Old",
+      "Comm_Positions_Long_Old",
+      "Comm_Positions_Short_Old",
+      "Tot_Rept_Positions_Long_Old",
+      "Tot_Rept_Positions_Short_Old",
+      "NonRept_Positions_Long_Old",
+      "NonRept_Positions_Short_Old",
+      "Open_Interest_Other",
+      "NonComm_Positions_Long_Other",
+      "NonComm_Positions_Short_Other"
+    ],
+    "colmap": {
+      "mm": {
+        "L": "NonComm_Positions_Long_All",
+        "S": "NonComm_Positions_Short_All"
+      }
+    },
+    "date_min": "2026-01-06",
+    "date_max": "2026-08-11",
+    "markets_sample": [
+      "WHEAT-SRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRSPRING - MIAX FUTURES EXCHANGE",
+      "CORN - CHICAGO BOARD OF TRADE",
+      "OATS - CHICAGO BOARD OF TRADE",
+      "SOYBEANS - CHICAGO BOARD OF TRADE",
+      "MINI SOYBEANS - CHICAGO BOARD OF TRADE",
+      "NJ SRECS - ICE FUTURES ENERGY DIV"
+    ],
+    "fx_matched": 6,
+    "comm_matched": 16
+  },
+  {
+    "file": "fut_disagg_xls_2025.zip",
+    "n_xls": 1,
+    "xls_in_zip": [
+      "f_year.xls"
+    ],
+    "shape": [
+      13630,
+      188
+    ],
+    "columns": [
+      "Market_and_Exchange_Names",
+      "As_of_Date_In_Form_YYMMDD",
+      "Report_Date_as_MM_DD_YYYY",
+      "CFTC_Contract_Market_Code",
+      "CFTC_Market_Code",
+      "CFTC_Region_Code",
+      "CFTC_Commodity_Code",
+      "Open_Interest_All",
+      "Prod_Merc_Positions_Long_ALL",
+      "Prod_Merc_Positions_Short_ALL",
+      "Swap_Positions_Long_All",
+      "Swap__Positions_Short_All",
+      "Swap__Positions_Spread_All",
+      "M_Money_Positions_Long_ALL",
+      "M_Money_Positions_Short_ALL",
+      "M_Money_Positions_Spread_ALL",
+      "Other_Rept_Positions_Long_ALL",
+      "Other_Rept_Positions_Short_ALL",
+      "Other_Rept_Positions_Spread_ALL",
+      "Tot_Rept_Positions_Long_All",
+      "Tot_Rept_Positions_Short_All",
+      "NonRept_Positions_Long_All",
+      "NonRept_Positions_Short_All",
+      "Open_Interest_Old",
+      "Prod_Merc_Positions_Long_Old",
+      "Prod_Merc_Positions_Short_Old",
+      "Swap_Positions_Long_Old",
+      "Swap_Positions_Short_Old",
+      "Swap_Positions_Spread_Old",
+      "M_Money_Positions_Long_Old"
+    ],
+    "colmap": {
+      "prod": {
+        "L": "Prod_Merc_Positions_Long_ALL",
+        "S": "Prod_Merc_Positions_Short_ALL"
+      },
+      "swap": {
+        "L": "Swap_Positions_Long_All",
+        "S": "Swap__Positions_Short_All"
+      },
+      "mm": {
+        "L": "M_Money_Positions_Long_ALL",
+        "S": "M_Money_Positions_Short_ALL"
+      }
+    },
+    "date_min": "2025-01-07",
+    "date_max": "2025-12-30",
+    "markets_sample": [
+      "WHEAT-SRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRSPRING - MIAX FUTURES EXCHANGE",
+      "CORN - CHICAGO BOARD OF TRADE",
+      "OATS - CHICAGO BOARD OF TRADE",
+      "SOYBEANS - CHICAGO BOARD OF TRADE",
+      "NJ SRECS - ICE FUTURES ENERGY DIV",
+      "PJM TRI-RECS CLASS 1  - ICE FUTURES ENERGY DIV"
+    ],
+    "fx_matched": 0,
+    "comm_matched": 15
+  },
+  {
+    "file": "fut_disagg_xls_2026.zip",
+    "n_xls": 1,
+    "xls_in_zip": [
+      "f_year.xls"
+    ],
+    "shape": [
+      8664,
+      188
+    ],
+    "columns": [
+      "Market_and_Exchange_Names",
+      "As_of_Date_In_Form_YYMMDD",
+      "Report_Date_as_MM_DD_YYYY",
+      "CFTC_Contract_Market_Code",
+      "CFTC_Market_Code",
+      "CFTC_Region_Code",
+      "CFTC_Commodity_Code",
+      "Open_Interest_All",
+      "Prod_Merc_Positions_Long_ALL",
+      "Prod_Merc_Positions_Short_ALL",
+      "Swap_Positions_Long_All",
+      "Swap__Positions_Short_All",
+      "Swap__Positions_Spread_All",
+      "M_Money_Positions_Long_ALL",
+      "M_Money_Positions_Short_ALL",
+      "M_Money_Positions_Spread_ALL",
+      "Other_Rept_Positions_Long_ALL",
+      "Other_Rept_Positions_Short_ALL",
+      "Other_Rept_Positions_Spread_ALL",
+      "Tot_Rept_Positions_Long_All",
+      "Tot_Rept_Positions_Short_All",
+      "NonRept_Positions_Long_All",
+      "NonRept_Positions_Short_All",
+      "Open_Interest_Old",
+      "Prod_Merc_Positions_Long_Old",
+      "Prod_Merc_Positions_Short_Old",
+      "Swap_Positions_Long_Old",
+      "Swap_Positions_Short_Old",
+      "Swap_Positions_Spread_Old",
+      "M_Money_Positions_Long_Old"
+    ],
+    "colmap": {
+      "prod": {
+        "L": "Prod_Merc_Positions_Long_ALL",
+        "S": "Prod_Merc_Positions_Short_ALL"
+      },
+      "swap": {
+        "L": "Swap_Positions_Long_All",
+        "S": "Swap__Positions_Short_All"
+      },
+      "mm": {
+        "L": "M_Money_Positions_Long_ALL",
+        "S": "M_Money_Positions_Short_ALL"
+      }
+    },
+    "date_min": "2026-01-06",
+    "date_max": "2026-08-11",
+    "markets_sample": [
+      "WHEAT-SRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRW - CHICAGO BOARD OF TRADE",
+      "WHEAT-HRSPRING - MIAX FUTURES EXCHANGE",
+      "CORN - CHICAGO BOARD OF TRADE",
+      "OATS - CHICAGO BOARD OF TRADE",
+      "SOYBEANS - CHICAGO BOARD OF TRADE",
+      "MINI SOYBEANS - CHICAGO BOARD OF TRADE",
+      "NJ SRECS - ICE FUTURES ENERGY DIV"
+    ],
+    "fx_matched": 0,
+    "comm_matched": 16
+  }
+]

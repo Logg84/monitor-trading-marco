@@ -15,7 +15,6 @@ import yfinance as yf
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INDICES_DIR = DATA_DIR / "indices"
 
-# Campioni di test finché download_indices (Blocco 5) non popola data/indices/
 DEFAULT_SAMPLE = {
     "SP500_SAMPLE": ["AAPL", "MSFT", "NVDA", "JNJ", "PG", "KO", "XOM", "HD", "V", "UNH"],
     "EURO_SAMPLE": ["ASML.AS", "SAP.DE", "TTE.PA", "SAN.MC", "ENI.MI", "UCG.MI"],
@@ -28,7 +27,11 @@ def get_prices(ticker: str, period: str = "2y", interval: str = "1d") -> pd.Data
     if df.empty:
         raise ValueError(f"Nessun dato per {ticker}")
     df.index = pd.to_datetime(df.index)
-    return df[["Open", "High", "Low", "Close", "Volume"]]
+    df = df[["Open", "High", "Low", "Close", "Volume"]]
+    df = df.dropna(subset=["Close"])          # niente righe sporche a valle
+    if df.empty:
+        raise ValueError(f"Nessun dato valido per {ticker}")
+    return df
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def download_closes(tickers: tuple, period: str = "2y") -> pd.DataFrame:
@@ -54,13 +57,15 @@ def atr(df: pd.DataFrame, period: int = 20) -> float:
         (df["High"] - prev).abs(),
         (df["Low"] - prev).abs(),
     ], axis=1).max(axis=1)
-    return float(tr.rolling(period).mean().iloc[-1])
+    val = float(tr.rolling(period).mean().iloc[-1])
+    return 0.0 if np.isnan(val) else val
 
 def vwap_anchored(df: pd.DataFrame, lookback: int = 60) -> float:
     w = df.tail(lookback)
     typical = (w["High"] + w["Low"] + w["Close"]) / 3
     vol = w["Volume"].replace(0, np.nan)
-    return float((typical * vol).sum() / vol.sum())
+    val = float((typical * vol).sum() / vol.sum())
+    return float(w["Close"].iloc[-1]) if np.isnan(val) else val
 
 def poc_zone(poc: float, atr20: float, f: float = 0.6) -> tuple[float, float]:
     """Zona POC dinamica: ± f · ATR(20)."""
@@ -69,14 +74,8 @@ def poc_zone(poc: float, atr20: float, f: float = 0.6) -> tuple[float, float]:
 
 # ── Volume Profile ─────────────────────────────────────────
 def volume_profile(df: pd.DataFrame, bins: int = 50) -> dict:
-    """
-    Binning del volume su griglia di prezzo → POC, HVN, LVN.
-    POC = bin con volume massimo
-    HVN = bin sopra il 75° percentile di volume
-    LVN = bin sotto il 25° percentile di volume
-    """
     close = df["Close"]
-    vol = df["Volume"]
+    vol = df["Volume"].fillna(0)
     price_min, price_max = float(close.min()), float(close.max())
     price_bins = np.linspace(price_min, price_max, bins + 1)
     vol_profile = np.zeros(bins)
@@ -106,7 +105,6 @@ def volume_profile(df: pd.DataFrame, bins: int = 50) -> dict:
             "profile": vol_profile, "bins": price_bins}
 
 def poc_zone_from_profile(df: pd.DataFrame, f: float = 0.6) -> tuple[float, float, float]:
-    """Restituisce (poc, lo, hi) usando il volume profile."""
     vp = volume_profile(df)
     poc = vp["poc"]
     lo, hi = poc_zone(poc, atr(df), f)
@@ -150,22 +148,36 @@ def health_check(ticker: str) -> dict:
     score = int(round(100 * sum(c["ok"] for c in checks) / len(checks)))
     return {"ticker": ticker, "score": score, "checks": checks}
 
-# ── Bottom Score (sconto + decelerazione) ──────────────────
+# ── Bottom Score (sconto + decelerazione) — NaN-safe ───────
 def bottom_score(df: pd.DataFrame, poc: float | None = None, f: float = 0.6) -> dict:
-    close = df["Close"]
+    close = df["Close"].dropna()
+    if len(close) < 30:
+        return {"score": 0, "drawdown": 0.0, "rsi": 50.0, "roc10": 0.0,
+                "decel": 0.0,
+                "components": {"drawdown": 0.0, "rsi": 50.0,
+                               "poc": 50.0, "decel": 50.0}}
+
     price = float(close.iloc[-1])
     ath = float(close.max())
     drawdown = (price / ath - 1) * 100.0
+
     r = float(rsi(close).iloc[-1])
+    if np.isnan(r):
+        r = 50.0
+
     a = atr(df)
 
     roc = close.pct_change(10) * 100
     roc_now = float(roc.iloc[-1])
+    if np.isnan(roc_now):
+        roc_now = 0.0
     roc_prev = float(roc.iloc[-11]) if len(roc) > 11 else roc_now
-    decel = roc_now - roc_prev  # >0 = la discesa rallenta / inversione
+    if np.isnan(roc_prev):
+        roc_prev = roc_now
+    decel = roc_now - roc_prev
 
-    dd_c = float(np.clip(-drawdown / 0.6, 0, 100))          # -60% → 100
-    rsi_c = float(np.clip((70 - r) / 0.4, 0, 100))          # RSI 30 → 100
+    dd_c = float(np.clip(-drawdown / 0.6, 0, 100))
+    rsi_c = float(np.clip((70 - r) / 0.4, 0, 100))
     if poc is not None and a > 0:
         lo, hi = poc_zone(poc, a, f)
         if lo <= price <= hi:
@@ -177,13 +189,16 @@ def bottom_score(df: pd.DataFrame, poc: float | None = None, f: float = 0.6) -> 
         poc_c = 50.0
     decel_c = float(np.clip(50 + decel * 5, 0, 100))
 
-    score = int(round(0.4 * dd_c + 0.2 * rsi_c + 0.2 * poc_c + 0.2 * decel_c))
-    return {
-        "score": score, "drawdown": drawdown, "rsi": r,
-        "roc10": roc_now, "decel": decel,
-        "components": {"drawdown": dd_c, "rsi": rsi_c,
-                       "poc": poc_c, "decel": decel_c},
-    }
+    components = {"drawdown": dd_c, "rsi": rsi_c, "poc": poc_c, "decel": decel_c}
+    components = {k: (0.0 if np.isnan(v) else float(v))
+                  for k, v in components.items()}
+
+    total = (0.4 * components["drawdown"] + 0.2 * components["rsi"] +
+             0.2 * components["poc"] + 0.2 * components["decel"])
+    score = int(round(float(np.nan_to_num(total))))
+
+    return {"score": score, "drawdown": drawdown, "rsi": r,
+            "roc10": roc_now, "decel": decel, "components": components}
 
 # ── Indici & screening ─────────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -196,7 +211,6 @@ def load_index_constituents(name: str) -> list[str]:
     return DEFAULT_SAMPLE.get(name, [])
 
 def screening(tickers: list[str]) -> pd.DataFrame:
-    """Una riga per titolo: sconto, qualità, bottom score. Ordinato per score."""
     data = download_closes(tuple(tickers))
     rows = []
     for t in tickers:
@@ -234,7 +248,6 @@ SUFFIXES = ["", ".MI", ".PA", ".DE", ".MC", ".AS", ".L", ".SW", ".ST", ".BR"]
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_universe() -> list[str]:
-    """Tutti i ticker noti: indici scaricati + campioni di test."""
     tickers = set()
     for name in DEFAULT_SAMPLE:
         tickers.update(DEFAULT_SAMPLE[name])
@@ -250,7 +263,6 @@ def build_universe() -> list[str]:
 
 @st.cache_data(ttl=7 * 86400, show_spinner=False)
 def resolve_ticker(raw: str) -> str | None:
-    """Prova il ticker così com'è, poi con i suffissi borsa. Cachato 7 giorni."""
     raw = raw.strip().upper()
     if not raw:
         return None

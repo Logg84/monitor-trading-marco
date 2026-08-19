@@ -1,8 +1,7 @@
 """
 Bussola: 6 attori di mercato → composite → regime LONG/NEUTRO/SHORT.
-Attori senza dati (COT non caricato) pesano 0 e vengono rinormalizzati.
-Lettura contrarian per operatore medio-lungo: paura estrema = opportunità,
-euforia = rischio.
+Gli attori COT (Money manager, Produttori) si alimentano da
+data/cot/cot_data.json se presente; altrimenti pesi rinormalizzati.
 """
 from __future__ import annotations
 
@@ -42,8 +41,8 @@ def actor_risk_managers() -> dict:
         return _nodata("Risk manager", "VIX non disponibile")
     level = float(v.iloc[-1])
     slope = float(v.iloc[-1] - v.iloc[-21]) if len(v) > 21 else 0.0
-    level_score = float(np.clip((level - 20) * 5, -60, 60))  # paura = opportunità
-    slope_score = float(np.clip(-slope * 4, -40, 40))        # VIX calante = panico che rientra
+    level_score = float(np.clip((level - 20) * 5, -60, 60))
+    slope_score = float(np.clip(-slope * 4, -40, 40))
     return {"name": "Risk manager", "score": _clip(level_score + slope_score),
             "source": "VIX", "detail": f"VIX {level:.1f}; pendenza 1M {slope:+.1f}"}
 
@@ -66,15 +65,22 @@ def actor_retail() -> dict:
     return {"name": "Retail (contrarian)", "score": _clip(score), "source": "put/call CBOE",
             "detail": f"put/call {pc:.2f} (>1 paura, <0.7 euforia)"}
 
+def _cot() -> dict | None:
+    try:
+        from core.cot import load_cot_data, regime_scores
+        return regime_scores(load_cot_data())
+    except Exception:
+        return None
+
 def actor_managed_money(cot: dict | None) -> dict:
-    if not cot or "managed_money" not in cot:
+    if not cot:
         return {"name": "Money manager", "score": 0.0, "source": "COT assente",
                 "detail": "carica il report dalla pagina COT"}
     return {"name": "Money manager", "score": _clip(cot["managed_money"]),
             "source": "COT", "detail": cot.get("managed_money_detail", "")}
 
 def actor_producers(cot: dict | None) -> dict:
-    if not cot or "producers" not in cot:
+    if not cot:
         return {"name": "Produttori", "score": 0.0, "source": "COT assente",
                 "detail": "carica il report dalla pagina COT"}
     return {"name": "Produttori", "score": _clip(cot["producers"]),
@@ -86,6 +92,8 @@ WEIGHTS = {
 }
 
 def compute_regime(cot: dict | None = None) -> dict:
+    if cot is None:
+        cot = _cot()
     actors = [
         actor_institutions(), actor_risk_managers(), actor_vol_vol(),
         actor_retail(), actor_managed_money(cot), actor_producers(cot),

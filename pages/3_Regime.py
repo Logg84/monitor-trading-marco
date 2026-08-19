@@ -1,6 +1,6 @@
 """
-Regime — Bussola: 6 attori, gauge composite, SPX con flip-line e ±2σ,
-termometro VIX/VVIX.
+Regime — Bussola: 6 attori con sfondi colorati a intensità proporzionale
+allo score, gauge composite, SPX con flip-line e ±2σ, termometro VIX/VVIX.
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -9,7 +9,7 @@ import numpy as np
 
 st.set_page_config(page_title="Regime", page_icon="🧭", layout="wide")
 
-from ui.theme import inject_css, COLORS
+from ui.theme import inject_css, COLORS, FONT_MONO
 from ui.nav import render_navbar, sidebar_nav
 from core.regime import compute_regime
 from core.data_engine import get_prices
@@ -23,11 +23,20 @@ sidebar_nav()
 
 
 def _rgba(hex_color: str, alpha: float) -> str:
-    """#RRGGBB → rgba(r,g,b,a). Plotly accetta questo formato ovunque."""
     h = hex_color.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{alpha:.3f})"
 
+
+def score_bg(score: float, col: dict, max_alpha: float = 0.55) -> str:
+    """Verde se positivo, rosso se negativo; alpha ∝ |score|."""
+    s = max(-100.0, min(100.0, float(score)))
+    alpha = abs(s) / 100 * max_alpha
+    base = col["positive"] if s >= 0 else col["negative"]
+    return _rgba(base, alpha)
+
+
+col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
 
 st.markdown("## Regime — Bussola")
 st.caption("Il bias modula la size suggerita: ×0.3 SHORT · ×0.6 NEUTRO · ×1.0 LONG. La decisione resta tua.")
@@ -35,9 +44,7 @@ st.caption("Il bias modula la size suggerita: ×0.3 SHORT · ×0.6 NEUTRO · ×1
 with st.spinner("Calcolo attori di mercato…"):
     reg = compute_regime()
 
-col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
-
-# ── Gauge composite ────────────────────────────────────────
+# ── Gauge + regime ─────────────────────────────────────────
 g1, g2 = st.columns([2, 1])
 with g1:
     fig = go.Figure(go.Indicator(
@@ -61,21 +68,54 @@ with g1:
     st.plotly_chart(fig, use_container_width=True)
 
 with g2:
-    st.metric("Regime", reg["regime"])
+    reg_bg = score_bg(reg["composite"], col)
+    st.markdown(
+        f"""
+        <div style="background:{reg_bg}; border:1px solid {col['border']};
+                    border-radius:4px; padding:20px; text-align:center; margin-bottom:12px;">
+            <div style="color:{col['text_muted']}; font-size:12px;">REGIME</div>
+            <div style="color:{col['text']}; font-size:28px; font-weight:700;">{reg['regime']}</div>
+        </div>
+        """, unsafe_allow_html=True)
     st.metric("Composite", f"{reg['composite']:+.1f}")
     st.caption("Attori COT assenti → pesi rinormalizzati sugli attori con dati.")
 
-# ── Tabella attori ─────────────────────────────────────────
+# ── Tabella attori con sfondi a intensità ──────────────────
 st.markdown("### Attori di mercato")
-rows = []
+rows_html = ""
 for a in reg["actors"]:
-    rows.append({
-        "Attore": a["name"],
-        "Score": round(a["score"], 0),
-        "Fonte": a["source"],
-        "Dettaglio": a["detail"],
-    })
-st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    bg = score_bg(a["score"], col)
+    rows_html += f"""
+    <tr style="background:{bg};">
+        <td>{a['name']}</td>
+        <td class="num">{a['score']:+.0f}</td>
+        <td>{a['source']}</td>
+        <td>{a['detail']}</td>
+    </tr>"""
+
+st.markdown(
+    f"""
+    <style>
+    table.argo-table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+    table.argo-table th {{ text-align:left; color:{col['text_muted']}; font-size:11px;
+        text-transform:uppercase; letter-spacing:.05em; padding:8px 12px;
+        border-bottom:1px solid {col['border']}; }}
+    table.argo-table td {{ padding:10px 12px; border-bottom:1px solid {col['border']};
+        color:{col['text']}; }}
+    table.argo-table td.num {{ font-family:{FONT_MONO}; font-weight:600; }}
+    .kcard {{ border:1px solid {col['border']}; border-radius:4px; padding:16px;
+        text-align:center; }}
+    .klabel {{ color:{col['text_muted']}; font-size:12px; }}
+    .kvalue {{ color:{col['text']}; font-family:{FONT_MONO}; font-size:22px; font-weight:600; }}
+    .ksub {{ color:{col['text_muted']}; font-size:11px; }}
+    </style>
+    <table class="argo-table">
+        <thead><tr><th>Attore</th><th>Score</th><th>Fonte</th><th>Dettaglio</th></tr></thead>
+        <tbody>{rows_html}</tbody>
+    </table>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ── SPX con flip-line e ±2σ ────────────────────────────────
 st.markdown("### SPX — flip-line e barriere ±2σ")
@@ -108,18 +148,39 @@ try:
 except Exception as e:
     st.error(f"SPX non disponibile: {e}")
 
-# ── Termometro volatilità ──────────────────────────────────
+# ── Termometro volatilità con card colorate ────────────────
 st.markdown("### Termometro volatilità")
 try:
     vix = get_prices("^VIX")["Close"]
     vvix = get_prices("^VVIX")["Close"]
     v_level = float(vix.iloc[-1])
     ratio = float(vvix.iloc[-1]) / v_level if v_level > 0 else float("nan")
-    t1, t2, t3 = st.columns(3)
-    t1.metric("VIX", f"{v_level:.1f}",
-              "paura" if v_level > 25 else ("compiacenza" if v_level < 15 else "normale"))
-    t2.metric("VVIX/VIX", f"{ratio:.2f}")
-    t3.metric("Pendenza VIX 1M", f"{float(vix.iloc[-1] - vix.iloc[-21]):+.1f}")
+    slope = float(vix.iloc[-1] - vix.iloc[-21]) if len(vix) > 21 else 0.0
+
+    # Lettura contrarian: paura = opportunità (verde), compiacenza = rischio (rosso)
+    if v_level > 25:
+        v_bg, v_sub = score_bg(60, col), "paura → opportunità"
+    elif v_level < 15:
+        v_bg, v_sub = score_bg(-60, col), "compiacenza → rischio"
+    else:
+        v_bg, v_sub = _rgba(col["warning"], 0.15), "normale"
+
+    r_bg = score_bg(min(max((ratio - 1.0) * 150, -100), 100), col)
+    s_bg = score_bg(-slope * 4, col)
+
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(
+        f"<div class='kcard' style='background:{v_bg};'><div class='klabel'>VIX</div>"
+        f"<div class='kvalue'>{v_level:.1f}</div><div class='ksub'>{v_sub}</div></div>",
+        unsafe_allow_html=True)
+    c2.markdown(
+        f"<div class='kcard' style='background:{r_bg};'><div class='klabel'>VVIX/VIX</div>"
+        f"<div class='kvalue'>{ratio:.2f}</div><div class='ksub'>>1.2 stress · <0.9 compiacenza</div></div>",
+        unsafe_allow_html=True)
+    c3.markdown(
+        f"<div class='kcard' style='background:{s_bg};'><div class='klabel'>Pendenza VIX 1M</div>"
+        f"<div class='kvalue'>{slope:+.1f}</div><div class='ksub'>calante = panico che rientra</div></div>",
+        unsafe_allow_html=True)
 except Exception as e:
     st.error(f"Dati volatilità non disponibili: {e}")
 
