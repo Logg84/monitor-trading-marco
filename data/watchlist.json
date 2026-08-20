@@ -1,17 +1,6 @@
 {
-  "updated": "2026-08-20T09:29:59.543608+00:00",
+  "updated": "2026-08-20T09:30:08.855018+00:00",
   "entries": [
-    {
-      "ticker": "STLAP.PA",
-      "origin": "auto",
-      "created": "2026-08-20T09:29:59.471906+00:00",
-      "last_reviewed": "2026-08-20T09:29:59.471923+00:00",
-      "poc": 10.6245,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
     {
       "ticker": "STMPA.PA",
       "origin": "auto",
@@ -436,6 +425,17 @@
       "created": "2026-08-20T09:29:59.543397+00:00",
       "last_reviewed": "2026-08-20T09:29:59.543408+00:00",
       "poc": 15.838,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "STLAP.PA",
+      "origin": "auto",
+      "created": "2026-08-20T09:30:08.849747+00:00",
+      "last_reviewed": "2026-08-20T09:30:08.849768+00:00",
+      "poc": 10.6245,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
