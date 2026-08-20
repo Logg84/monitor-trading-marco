@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T09:31:44.476751+00:00",
+  "updated": "2026-08-20T09:34:41.465096+00:00",
   "entries": [
     {
       "ticker": "STMPA.PA",
@@ -20,17 +20,6 @@
       "poc": 20.6761,
       "poc_origin": "auto",
       "vwap": 27.196,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "RMS.PA",
-      "origin": "auto",
-      "created": "2026-08-20T09:29:59.476312+00:00",
-      "last_reviewed": "2026-08-20T09:29:59.476320+00:00",
-      "poc": 198.8012,
-      "poc_origin": "auto",
-      "vwap": 1628.4438,
       "levels": {},
       "notes": ""
     },
