@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-21T10:30:42.065891+00:00",
+  "updated": "2026-08-21T14:32:22.088189+00:00",
   "entries": [
     {
       "ticker": "STMPA.PA",
@@ -8,18 +8,7 @@
       "last_reviewed": "2026-08-20T09:29:59.473744+00:00",
       "poc": 6.4498,
       "poc_origin": "auto",
-      "vwap": 56.8311,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "RNO.PA",
-      "origin": "auto",
-      "created": "2026-08-20T09:29:59.475240+00:00",
-      "last_reviewed": "2026-08-20T09:29:59.475250+00:00",
-      "poc": 20.3923,
-      "poc_origin": "auto",
-      "vwap": 27.146,
+      "vwap": 56.8174,
       "levels": {},
       "notes": ""
     },
@@ -30,7 +19,7 @@
       "last_reviewed": "2026-08-20T09:29:59.493205+00:00",
       "poc": 26.4912,
       "poc_origin": "auto",
-      "vwap": 75.4633,
+      "vwap": 75.4671,
       "levels": {},
       "notes": ""
     }
