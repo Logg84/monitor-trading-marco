@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T15:27:09.300065+00:00",
+  "updated": "2026-08-21T07:43:42.964917+00:00",
   "entries": [
     {
       "ticker": "STMPA.PA",
@@ -541,17 +541,6 @@
       "notes": ""
     },
     {
-      "ticker": "TPL",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:29.271513+00:00",
-      "last_reviewed": "2026-08-20T15:11:29.271520+00:00",
-      "poc": 43.07,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "DOW",
       "origin": "auto",
       "created": "2026-08-20T15:11:29.273813+00:00",
@@ -772,17 +761,6 @@
       "notes": ""
     },
     {
-      "ticker": "WY",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:29.350223+00:00",
-      "last_reviewed": "2026-08-20T15:11:29.350232+00:00",
-      "poc": 9.4099,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "QCOM",
       "origin": "auto",
       "created": "2026-08-20T15:11:29.353583+00:00",
@@ -887,17 +865,6 @@
       "created": "2026-08-20T15:11:29.397485+00:00",
       "last_reviewed": "2026-08-20T15:11:29.397492+00:00",
       "poc": 16.4996,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "STX",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:29.401422+00:00",
-      "last_reviewed": "2026-08-20T15:11:29.401429+00:00",
-      "poc": 63.8869,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -1069,17 +1036,6 @@
       "notes": ""
     },
     {
-      "ticker": "SBAC",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:29.542709+00:00",
-      "last_reviewed": "2026-08-20T15:11:29.542716+00:00",
-      "poc": 25.7437,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "FRES.L",
       "origin": "auto",
       "created": "2026-08-20T15:11:29.561392+00:00",
@@ -1212,17 +1168,6 @@
       "notes": ""
     },
     {
-      "ticker": "CBOE",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:29.774685+00:00",
-      "last_reviewed": "2026-08-20T15:11:29.774692+00:00",
-      "poc": 91.4042,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "NOW",
       "origin": "auto",
       "created": "2026-08-20T15:11:29.781554+00:00",
@@ -1278,17 +1223,6 @@
       "notes": ""
     },
     {
-      "ticker": "IDXX",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:30.007377+00:00",
-      "last_reviewed": "2026-08-20T15:11:30.007385+00:00",
-      "poc": 32.1936,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "TRMB",
       "origin": "auto",
       "created": "2026-08-20T15:11:30.019741+00:00",
@@ -1305,17 +1239,6 @@
       "created": "2026-08-20T15:11:30.057035+00:00",
       "last_reviewed": "2026-08-20T15:11:30.057042+00:00",
       "poc": 233.0242,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "HSY",
-      "origin": "auto",
-      "created": "2026-08-20T15:11:30.161908+00:00",
-      "last_reviewed": "2026-08-20T15:11:30.161916+00:00",
-      "poc": 21.0885,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -1421,11 +1344,66 @@
       "notes": ""
     },
     {
-      "ticker": "CTSH",
+      "ticker": "CHTR",
       "origin": "auto",
-      "created": "2026-08-20T15:11:30.623450+00:00",
-      "last_reviewed": "2026-08-20T15:11:30.623458+00:00",
-      "poc": 3.4622,
+      "created": "2026-08-21T07:28:26.977170+00:00",
+      "last_reviewed": "2026-08-21T07:28:26.977177+00:00",
+      "poc": 332.5816,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "NBIS",
+      "origin": "auto",
+      "created": "2026-08-21T07:28:26.989246+00:00",
+      "last_reviewed": "2026-08-21T07:28:26.989253+00:00",
+      "poc": 91.5998,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "LII",
+      "origin": "auto",
+      "created": "2026-08-21T07:28:26.994567+00:00",
+      "last_reviewed": "2026-08-21T07:28:26.994573+00:00",
+      "poc": 45.3603,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "MRVL",
+      "origin": "auto",
+      "created": "2026-08-21T07:28:27.388258+00:00",
+      "last_reviewed": "2026-08-21T07:28:27.388283+00:00",
+      "poc": 14.9769,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "GEHC",
+      "origin": "auto",
+      "created": "2026-08-21T07:28:27.484966+00:00",
+      "last_reviewed": "2026-08-21T07:28:27.484973+00:00",
+      "poc": 80.3381,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": ""
+    },
+    {
+      "ticker": "SHL.DE",
+      "origin": "auto",
+      "created": "2026-08-21T07:28:28.617391+00:00",
+      "last_reviewed": "2026-08-21T07:28:28.617398+00:00",
+      "poc": 50.4621,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
