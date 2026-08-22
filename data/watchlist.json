@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-21T15:26:44.838596+00:00",
+  "updated": "2026-08-22T12:21:38.795070+00:00",
   "entries": [
     {
       "ticker": "STMPA.PA",
@@ -315,17 +315,6 @@
       "created": "2026-08-21T15:10:08.986393+00:00",
       "last_reviewed": "2026-08-21T15:10:08.986398+00:00",
       "poc": 8.869,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "HRL",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:08.987034+00:00",
-      "last_reviewed": "2026-08-21T15:10:08.987039+00:00",
-      "poc": 5.629,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -739,33 +728,11 @@
       "notes": ""
     },
     {
-      "ticker": "BEI.DE",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:09.152956+00:00",
-      "last_reviewed": "2026-08-21T15:10:09.152963+00:00",
-      "poc": 37.5084,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "NVR",
       "origin": "auto",
       "created": "2026-08-21T15:10:09.164918+00:00",
       "last_reviewed": "2026-08-21T15:10:09.164924+00:00",
       "poc": 537.8081,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "WYNN",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:09.179550+00:00",
-      "last_reviewed": "2026-08-21T15:10:09.179556+00:00",
-      "poc": 81.368,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -882,17 +849,6 @@
       "notes": ""
     },
     {
-      "ticker": "BTRW.L",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:09.300708+00:00",
-      "last_reviewed": "2026-08-21T15:10:09.300714+00:00",
-      "poc": 98.903,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
       "ticker": "AMAT",
       "origin": "auto",
       "created": "2026-08-21T15:10:09.314120+00:00",
@@ -909,17 +865,6 @@
       "created": "2026-08-21T15:10:09.336172+00:00",
       "last_reviewed": "2026-08-21T15:10:09.336178+00:00",
       "poc": 61.7362,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "SY1.DE",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:09.359008+00:00",
-      "last_reviewed": "2026-08-21T15:10:09.359014+00:00",
-      "poc": 14.0349,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -1305,28 +1250,6 @@
       "created": "2026-08-21T15:10:11.246951+00:00",
       "last_reviewed": "2026-08-21T15:10:11.246959+00:00",
       "poc": 801.988,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "DASH",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:11.296714+00:00",
-      "last_reviewed": "2026-08-21T15:10:11.296722+00:00",
-      "poc": 58.2707,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": ""
-    },
-    {
-      "ticker": "SGE.L",
-      "origin": "auto",
-      "created": "2026-08-21T15:10:11.367830+00:00",
-      "last_reviewed": "2026-08-21T15:10:11.367838+00:00",
-      "poc": 53.3616,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
