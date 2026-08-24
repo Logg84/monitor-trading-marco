@@ -1,101 +1,27 @@
 {
-  "updated": "2026-08-24T09:40:15.004742+00:00",
+  "updated": "2026-08-24T09:50:44.550315+00:00",
   "entries": [
     {
-      "ticker": "WDAY",
+      "ticker": "DSY.PA",
       "origin": "auto",
-      "created": "2026-08-24T09:40:08.286320+00:00",
-      "last_reviewed": "2026-08-24T09:40:08.286332+00:00",
-      "poc": 79.1605,
+      "created": "2026-08-23T13:50:48.755788+00:00",
+      "last_reviewed": "2026-08-23T13:50:48.755804+00:00",
+      "poc": 3.3009,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
-      "notes": "",
-      "target_date": null
+      "notes": ""
     },
     {
-      "ticker": "ROP",
+      "ticker": "SAN.PA",
       "origin": "auto",
-      "created": "2026-08-24T09:40:08.743112+00:00",
-      "last_reviewed": "2026-08-24T09:40:08.743122+00:00",
-      "poc": 42.2963,
+      "created": "2026-08-23T13:50:48.761011+00:00",
+      "last_reviewed": "2026-08-23T13:50:48.761023+00:00",
+      "poc": 28.2617,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "UBER",
-      "origin": "auto",
-      "created": "2026-08-24T09:40:08.764646+00:00",
-      "last_reviewed": "2026-08-24T09:40:08.764656+00:00",
-      "poc": 31.6207,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "CVNA",
-      "origin": "auto",
-      "created": "2026-08-24T09:40:08.785899+00:00",
-      "last_reviewed": "2026-08-24T09:40:08.785909+00:00",
-      "poc": 7.8489,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "TRMB",
-      "origin": "auto",
-      "created": "2026-08-24T09:40:08.803319+00:00",
-      "last_reviewed": "2026-08-24T09:40:08.803329+00:00",
-      "poc": 8.1032,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "WEIR.L",
-      "origin": "auto",
-      "created": "2026-08-24T09:40:09.514944+00:00",
-      "last_reviewed": "2026-08-24T09:40:09.514955+00:00",
-      "poc": 319.0072,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "UHS",
-      "origin": "auto",
-      "created": "2026-08-24T09:40:09.558222+00:00",
-      "last_reviewed": "2026-08-24T09:40:09.558233+00:00",
-      "poc": 16.5348,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "ANTO.L",
-      "origin": "auto",
-      "created": "2026-08-24T09:40:10.837206+00:00",
-      "last_reviewed": "2026-08-24T09:40:10.837216+00:00",
-      "poc": 801.988,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
+      "notes": ""
     }
   ]
 }
