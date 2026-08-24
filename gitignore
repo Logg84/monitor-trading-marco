@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.egg-info/
+
+# Ambienti virtuali
+venv/
+.venv/
+env/
+
+# File temporanei editor/OS
+.DS_Store
+*.swp
+
+# Archivi grezzi COT: rigenerabili dalla fonte ufficiale via download_indices.py,
+# non ha senso versionarli (pesano diversi MB e cambiano ad ogni run).
+data/cot/*.zip
