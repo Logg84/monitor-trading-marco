@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-24T14:04:47.319086+00:00",
+  "updated": "2026-08-24T14:08:28.573429+00:00",
   "entries": [
     {
       "ticker": "DSY.PA",
@@ -708,30 +708,6 @@
       "target_date": null
     },
     {
-      "ticker": "SWKS",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.805488+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.805499+00:00",
-      "poc": 13.6252,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "WY",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.813420+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.813434+00:00",
-      "poc": 19.8817,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "BEI.DE",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.817202+00:00",
@@ -869,18 +845,6 @@
       "created": "2026-08-24T14:04:46.902189+00:00",
       "last_reviewed": "2026-08-24T14:04:46.902200+00:00",
       "poc": 75.0184,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "PNR",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.912050+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.912061+00:00",
-      "poc": 36.6325,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -1277,18 +1241,6 @@
       "created": "2026-08-24T14:04:47.228578+00:00",
       "last_reviewed": "2026-08-24T14:04:47.228590+00:00",
       "poc": 16.7701,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "SHL.DE",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:47.233248+00:00",
-      "last_reviewed": "2026-08-24T14:04:47.233259+00:00",
-      "poc": 50.4621,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
