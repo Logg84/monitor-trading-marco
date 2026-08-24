@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-24T10:13:55.880004+00:00",
+  "updated": "2026-08-24T10:18:11.943182+00:00",
   "entries": [
     {
       "ticker": "DSY.PA",
@@ -886,6 +886,22 @@
       "levels": {},
       "notes": "",
       "target_date": null
+    },
+    {
+      "ticker": "MRNA",
+      "origin": "manual",
+      "created": "2026-08-24T10:18:11.931693+00:00",
+      "last_reviewed": "2026-08-24T10:18:11.931703+00:00",
+      "poc": null,
+      "poc_origin": null,
+      "vwap": null,
+      "levels": {
+        "L1": 140.0,
+        "L2": 135.0,
+        "L3": 130.0
+      },
+      "notes": "",
+      "target_date": "2026-08-25"
     }
   ]
 }
