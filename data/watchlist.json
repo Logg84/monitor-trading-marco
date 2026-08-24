@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-24T10:07:52.745605+00:00",
+  "updated": "2026-08-24T10:08:21.984486+00:00",
   "entries": [
     {
       "ticker": "DSY.PA",
@@ -894,7 +894,7 @@
       "last_reviewed": "2026-08-24T10:07:52.743001+00:00",
       "poc": 45.478749942779544,
       "poc_origin": "manual",
-      "vwap": null,
+      "vwap": 104.154,
       "levels": {},
       "notes": "",
       "target_date": null
