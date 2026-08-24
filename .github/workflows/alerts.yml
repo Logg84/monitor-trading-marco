@@ -1,0 +1,30 @@
+name: alerts
+on:
+  schedule:
+    # ogni 2 ore, lun-ven (UTC): 06,08,...,22
+    - cron: "0 6-22/2 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+      - name: Check alert (candidato / inversione / livelli)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/alert_checker.py
+      - name: Commit storico alert
+        run: |
+          git config user.name "argo-bot"
+          git config user.email "argo-bot@users.noreply.github.com"
+          git add data/alerts.json
+          git diff --cached --quiet || git commit -m "chore: storico alert"
+          git push

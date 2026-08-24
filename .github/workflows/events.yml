@@ -1,0 +1,30 @@
+name: events
+on:
+  schedule:
+    # una volta al giorno alle 07:30 UTC, lun-ven
+    - cron: "30 7 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+      - name: Check calendario eventi (fonti regolatorie)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/check_events.py
+      - name: Commit eventi + log
+        run: |
+          git config user.name "argo-bot"
+          git config user.email "argo-bot@users.noreply.github.com"
+          git add data/events/
+          git diff --cached --quiet || git commit -m "chore: calendario eventi"
+          git push
