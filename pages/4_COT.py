@@ -257,6 +257,32 @@ with tab_fx:
         else:
             st.success("Nessun differenziale oltre ±80°.")
 
+        # ── Coppie affollate (blind spot della matrice) ─────────
+        # La matrice sopra mostra P(riga)-P(colonna): se entrambe le
+        # valute sono al proprio estremo NELLA STESSA direzione, il
+        # differenziale è vicino a zero e la cella appare "neutra" —
+        # ma è l'opposto: entrambe le gambe sono affollate, quindi il
+        # posizionamento sulla coppia specifica non è un segnale
+        # affidabile in nessuna delle due direzioni.
+        pair_states = C.fx_pairs_ranked(FX)
+        crowded = [p for p in pair_states if p["key"] == "crowded"]
+        aligned = [p for p in pair_states if p["key"] in ("bull_aligned", "bear_aligned")]
+        if crowded:
+            st.markdown("**⚠️ Coppie affollate** — entrambe le gambe al proprio estremo "
+                        "nella stessa direzione: la matrice le mostra come neutre, ma il "
+                        "posizionamento qui non è utilizzabile come segnale direzionale.")
+            for p in crowded:
+                verso = "long" if p["pBase"] > 80 else "short"
+                st.caption(f"🧊 **{p['pair']}** — {p['base']} {p['pBase']:.0f}° e "
+                          f"{p['quote']} {p['pQuote']:.0f}° entrambe {verso} estremo: "
+                          f"segnali che si annullano a vicenda.")
+        if aligned:
+            with st.expander(f"📋 Coppie con divergenza pulita ({len(aligned)})"):
+                for p in aligned:
+                    verso = "🟢 rialzista" if p["key"] == "bull_aligned" else "🔴 ribassista"
+                    st.caption(f"{verso} **{p['pair']}** — {p['base']} {p['pBase']:.0f}° "
+                              f"vs {p['quote']} {p['pQuote']:.0f}° · divergenza {p['divergenza']:+.0f}")
+
         # ── Dettaglio valuta singola ──────────────────────────
         st.markdown("### Dettaglio valuta singola")
         fx_sel = st.selectbox("Valuta", syms, key="fx_detail")
