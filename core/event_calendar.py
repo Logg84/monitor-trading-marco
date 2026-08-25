@@ -561,6 +561,7 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
 
     n_http_errori = 0
     n_ok_risposte = 0
+    n_date_corrotte = 0
     try:
         for mfr in manufacturers:
             # I nomi multi-parola (es. "Johnson & Johnson", "Eli Lilly") vanno
@@ -605,6 +606,21 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
                     date = raw_date[:10]
                 if not date:
                     continue
+
+                # Controllo di sanità: FAERS contiene voci con receiptdate
+                # palesemente corrotta (refusi nella segnalazione originale,
+                # es. "3200" al posto di "2020"). Una data di RICEZIONE non
+                # può mai essere futura, per definizione. Con sort=desc
+                # queste voci corrotte finiscono in cima invece che in fondo,
+                # quindi vanno scartate esplicitamente qui.
+                try:
+                    d_check = datetime.date.fromisoformat(date)
+                    if d_check > datetime.date.today() or d_check.year < 2000:
+                        n_date_corrotte += 1
+                        continue
+                except ValueError:
+                    n_date_corrotte += 1
+                    continue
                 events.append({
                     "ticker": next((
                         t for t, n in PHARMA_TICKERS.items()
@@ -629,7 +645,7 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
 
     _diag_log(
         "FDA (FAERS)", "OK" if events else "NESSUN RISULTATO",
-        f"risposte_200={n_ok_risposte} errori_http={n_http_errori} su {len(manufacturers)} produttori",
+        f"risposte_200={n_ok_risposte} errori_http={n_http_errori} date_corrotte_scartate={n_date_corrotte} su {len(manufacturers)} produttori",
         count=len(events),
     )
     return events
