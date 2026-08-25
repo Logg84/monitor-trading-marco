@@ -569,6 +569,12 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
             params = {
                 "api_key": api_key,
                 "search": f'patient.drug.openfda.manufacturer_name:"{mfr}"',
+                # Senza sort, openFDA restituisce i risultati nell'ordine
+                # del suo indice interno — spesso segnalazioni di anni fa.
+                # Ordinando per receiptdate decrescente si ottengono le
+                # segnalazioni più recenti, molto più utili nel contesto
+                # di questo calendario.
+                "sort": "receiptdate:desc",
                 "limit": max_results,
             }
             # openFDA espone un endpoint GET con parametri in query string,
