@@ -113,14 +113,10 @@ settore_sel = st.selectbox("Filtra per settore", ["Tutti"] + settori_disponibili
 df_events = pd.DataFrame(events)
 tickers_screening = [t for t in universe if t in df_events["ticker"].values]
 
-c1, c2, c3 = st.columns(3)
+c1 = st.columns(1)[0]
 mostra_solo_screening = c1.checkbox("Solo ticker presenti nello screening", value=True)
-solo_prossimi = c2.checkbox("Solo prossimi 30 giorni", value=True)
-solo_futuri = c3.checkbox(
-    "Solo eventi futuri", value=True,
-    help="Esclude depositi 8-K, richiami, segnalazioni FAERS e cause PTAB già "
-         "avvenuti: quelle fonti riportano fatti passati, non un calendario in arrivo."
-)
+solo_prossimi = False
+solo_futuri = False
 
 # ── Filtraggio ────────────────────────────────────────────
 filtered = []
