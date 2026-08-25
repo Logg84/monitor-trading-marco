@@ -47,7 +47,12 @@ CFTC_TO_FX = {
     "EURO FX": "EUR", "BRITISH POUND": "GBP", "JAPANESE YEN": "JPY",
     "AUSTRALIAN DOLLAR": "AUD", "CANADIAN DOLLAR": "CAD",
     "SWISS FRANC": "CHF", "NEW ZEALAND DOLLAR": "NZD",
-    "US DOLLAR INDEX": "USD",
+    # Il nome reale nel campo Market_and_Exchange_Names di CFTC è
+    # "USD INDEX - ICE FUTURES U.S.", non "US DOLLAR INDEX": con la
+    # stringa sbagliata _mask_mercato non trovava mai nessuna riga
+    # (né match esatto né come prefisso), quindi il dollaro veniva
+    # silenziosamente saltato in ogni elaborazione, senza errore visibile.
+    "USD INDEX": "USD",
 }
 
 CFTC_TO_COMM = {
