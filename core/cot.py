@@ -437,6 +437,113 @@ def comm_state(sym: str, comm: dict) -> dict:
     return {"key": key, "tone": tone, "pP": pP, "pM": pM, "pS": pS,
             "dP": dP, "dM": dM, "revP": revP}
 
+# ════════════════════════════════════════════════════════════
+# ANALISI PER COPPIA FOREX (non per singola valuta)
+# ════════════════════════════════════════════════════════════
+# Il dato COT per il forex è per-valuta (net positioning speculativo
+# contro USD, o l'indice USD stesso), ma una coppia è per definizione
+# un confronto tra due gambe. Guardare EUR da sola e ignorare cosa fa
+# USD nello stesso momento significa perdere il caso più informativo:
+# quando entrambe le gambe sono estreme nella STESSA direzione, i
+# segnali si annullano a vicenda invece di sommarsi.
+#
+# "quote_is_usd_index": True per le coppie dirette contro USD (la
+# valuta base è quotata sui futures CME/ICE direttamente contro USD,
+# quindi la "gamba quote" è l'USD Index). False per i cross (entrambe
+# le gambe sono valute non-USD, es. EURGBP, EURJPY).
+FX_PAIRS = {
+    "EURUSD": ("EUR", "USD"), "GBPUSD": ("GBP", "USD"),
+    "AUDUSD": ("AUD", "USD"), "NZDUSD": ("NZD", "USD"),
+    "USDJPY": ("USD", "JPY"), "USDCHF": ("USD", "CHF"),
+    "USDCAD": ("USD", "CAD"),
+    # Cross: nessuna gamba è USD, la divergenza si calcola direttamente
+    # tra le due valute non-USD, senza passare dall'indice.
+    "EURGBP": ("EUR", "GBP"), "EURJPY": ("EUR", "JPY"),
+    "GBPJPY": ("GBP", "JPY"), "AUDJPY": ("AUD", "JPY"),
+    "EURCHF": ("EUR", "CHF"), "EURAUD": ("EUR", "AUD"),
+}
+
+def _fx_leg(sym: str, fx: dict) -> dict:
+    """Percentile e derivata del net positioning di una singola valuta."""
+    arr = fx.get(sym) or []
+    v = series(arr, "nc")
+    if len(arr) < MINW or len(v) < 10:
+        return {"p": 50.0, "d": 0.0, "n": len(v)}
+    return {"p": percentile(v, v[-1]), "d": deriv(v), "n": len(v)}
+
+def fx_pair_state(pair: str, fx: dict) -> dict | None:
+    """
+    Stato COT per una coppia forex, basato sulla DIVERGENZA tra le due
+    gambe — non sul percentile isolato di una sola valuta.
+
+    key:
+      "bull_aligned"  — base in accumulo estremo (pB<20) mentre la quote
+                         non lo è (pQ>35): le due gambe puntano nella
+                         stessa direzione per la coppia, segnale pulito.
+      "bear_aligned"  — speculare, ribassista.
+      "crowded"       — entrambe le gambe estreme nella STESSA direzione
+                         (es. EUR long estremo E USD long estremo): i
+                         segnali si annullano, il posizionamento non dice
+                         nulla sulla direzione della COPPIA anche se dice
+                         molto sulle due valute prese singolarmente.
+      "watch"         — solo una gamba è estrema, l'altra è neutra:
+                         segnale parziale, da monitorare non da seguire.
+      "flat"          — nessuna gamba in zona estrema, dati insufficienti.
+    """
+    if pair not in FX_PAIRS:
+        return None
+    base_sym, quote_sym = FX_PAIRS[pair]
+    base = _fx_leg(base_sym, fx)
+    quote = _fx_leg(quote_sym, fx)
+    if base["n"] < 10 or quote["n"] < 10:
+        return {"key": "flat", "tone": "muted", "pBase": 50, "pQuote": 50,
+                "divergenza": 0, "base": base_sym, "quote": quote_sym}
+
+    pB, pQ = base["p"], quote["p"]
+    # Divergenza diretta: quanto la base è più "comprata" della quote sul
+    # proprio storico. Va da -100 (quote massimamente più comprata) a
+    # +100 (base massimamente più comprata).
+    divergenza = (pB - pQ)
+
+    base_estrema_long = pB > 80
+    base_estrema_short = pB < 20
+    quote_estrema_long = pQ > 80
+    quote_estrema_short = pQ < 20
+
+    if base_estrema_long and quote_estrema_long:
+        key, tone = "crowded", "ice"
+    elif base_estrema_short and quote_estrema_short:
+        key, tone = "crowded", "ice"
+    elif base_estrema_long and (quote_estrema_short or 35 <= pQ <= 65):
+        key, tone = "bull_aligned", "green"
+    elif base_estrema_short and (quote_estrema_long or 35 <= pQ <= 65):
+        key, tone = "bear_aligned", "red"
+    elif base_estrema_long or base_estrema_short or quote_estrema_long or quote_estrema_short:
+        key, tone = "watch", "yellow"
+    else:
+        key, tone = "flat", "muted"
+
+    return {
+        "key": key, "tone": tone,
+        "pBase": pB, "pQuote": pQ, "divergenza": divergenza,
+        "dBase": base["d"], "dQuote": quote["d"],
+        "base": base_sym, "quote": quote_sym,
+    }
+
+def fx_pairs_ranked(fx: dict) -> list[dict]:
+    """Tutte le coppie definite, ordinate per intensità di divergenza
+    assoluta (le più 'sbilanciate' — quindi potenzialmente le più
+    interessanti — in cima). Le 'crowded' vengono segnalate ma non sono
+    per forza in cima, dato che il loro segnale direzionale è nullo per
+    costruzione anche se entrambe le gambe sono estreme."""
+    out = []
+    for pair in FX_PAIRS:
+        st_ = fx_pair_state(pair, fx)
+        if st_ and st_["key"] != "flat":
+            out.append({"pair": pair, **st_})
+    out.sort(key=lambda x: abs(x["divergenza"]), reverse=True)
+    return out
+
 def regime_scores(payload: dict | None) -> dict | None:
     """Score contrarian aggregati per la Bussola (attori COT)."""
     if not payload:
