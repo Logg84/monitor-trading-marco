@@ -7,6 +7,7 @@ Dettaglio valute: da singolo a confronto multi-valuta (1-6).
 import datetime
 import streamlit as st
 import pandas as pd
+import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -279,10 +280,11 @@ with tab_fx:
 
         def _roll_perc(vv, look=52):
             """Percentile rolling del net: serie 0-100° confrontabile tra valute."""
+            a = np.asarray(vv, dtype=float)
             out = []
-            for i in range(len(vv)):
-                win = vv[max(0, i - look):i + 1]
-                out.append(float((win < vv[i]).mean()) * 100)
+            for i in range(len(a)):
+                win = a[max(0, i - look):i + 1]
+                out.append(float((win < a[i]).mean()) * 100)
             return out
 
         n_max = min(6, len(syms))
@@ -356,7 +358,7 @@ with tab_fx:
                 if len(v_s) < 10:
                     continue
                 times_s = [pd.Timestamp(x["t"], unit="ms") for x in arr_s[-C.WINDOW:]]
-                perc_s = _roll_perc(list(v_s))[-C.WINDOW:]
+                perc_s = _roll_perc(v_s)[-C.WINDOW:]
                 fig_m.add_trace(go.Scatter(x=times_s, y=perc_s, name=f"{s} °",
                                 line=dict(color=palette[k % len(palette)], width=2)))
             fig_m.add_hrect(y0=80, y1=100, fillcolor=_rgba(col["negative"], 0.10), line_width=0)
