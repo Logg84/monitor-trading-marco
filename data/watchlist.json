@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-24T15:20:49.733054+00:00",
+  "updated": "2026-08-25T06:49:27.709172+00:00",
   "entries": [
     {
       "ticker": "SAN.PA",
@@ -224,18 +224,6 @@
       "poc": 558.3664,
       "poc_origin": "auto",
       "vwap": 489.6831,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "CDW",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.586576+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.586590+00:00",
-      "poc": 168.1442,
-      "poc_origin": "auto",
-      "vwap": 135.4594,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -469,18 +457,6 @@
       "target_date": null
     },
     {
-      "ticker": "REL.L",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.716046+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.716056+00:00",
-      "poc": 591.8188,
-      "poc_origin": "auto",
-      "vwap": 2510.6452,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "PSH.L",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.723028+00:00",
@@ -560,18 +536,6 @@
       "poc": 17.1664,
       "poc_origin": "auto",
       "vwap": 99.473,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "CCL",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.763624+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.763636+00:00",
-      "poc": 16.1878,
-      "poc_origin": "auto",
-      "vwap": 27.8162,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -673,18 +637,6 @@
       "target_date": null
     },
     {
-      "ticker": "ORCL",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.840457+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.840468+00:00",
-      "poc": 20.3769,
-      "poc_origin": "auto",
-      "vwap": 155.028,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "APO",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.847768+00:00",
@@ -704,18 +656,6 @@
       "poc": 84.0488,
       "poc_origin": "auto",
       "vwap": 262.0729,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "XYL",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.862123+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.862133+00:00",
-      "poc": 30.9595,
-      "poc_origin": "auto",
-      "vwap": 116.5898,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -812,18 +752,6 @@
       "poc": 12.9615,
       "poc_origin": "auto",
       "vwap": 35.5956,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "RMS.PA",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.948894+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.948906+00:00",
-      "poc": 198.8012,
-      "poc_origin": "auto",
-      "vwap": 1623.2576,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1069,18 +997,6 @@
       "target_date": null
     },
     {
-      "ticker": "BNZL.L",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:47.190209+00:00",
-      "last_reviewed": "2026-08-24T14:04:47.190221+00:00",
-      "poc": 478.0522,
-      "poc_origin": "auto",
-      "vwap": 2633.2761,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "ISRG",
       "origin": "auto",
       "created": "2026-08-24T14:04:47.217386+00:00",
@@ -1177,18 +1093,6 @@
       "target_date": null
     },
     {
-      "ticker": "TYL",
-      "origin": "auto",
-      "created": "2026-08-24T14:36:31.336937+00:00",
-      "last_reviewed": "2026-08-24T14:36:31.336947+00:00",
-      "poc": 22.0826,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "LSEG.L",
       "origin": "auto",
       "created": "2026-08-24T14:36:31.342027+00:00",
@@ -1242,18 +1146,6 @@
       "created": "2026-08-24T15:18:03.217283+00:00",
       "last_reviewed": "2026-08-24T15:18:03.217287+00:00",
       "poc": 22.677,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "CDNS",
-      "origin": "auto",
-      "created": "2026-08-24T15:18:03.221679+00:00",
-      "last_reviewed": "2026-08-24T15:18:03.221684+00:00",
-      "poc": 25.0713,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
@@ -1326,18 +1218,6 @@
       "created": "2026-08-24T15:18:03.245402+00:00",
       "last_reviewed": "2026-08-24T15:18:03.245405+00:00",
       "poc": 14.7612,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "HCA",
-      "origin": "auto",
-      "created": "2026-08-24T15:18:03.246507+00:00",
-      "last_reviewed": "2026-08-24T15:18:03.246511+00:00",
-      "poc": 77.0016,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
