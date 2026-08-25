@@ -1,5 +1,6 @@
 """
 Calendario eventi multi-settore.
+
 Fonti con API pubblica gratuita:
   - ClinicalTrials.gov (Farmaceutico/biotech) — API v2, no key
   - SEC EDGAR (Estrattivo USA, tutti i settori) — RSS full-text
@@ -12,6 +13,7 @@ Ogni evento ha link diretto alla fonte ufficiale.
 Gli eventi SENZA link verificabile non vengono mostrati.
 """
 from __future__ import annotations
+
 import datetime
 import json
 import os
@@ -32,16 +34,20 @@ LAST_CHECK_PATH = EVENTS_DIR / "last_check.json"
 # perché, invece di indovinare — visibile nella pagina Calendario.
 _last_diag: list[dict] = []
 
+
 def _diag_reset() -> None:
     _last_diag.clear()
+
 
 def _diag_log(fonte: str, status: str, dettaglio: str = "", count: int = 0) -> None:
     _last_diag.append({"fonte": fonte, "status": status,
                         "dettaglio": dettaglio, "count": count})
 
+
 def get_last_diagnostics() -> list[dict]:
     """Diagnostica dell'ultimo fetch_all_events(): una riga per fonte."""
     return list(_last_diag)
+
 
 # ── Schema evento ──────────────────────────────────────────
 SETTORI = [
@@ -55,6 +61,7 @@ SETTORI = [
 
 # Mappa ticker/nome per le aziende più comuni seguite in screening.
 # Sarà integrata con l'universo dello screening a runtime.
+
 # ├─ Farmaceutico/biotech ────────────────────────────
 PHARMA_TICKERS = {
     "PFE": "Pfizer", "JNJ": "Johnson & Johnson", "MRK": "Merck",
@@ -65,6 +72,7 @@ PHARMA_TICKERS = {
     "ROG.SW": "Roche", "SNY": "Sanofi", "GSK.L": "GSK",
     "NVS": "Novartis ADR", "RHHVF": "Roche ADR",
 }
+
 # ├─ Estrattivo ───────────────────────────────────────
 MINING_TICKERS = {
     "XOM": "Exxon Mobil", "CVX": "Chevron", "SHEL.L": "Shell",
@@ -73,6 +81,7 @@ MINING_TICKERS = {
     "FCX": "Freeport-McMoRan", "NEM": "Newmont", "SCCO": "Southern Copper",
     "VALE": "Vale", "TTE": "TotalEnergies ADR",
 }
+
 # ├─ Aerospaziale/difesa ─────────────────────────────
 AERO_TICKERS = {
     "BA": "Boeing", "LMT": "Lockheed Martin", "RTX": "Raytheon",
@@ -81,6 +90,7 @@ AERO_TICKERS = {
     "SAIC": "Science Applications", "LHX": "L3Harris",
     "HII": "Huntington Ingalls",
 }
+
 # ├─ Automotive/EV ───────────────────────────────────
 AUTO_TICKERS = {
     "TSLA": "Tesla", "F": "Ford", "GM": "General Motors",
@@ -139,7 +149,8 @@ def _map_ticker(s: str, search: str) -> str | None:
 # ════════════════════════════════════════════════════════════
 CT_BASE = "https://clinicaltrials.gov/api/v2/studies"
 
-def _search_ct(sponsor_terms: list[str],  max_studies: int = 10) -> list[dict]:
+
+def _search_ct(sponsor_terms: list[str], max_studies: int = 10) -> list[dict]:
     """
     Cerca studi in ClinicalTrials.gov per sponsor.
     Filtra: studi in corso con completamento primario atteso.
@@ -155,7 +166,7 @@ def _search_ct(sponsor_terms: list[str],  max_studies: int = 10) -> list[dict]:
         # la richiesta tornava 400 e la funzione andava in return [] silenzioso.
         # Il filtro sulla data viene fatto lato client più sotto.
         "pageSize": str(max_studies),
-        "fields": "NCTId,briefTitle,phase,primaryCompletionDate,overallStatus,sponsorName,condition",
+        "fields": "NCTId,BriefTitle,Phase,PrimaryCompletionDate,OverallStatus,LeadSponsorName,Condition",
         "format": "json",
     }
     try:
@@ -188,29 +199,65 @@ def fetch_ct_events(max_per_sponsor: int = 5) -> list[dict]:
         "AstraZeneca", "Novartis", "Roche", "Sanofi", "GSK",
     ]
 
+    # Contatori per la diagnostica interna al parsing (separati dallo status
+    # HTTP, che _search_ct già logga): quanti studi trovati vs quanti
+    # scartati per data mancante/passata, per non dover più indovinare
+    # se il problema è "zero risultati dall'API" o "risultati scartati qui".
+    n_trovati = 0
+    n_senza_data = 0
+    n_passati = 0
+    n_ok = 0
+
     for batch in [sponsors[i:i + 5] for i in range(0, len(sponsors), 5)]:
         studies = _search_ct(batch, max_studies=max_per_sponsor)
+        n_trovati += len(studies)
         for study in studies[:max_per_sponsor]:
-            nct_id = study.get("protocolSection", {}).get("identificationModule", {}).get("nctId")
+            protocol = study.get("protocolSection", {})
+
+            nct_id = protocol.get("identificationModule", {}).get("nctId")
             if not nct_id:
                 continue
-            desc = study.get("protocolSection", {}).get("descriptionModule", {}).get("briefTitle", "—")
-            sponsor_name = study.get("protocolSection", {}).get("sponsor", {}).get("leadSponsor", {}).get("name", "—")
-            phase = study.get("protocolSection", {}).get("designModule", {}).get("phases", ["—"])[0]
-            cond = study.get("protocolSection", {}).get("conditionsModule", {}).get("conditions", ["—"])[0]
-            pc_date = study.get("protocolSection", {}).get("statusModule", {}).get("primaryCompletionDate", {}).get("date")
+
+            # Corretto: briefTitle vive in identificationModule, non in
+            # descriptionModule (che in v2 contiene detailedDescription).
+            desc = protocol.get("identificationModule", {}).get("briefTitle", "—")
+
+            # Corretto: il lead sponsor vive in sponsorCollaboratorsModule,
+            # non in un modulo "sponsor" (che non esiste in questo schema).
+            sponsor_name = protocol.get("sponsorCollaboratorsModule", {}) \
+                                    .get("leadSponsor", {}) \
+                                    .get("name", "—")
+
+            phase = protocol.get("designModule", {}).get("phases", ["—"])[0]
+            cond = protocol.get("conditionsModule", {}).get("conditions", ["—"])[0]
+
+            # Corretto: il campo si chiama primaryCompletionDateStruct
+            # (con sotto-chiavi "date" e "type": ESTIMATED/ACTUAL), non
+            # primaryCompletionDate. Con il nome sbagliato questa lookup
+            # restituiva sempre None e OGNI studio veniva scartato dal
+            # "continue" sotto — la causa reale per cui il calendario
+            # mostrava solo eventi passati (le altre fonti attive sono
+            # tutte "orientamento: passato" per costruzione).
+            pc_date = protocol.get("statusModule", {}) \
+                               .get("primaryCompletionDateStruct", {}) \
+                               .get("date")
             if not pc_date:
+                n_senza_data += 1
                 continue
+
             # Filtro data lato client (prima delegato a un parametro API
             # inesistente): tiene solo i trial con completamento non ancora
             # passato. pc_date può essere "YYYY-MM" oltre a "YYYY-MM-DD".
             try:
                 pc_check = pc_date if len(pc_date) > 7 else pc_date + "-01"
                 if datetime.date.fromisoformat(pc_check) < datetime.date.today():
+                    n_passati += 1
                     continue
             except ValueError:
+                n_senza_data += 1
                 continue
 
+            n_ok += 1
             ticker = _map_ticker(sponsor_name.lower(), sponsor_name)
             events.append({
                 "ticker": ticker or sponsor_name,
@@ -231,6 +278,15 @@ def fetch_ct_events(max_per_sponsor: int = 5) -> list[dict]:
             })
         time.sleep(0.5)
 
+    # Diagnostica del parsing, separata da quella HTTP già loggata in
+    # _search_ct: se in futuro un campo cambia ancora nome, questa riga
+    # lo mostra subito invece di dover dedurlo dal sintomo "solo passati".
+    _diag_log(
+        "ClinicalTrials.gov (parsing)", "OK",
+        f"trovati={n_trovati} senza_data={n_senza_data} scartati_perché_passati={n_passati} inclusi={n_ok}",
+        count=n_ok,
+    )
+
     return events
 
 
@@ -239,6 +295,7 @@ def fetch_ct_events(max_per_sponsor: int = 5) -> list[dict]:
 # ════════════════════════════════════════════════════════════
 SEC_SEARCH = "https://efts.sec.gov/LATEST/search-index"
 SEC_CIK = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={}&type=8-K&dateb=&owner=exclude&output=atom"
+
 
 def _cik_for_ticker(ticker: str) -> str | None:
     """Ricava CIK da ticker via SEC EDGAR index."""
@@ -268,6 +325,7 @@ SEC_TICKERS = {
     **AERO_TICKERS, **AUTO_TICKERS,
 }
 
+
 def fetch_sec_events(max_per_ticker: int = 3) -> list[dict]:
     """
     Recupera eventi SEC EDGAR 8-K per i ticker dello screening.
@@ -275,8 +333,8 @@ def fetch_sec_events(max_per_ticker: int = 3) -> list[dict]:
     """
     events = []
     now = datetime.datetime.now(datetime.UTC).isoformat()
-
     tickers_sample = list(SEC_TICKERS.keys())[:20]
+
     for ticker in tickers_sample:
         cik = _cik_for_ticker(ticker)
         if not cik:
@@ -338,6 +396,7 @@ def fetch_sec_events(max_per_ticker: int = 3) -> list[dict]:
 # ════════════════════════════════════════════════════════════
 SAM_API = "https://api.sam.gov/opportunities/v2/search"
 
+
 def fetch_sam_events(max_results: int = 10, api_key: str | None = None) -> list[dict]:
     """
     Recupera contratti federali da SAM.gov per aziende aerospaziali/difesa.
@@ -398,10 +457,10 @@ def fetch_sam_events(max_results: int = 10, api_key: str | None = None) -> list[
 # ════════════════════════════════════════════════════════════
 NHTSA_RECALLS = "https://api.nhtsa.gov/recall/recallsByManufacturer"
 
+
 def fetch_nhtsa_events(max_per_mfr: int = 5) -> list[dict]:
     """
     DISATTIVATA — non chiamata da fetch_all_events.
-
     L'endpoint usato qui sotto ("recall/recallsByManufacturer") non esiste
     nell'API ufficiale NHTSA. L'unico endpoint recall documentato è
     "recalls/recallsByVehicle" (plurale), che richiede make+model+modelYear
@@ -468,6 +527,7 @@ def fetch_nhtsa_events(max_per_mfr: int = 5) -> list[dict]:
 # Richiede API key (gratuita) per uso regolatorio strutturato.
 # Senza key, forniamo solo una indicazione di dove trovare i dati.
 
+
 def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[dict]:
     """
     Recupera segnalazioni di farmacovigilanza (FAERS) da open.fda.gov.
@@ -480,6 +540,7 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
     per quelle serve consultare manualmente il calendario su fda.gov,
     oppure un aggregatore di settore (da NON usare come fonte primaria
     per il link ufficiale, si veda nota generale del modulo).
+
     Richiede API key gratuita. Senza, restituisce lista vuota.
     """
     api_key = api_key or os.environ.get("FDA_API_KEY") or ""
@@ -492,6 +553,7 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
         "Pfizer", "Merck", "Johnson & Johnson", "AbbVie",
         "Eli Lilly", "Amgen", "Gilead", "Roche", "Novartis",
     ]
+
     try:
         for mfr in manufacturers:
             params = {
@@ -545,6 +607,7 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
 # ════════════════════════════════════════════════════════════
 PTAB_API = "https://developer.uspto.gov/ptab-api/v1/"
 
+
 def _ptab_search(search: str, max_results: int = 5) -> list[dict]:
     try:
         r = requests.get(
@@ -568,6 +631,7 @@ PTAB_TICKERS = {
     "TSLA": "Tesla", "BA": "Boeing", "LMT": "Lockheed Martin",
 }
 
+
 def fetch_ptab_events(max_results: int = 10) -> list[dict]:
     """
     Recupera decisioni PTAB per controversie brevettuali recenti
@@ -575,7 +639,6 @@ def fetch_ptab_events(max_results: int = 10) -> list[dict]:
     """
     events = []
     now = datetime.datetime.now(datetime.UTC).isoformat()
-
     for ticker in list(PTAB_TICKERS.keys())[:8]:
         results = _ptab_search(f"\"{PTAB_TICKERS[ticker]}\"", max_results=2)
         for case in results:
@@ -601,7 +664,6 @@ def fetch_ptab_events(max_results: int = 10) -> list[dict]:
                 "orientamento": "passato",
             })
         time.sleep(0.3)
-
     return events
 
 
@@ -610,6 +672,7 @@ def fetch_ptab_events(max_results: int = 10) -> list[dict]:
 # I dati per questo settore vengono marcati come "annuncio aziendale"
 # e trattati separatamente nelle UI.
 # ════════════════════════════════════════════════════════════
+
 
 def fetch_all_events(sam_key: str | None = None,
                      fda_key: str | None = None) -> list[dict]:
@@ -626,6 +689,7 @@ def fetch_all_events(sam_key: str | None = None,
     """
     events = []
     _diag_reset()
+
     events += fetch_ct_events()
     events += fetch_sec_events()
     events += fetch_sam_events(api_key=sam_key)
@@ -636,6 +700,7 @@ def fetch_all_events(sam_key: str | None = None,
     # events += fetch_nhtsa_events()
     events += fetch_fda_events(api_key=fda_key)
     events += fetch_ptab_events()
+
     events.sort(key=lambda e: e.get("data_attesa", "9999-99-99"))
     return events
 
@@ -643,6 +708,7 @@ def fetch_all_events(sam_key: str | None = None,
 # ════════════════════════════════════════════════════════════
 # INTEGRAZIONE ALERT
 # ════════════════════════════════════════════════════════════
+
 def check_upcoming_events(days_ahead: int = 14) -> list[dict]:
     """
     Confronta gli eventi salvati con la data odierna.
@@ -657,6 +723,7 @@ def check_upcoming_events(days_ahead: int = 14) -> list[dict]:
     events = load_events()
     today = datetime.date.today()
     alert_window = today + datetime.timedelta(days=days_ahead)
+
     upcoming = []
     for e in events:
         if e.get("orientamento") != "futuro":
