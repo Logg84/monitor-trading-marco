@@ -2,9 +2,9 @@
 COT — Forex & materie prime: matrice forza relativa FX, letture
 Producer/Managed/Swap con regola producer estremo, storico merge,
 reset storico, diagnostica zip, publish GitHub opzionale.
+Dettaglio valute: da singolo a confronto multi-valuta (1-6).
 """
 import datetime
-
 import streamlit as st
 import pandas as pd
 import yfinance as yf
@@ -78,7 +78,7 @@ with st.expander("📥 Aggiornamento manuale (download + upload zip)",
     uploaded = st.file_uploader("Zip CFTC (.zip)", type=["zip"],
                                 accept_multiple_files=True,
                                 label_visibility="collapsed")
-    reset = st.checkbox("🧨 **Riparti da zero** — ignora lo storico salvato e ricostruisce pulito "
+    reset = st.checkbox("🧨 Riparti da zero — ignora lo storico salvato e ricostruisce pulito "
                         "(usalo UNA volta dopo un'elaborazione sbagliata)", value=False)
     if st.button("⚙️ Processa e salva", type="primary", disabled=(not uploaded)):
         with st.spinner("Lettura zip + merge con storico…"):
@@ -99,7 +99,7 @@ if diag and (DATA is None or DATA["meta"]["weeks"] < C.MINW):
     with st.expander("🔬 Diagnostica ultimo Processa (apri e fai screenshot se non funziona)",
                      expanded=True):
         for d in diag:
-            st.markdown(f"**{d.get('file')}**")
+            st.markdown(f"{d.get('file')}")
             st.json(d, expanded=False)
 
 if not DATA:
@@ -119,8 +119,8 @@ try:
 except Exception:
     pass
 
-st.caption(f"report_date **{META['date']}** · window **{META['weeks']}** sett. · "
-           f"records **{META['rec']}** · generato {META['gen']} · {META['src']}")
+st.caption(f"report_date {META['date']} · window {META['weeks']} sett. · "
+           f"records {META['rec']} · generato {META['gen']} · {META['src']}")
 
 tab_fx, tab_cm = st.tabs(["💱 Forex · forza relativa", "🛢️ Materie prime · tre categorie"])
 
@@ -166,9 +166,8 @@ with tab_fx:
                 except Exception:
                     pass
 
-        # ── Layout a due colonne: matrice + ranking + dettaglio ──
+        # ── Layout a due colonne: matrice + ranking ─────────
         col_fx1, col_fx2 = st.columns([1.5, 1], gap="medium")
-
         with col_fx1:
             st.markdown("**Matrice forza relativa** — cella = P(riga) − P(colonna) "
                         "su net speculativo. Hover per il verso della coppia.")
@@ -195,7 +194,6 @@ with tab_fx:
                         cr.append(f"<b>{verso} {rs}/{cs}</b> · Δperc {diff:+.0f} · "
                                   f"{rs} {P[rs]:.0f}° vs {cs} {P[cs]:.0f}° · deriv {D[rs]:+.0f}")
                 z_mat.append(zr); txt_mat.append(tr); cust_mat.append(cr)
-
             n = len(syms)
             fig = go.Figure(go.Heatmap(
                 z=z_mat, x=syms, y=syms, text=txt_mat, texttemplate="%{text}",
@@ -216,7 +214,6 @@ with tab_fx:
             st.plotly_chart(fig, use_container_width=True)
             st.markdown(f"Coppia più sbilanciata: **{'LONG' if maxSign > 0 else 'SHORT'} "
                         f"{maxPair}** · Δperc {maxD:.0f}° · soglie alert ±80°")
-
         with col_fx2:
             st.markdown("**Ranking valute** — percentile del net speculativo. "
                         "Destra = euforia long, sinistra = panico short.")
@@ -239,7 +236,7 @@ with tab_fx:
                                     "color": col["accent"]}})
             st.plotly_chart(figr, use_container_width=True)
 
-        # ── Alert squilibrio ──────────────────────────────────
+        # ── Alert squilibrio ────────────────────────────────
         als = []
         for a in syms:
             for b in syms:
@@ -257,13 +254,7 @@ with tab_fx:
         else:
             st.success("Nessun differenziale oltre ±80°.")
 
-        # ── Coppie affollate (blind spot della matrice) ─────────
-        # La matrice sopra mostra P(riga)-P(colonna): se entrambe le
-        # valute sono al proprio estremo NELLA STESSA direzione, il
-        # differenziale è vicino a zero e la cella appare "neutra" —
-        # ma è l'opposto: entrambe le gambe sono affollate, quindi il
-        # posizionamento sulla coppia specifica non è un segnale
-        # affidabile in nessuna delle due direzioni.
+        # ── Coppie affollate (blind spot della matrice) ─────
         pair_states = C.fx_pairs_ranked(FX)
         crowded = [p for p in pair_states if p["key"] == "crowded"]
         aligned = [p for p in pair_states if p["key"] in ("bull_aligned", "bear_aligned")]
@@ -274,79 +265,136 @@ with tab_fx:
             for p in crowded:
                 verso = "long" if p["pBase"] > 80 else "short"
                 st.caption(f"🧊 **{p['pair']}** — {p['base']} {p['pBase']:.0f}° e "
-                          f"{p['quote']} {p['pQuote']:.0f}° entrambe {verso} estremo: "
-                          f"segnali che si annullano a vicenda.")
+                           f"{p['quote']} {p['pQuote']:.0f}° entrambe {verso} estremo: "
+                           f"segnali che si annullano a vicenda.")
         if aligned:
             with st.expander(f"📋 Coppie con divergenza pulita ({len(aligned)})"):
                 for p in aligned:
                     verso = "🟢 rialzista" if p["key"] == "bull_aligned" else "🔴 ribassista"
                     st.caption(f"{verso} **{p['pair']}** — {p['base']} {p['pBase']:.0f}° "
-                              f"vs {p['quote']} {p['pQuote']:.0f}° · divergenza {p['divergenza']:+.0f}")
+                               f"vs {p['quote']} {p['pQuote']:.0f}° · divergenza {p['divergenza']:+.0f}")
 
-        # ── Dettaglio valuta singola ──────────────────────────
-        st.markdown("### Dettaglio valuta singola")
-        fx_sel = st.selectbox("Valuta", syms, key="fx_detail")
-        arr = FX[fx_sel]
-        v = C.series(arr, "nc")
-        if len(v) >= 10:
-            cols_d = st.columns(4)
-            cols_d[0].metric("Percentile", f"{P[fx_sel]:.0f}°")
-            cols_d[1].metric("Z-score", f"{Z[fx_sel]:.2f}")
-            cols_d[2].metric("Δ4 sett", f"{D4[fx_sel]:+.0f}")
-            cols_d[3].metric("Δ8 sett", f"{D8[fx_sel]:+.0f}")
+        # ── Dettaglio valute: singolo o confronto 1-6 ───────
+        st.markdown("### Dettaglio valute (singolo o confronto)")
 
-            # Grafico storico netto speculativo + prezzo
-            fig_fx = make_subplots(specs=[[{"secondary_y": True}]])
-            times = [pd.Timestamp(x["t"], unit="ms") for x in arr[-C.WINDOW:]]
-            fig_fx.add_trace(go.Scatter(x=times, y=v[-C.WINDOW:],
-                             name="Net speculativo",
-                             line=dict(color=col["accent"], width=2),
-                             fill="tozeroy",
-                             fillcolor=_rgba(col["accent"], 0.08)),
-                             secondary_y=False)
-            if fx_sel in fx_prices:
-                px = fx_prices[fx_sel]
-                times_px = [t for t in times if t in px.index]
-                px_vals = [float(px[t]) for t in times_px]
-                fig_fx.add_trace(go.Scatter(x=times_px, y=px_vals,
-                                 name="Prezzo",
-                                 line=dict(color=col["warning"], width=1.8)),
-                                 secondary_y=True)
-            fig_fx.update_layout(
+        def _roll_perc(vv, look=52):
+            """Percentile rolling del net: serie 0-100° confrontabile tra valute."""
+            out = []
+            for i in range(len(vv)):
+                win = vv[max(0, i - look):i + 1]
+                out.append(float((win < vv[i]).mean()) * 100)
+            return out
+
+        n_max = min(6, len(syms))
+        n_fx = st.selectbox("Numero valute da visualizzare",
+                            list(range(1, n_max + 1)), index=0, key="fx_n")
+        slot_cols = st.columns(n_fx)
+        fx_multi = []
+        for i in range(n_fx):
+            def_i = min(i, len(syms) - 1)
+            sel_i = slot_cols[i].selectbox(
+                f"Valuta {i+1}", syms,
+                index=def_i, key=f"fx_slot_{i}")
+            fx_multi.append(sel_i)
+        seen = set()
+        fx_multi = [s for s in fx_multi if not (s in seen or seen.add(s))]
+
+        if len(fx_multi) == 1:
+            fx_sel = fx_multi[0]
+            arr = FX[fx_sel]
+            v = C.series(arr, "nc")
+            if len(v) >= 10:
+                cols_d = st.columns(4)
+                cols_d[0].metric("Percentile", f"{P[fx_sel]:.0f}°")
+                cols_d[1].metric("Z-score", f"{Z[fx_sel]:.2f}")
+                cols_d[2].metric("Δ4 sett", f"{D4[fx_sel]:+.0f}")
+                cols_d[3].metric("Δ8 sett", f"{D8[fx_sel]:+.0f}")
+                fig_fx = make_subplots(specs=[[{"secondary_y": True}]])
+                times = [pd.Timestamp(x["t"], unit="ms") for x in arr[-C.WINDOW:]]
+                fig_fx.add_trace(go.Scatter(x=times, y=v[-C.WINDOW:],
+                                 name="Net speculativo",
+                                 line=dict(color=col["accent"], width=2),
+                                 fill="tozeroy",
+                                 fillcolor=_rgba(col["accent"], 0.08)),
+                                 secondary_y=False)
+                if fx_sel in fx_prices:
+                    px = fx_prices[fx_sel]
+                    times_px = [t for t in times if t in px.index]
+                    px_vals = [float(px[t]) for t in times_px]
+                    fig_fx.add_trace(go.Scatter(x=times_px, y=px_vals,
+                                     name="Prezzo",
+                                     line=dict(color=col["warning"], width=1.8)),
+                                     secondary_y=True)
+                fig_fx.update_layout(
+                    template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
+                    height=280, margin=dict(l=10, r=10, t=10, b=10),
+                    paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
+                    legend={"orientation": "h", "y": 1.14,
+                            "font": {"family": "JetBrains Mono", "size": 10.5}})
+                st.plotly_chart(fig_fx, use_container_width=True)
+                if fx_sel in fx_divergence:
+                    dvg = fx_divergence[fx_sel]
+                    if dvg["divergent"]:
+                        direzione = ("prezzo sale ma posizionamento cala" if dvg["price_4w"] > 0
+                                     else "prezzo scende ma posizionamento sale")
+                        st.warning(f"⚠️ **Divergenza {fx_sel}**: {direzione} "
+                                   f"(prezzo {dvg['price_4w']:+.1f}%, pos {dvg['pos_4w']:+.0f}°). "
+                                   f"Il movimento potrebbe esaurirsi.")
+                    else:
+                        st.caption(f"Posizionamento e prezzo allineati "
+                                   f"(prezzo {dvg['price_4w']:+.1f}%, pos {dvg['pos_4w']:+.0f}°).")
+        else:
+            st.caption("Confronto posizionamento: percentile rolling (52 sett.) del net "
+                       "speculativo, 0–100° — confrontabile tra valute. "
+                       "Banda alta = affollamento long (rischio); banda bassa = panico short (opportunità).")
+            fig_m = go.Figure()
+            palette = [col["accent"], col["positive"], col["negative"],
+                       col["warning"], "#BC8CFF", "#79C0FF"]
+            for k, s in enumerate(fx_multi):
+                arr_s = FX[s]
+                v_s = C.series(arr_s, "nc")
+                if len(v_s) < 10:
+                    continue
+                times_s = [pd.Timestamp(x["t"], unit="ms") for x in arr_s[-C.WINDOW:]]
+                perc_s = _roll_perc(list(v_s))[-C.WINDOW:]
+                fig_m.add_trace(go.Scatter(x=times_s, y=perc_s, name=f"{s} °",
+                                line=dict(color=palette[k % len(palette)], width=2)))
+            fig_m.add_hrect(y0=80, y1=100, fillcolor=_rgba(col["negative"], 0.10), line_width=0)
+            fig_m.add_hrect(y0=0, y1=20, fillcolor=_rgba(col["positive"], 0.10), line_width=0)
+            fig_m.update_layout(
                 template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
-                height=280, margin=dict(l=10, r=10, t=10, b=10),
+                height=320, margin=dict(l=10, r=10, t=10, b=10),
                 paper_bgcolor=col["surface"], plot_bgcolor=col["surface"],
+                yaxis={"range": [0, 100]},
                 legend={"orientation": "h", "y": 1.14,
                         "font": {"family": "JetBrains Mono", "size": 10.5}})
-            st.plotly_chart(fig_fx, use_container_width=True)
+            st.plotly_chart(fig_m, use_container_width=True)
+            rows_m = []
+            for s in fx_multi:
+                rows_m.append({
+                    "Valuta": s, "Perc": f"{P[s]:.0f}°", "Z": f"{Z[s]:.2f}",
+                    "Δ4s": f"{D4[s]:+.0f}", "Δ8s": f"{D8[s]:+.0f}",
+                })
+            st.dataframe(pd.DataFrame(rows_m), use_container_width=True, hide_index=True)
 
-            if fx_sel in fx_divergence:
-                dvg = fx_divergence[fx_sel]
-                if dvg["divergent"]:
-                    direzione = "prezzo sale ma posizionamento cala" if dvg["price_4w"] > 0 else "prezzo scende ma posizionamento sale"
-                    st.warning(f"⚠️ **Divergenza {fx_sel}**: {direzione} (prezzo {dvg['price_4w']:+.1f}%, pos {dvg['pos_4w']:+.0f}°). "
-                              f"Il movimento potrebbe esaurirsi.")
-                else:
-                    st.caption(f"Posizionamento e prezzo allineati (prezzo {dvg['price_4w']:+.1f}%, pos {dvg['pos_4w']:+.0f}°).")
-
-            # Tabella momentum
-            st.caption("**Momentum posizionamento**")
-            mom_rows = []
-            for s in syms:
-                v_s = C.series(FX[s], "nc")
-                if len(v_s) >= 10:
-                    pct = C.percentile(v_s, v_s[-1])
-                    d4 = C.deriv(v_s, w=4)
-                    d8 = C.deriv(v_s, w=8)
-                    trend = "🟢 rialzo" if d4 > 5 else ("🔴 calo" if d4 < -5 else "⚪ piatto")
-                    mom_rows.append({
-                        "Valuta": s, "Perc": f"{pct:.0f}°",
-                        "Δ4s": f"{d4:+.0f}", "Δ8s": f"{d8:+.0f}",
-                        "Trend": trend,
-                    })
-            if mom_rows:
-                st.dataframe(pd.DataFrame(mom_rows), use_container_width=True, hide_index=True,
-                             column_config={"Valuta": st.column_config.TextColumn("Valuta", width="small")})
+        # ── Tabella momentum ────────────────────────────────
+        st.caption("**Momentum posizionamento**")
+        mom_rows = []
+        for s in syms:
+            v_s = C.series(FX[s], "nc")
+            if len(v_s) >= 10:
+                pct = C.percentile(v_s, v_s[-1])
+                d4 = C.deriv(v_s, w=4)
+                d8 = C.deriv(v_s, w=8)
+                trend = "🟢 rialzo" if d4 > 5 else ("🔴 calo" if d4 < -5 else "⚪ piatto")
+                mom_rows.append({
+                    "Valuta": s, "Perc": f"{pct:.0f}°",
+                    "Δ4s": f"{d4:+.0f}", "Δ8s": f"{d8:+.0f}",
+                    "Trend": trend,
+                })
+        if mom_rows:
+            st.dataframe(pd.DataFrame(mom_rows), use_container_width=True, hide_index=True,
+                         column_config={"Valuta": st.column_config.TextColumn("Valuta", width="small")})
 
 # ══════════════════════════════════════════════════════════
 with tab_cm:
@@ -355,7 +403,6 @@ with tab_cm:
         st.info("Nessun dato materie prime valido: servono ≥ 52 settimane (usa 📥 Aggiornamento).")
     else:
         stati = {s: C.comm_state(s, COMM) for s in mk}
-
         if "cot_filter" not in st.session_state:
             st.session_state["cot_filter"] = "hot"
         bf1, bf2, bf3, bf4 = st.columns([1, 1, 1, 5])
@@ -373,14 +420,13 @@ with tab_cm:
             (flt == "bear" and stati[s]["key"] == "bear"))]
         if not visible:
             visible = mk
-
         chips = "".join(
             f'<span style="display:inline-flex;align-items:center;gap:6px;'
             f'border:1px solid {col["border"]};border-radius:4px;padding:4px 8px;'
             f'margin:0 6px 6px 0;font-size:11px;color:{col["text"]};'
             f'background:{_rgba(TONE_COLOR[stati[s]["tone"]], 0.18)};">'
             f'<span style="width:8px;height:8px;border-radius:2px;'
-            f'background:{TONE_COLOR[stati[s]["tone"]]};"></span>'
+            f'background:{TONE_COLOR[stati[s]["tone"]]}"></span>'
             f'{COMM_NAME.get(s, s)} · {stati[s]["pP"]:.0f}°</span>'
             for s in visible)
         hot_n = sum(1 for s in mk if stati[s]["tone"] != "muted")
@@ -388,7 +434,6 @@ with tab_cm:
                     f'<div style="font-size:10.5px;color:{col["text_muted"]};'
                     f'margin-bottom:10px">{hot_n} / {len(mk)} con lettura attiva</div>',
                     unsafe_allow_html=True)
-
         opts = {s: COMM_NAME.get(s, s) for s in mk}
         if "cot_market" not in st.session_state or st.session_state["cot_market"] not in opts:
             st.session_state["cot_market"] = visible[0] if visible else mk[0]
@@ -399,7 +444,6 @@ with tab_cm:
         S = stati[sym]
         pP, pM, pS, dP, dM, revP = S["pP"], S["pM"], S["pS"], S["dP"], S["dM"], S["revP"]
         zP, zM = C.zscore(pA), C.zscore(mA)
-
         g1, g2 = st.columns([1.6, 1], gap="large")
         with g1:
             st.markdown(f"**Trasferimento rischio — {opts[sym]}** · {len(arr)} sett. "
@@ -439,7 +483,6 @@ with tab_cm:
                         "font": {"family": "JetBrains Mono", "size": 10.5}},
                 font=dict(color=col["text"]))
             st.plotly_chart(figc, use_container_width=True)
-
             m1, m2, m3, m4, m5, m6, m7, m8 = st.columns(8)
             m1.metric("Prod perc", f"{pP:.0f}°")
             m2.metric("Managed perc", f"{pM:.0f}°")
@@ -449,8 +492,6 @@ with tab_cm:
             m6.metric("Z MM", f"{zM:.2f}")
             m7.metric("Δ Prod 2w", f"{dP:+.0f}")
             m8.metric("Δ MM 2w", f"{dM:+.0f}")
-
-            # FIX: if/else espliciti (le espressioni nude venivano stampate dal magic)
             if pP < 20 and pM > 65:
                 if revP:
                     st.error("**CONTESTO RIALZISTA ATTIVO** · Producer depresso e in inversione: "
@@ -479,7 +520,6 @@ with tab_cm:
             else:
                 st.success(f"**NESSUNA LETTURA DOMINANTE** · Producer {pP:.0f}° · Managed {pM:.0f}° "
                            f"· Swap {pS:.0f}°. Stai fermo.")
-
         with g2:
             with st.expander("📖 Come leggere le 3 linee + prezzo", expanded=True):
                 st.markdown(
