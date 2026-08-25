@@ -155,7 +155,11 @@ def _search_ct(sponsor_terms: list[str], max_studies: int = 10) -> list[dict]:
     Cerca studi in ClinicalTrials.gov per sponsor.
     Filtra: studi in corso con completamento primario atteso.
     """
-    query = "(" + " OR ".join(f'AREA[SponsorName]"{t}"' for t in sponsor_terms) + ")"
+    # AREA[SponsorName] non è un nome di area valido nella sintassi essie di
+    # CT.gov (l'API tornava HTTP 400 "Unknown area name: SponsorName").
+    # Il nome corretto è LeadSponsorName, coerente con il campo
+    # sponsorCollaboratorsModule.leadSponsor usato nel parsing sotto.
+    query = "(" + " OR ".join(f'AREA[LeadSponsorName]"{t}"' for t in sponsor_terms) + ")"
     params = {
         # query.spons cerca sul nome sponsor. query.cond (usato prima) cerca
         # sulla condizione medica: con nomi di azienda restituiva sempre
