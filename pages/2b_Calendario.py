@@ -127,27 +127,31 @@ settore_sel = st.selectbox("Filtra per settore", ["Tutti"] + settori_disponibili
 df_events = pd.DataFrame(events)
 tickers_screening = [t for t in universe if t in df_events["ticker"].values]
 
-c1 = st.columns(1)[0]
+c1, c2 = st.columns(2)
 mostra_solo_screening = c1.checkbox("Solo ticker presenti nello screening", value=True)
-solo_prossimi = False
-solo_futuri = False
+solo_recenti_futuri = c2.checkbox(
+    "Solo eventi recenti/futuri (da inizio mese)", value=True,
+    help="Mostra solo eventi con data dal primo giorno del mese corrente in poi. "
+         "A differenza del vecchio filtro 'solo futuri', questo si basa sulla data "
+         "reale dell'evento, non sulla fonte: una segnalazione FAERS di questo mese "
+         "passerebbe, una di 12 anni fa no."
+)
 
 # ── Filtraggio ────────────────────────────────────────────
+inizio_mese_corrente = today.replace(day=1)
+
 filtered = []
 for e in events:
     if settore_sel != "Tutti" and e.get("settore") != settore_sel:
         continue
     if mostra_solo_screening and e.get("ticker") not in tickers_screening:
         continue
-    if solo_futuri and e.get("orientamento", "futuro") != "futuro":
-        continue
     try:
         d = datetime.date.fromisoformat(e["data_attesa"])
     except Exception:
         continue
-    if solo_prossimi:
-        if d < today or d > today + datetime.timedelta(days=60):
-            continue
+    if solo_recenti_futuri and d < inizio_mese_corrente:
+        continue
     filtered.append(e)
 
 filtered.sort(key=lambda e: e.get("data_attesa", "9999-99-99"))
@@ -164,7 +168,7 @@ for i, (s, cnt) in enumerate(sorted(stats_by_settore.items())):
     stat_cols[i].metric(s, cnt)
 
 st.caption(f"**{total}** eventi filtrati · "
-           f"orizzonte: {'30gg' if solo_prossimi else 'tutti'}")
+           f"orizzonte: {'da ' + inizio_mese_corrente.isoformat() if solo_recenti_futuri else 'tutti'}")
 
 # ── Vista eventi (tabella + dettaglio) ─────────────────────
 SCORE_COLORS = {"Farmaceutico/Biotech": col["accent"],
