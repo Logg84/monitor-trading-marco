@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T15:22:15.213767+00:00",
+  "updated": "2026-08-25T17:48:24.828398+00:00",
   "entries": [
     {
       "ticker": "SAN.PA",
@@ -1482,6 +1482,90 @@
       "created": "2026-08-25T15:19:23.499615+00:00",
       "last_reviewed": "2026-08-25T15:19:23.499622+00:00",
       "poc": 14.7612,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "PODD",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.812099+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.812115+00:00",
+      "poc": 27.4587,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "WY",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.815230+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.815237+00:00",
+      "poc": 19.8817,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "PSKY",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.817809+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.817816+00:00",
+      "poc": 10.4368,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "CMCSA",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.820712+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.820721+00:00",
+      "poc": 6.3923,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "CDNS",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.823312+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.823320+00:00",
+      "poc": 25.0713,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "SNPS",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.825774+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.825781+00:00",
+      "poc": 36.5869,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "MCD",
+      "origin": "auto",
+      "created": "2026-08-25T17:48:24.828056+00:00",
+      "last_reviewed": "2026-08-25T17:48:24.828063+00:00",
+      "poc": 14.0994,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
