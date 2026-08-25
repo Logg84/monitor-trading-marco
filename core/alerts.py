@@ -13,8 +13,39 @@ from datetime import datetime, timezone
 from pathlib import Path
 import requests
 
+from core.data_engine import company_name
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 ALERTS_PATH = DATA_DIR / "alerts.json"
+
+# ── Mercato di riferimento dal suffisso ticker ──────────────
+MARKET_NAMES = {
+    "": "USA (S&P/Nasdaq)",
+    ".MI": "FTSE MIB (Italia)",
+    ".PA": "CAC 40 (Francia)",
+    ".DE": "DAX (Germania)",
+    ".MC": "IBEX 35 (Spagna)",
+    ".AS": "AEX (Paesi Bassi)",
+    ".L": "FTSE 100 (UK)",
+    ".SW": "SMI (Svizzera)",
+    ".ST": "OMX (Svezia)",
+    ".BR": "BEL 20 (Belgio)",
+}
+
+def _market_name(ticker: str) -> str:
+    if "." in ticker:
+        suffix = "." + ticker.rsplit(".", 1)[-1].upper()
+    else:
+        suffix = ""
+    return MARKET_NAMES.get(suffix, "—")
+
+def _label(ticker: str) -> str:
+    """'TICKER (Nome Azienda · Mercato)' pronto per i messaggi alert."""
+    try:
+        name = company_name(ticker)
+    except Exception:
+        name = "—"
+    return f"{ticker} ({name} · {_market_name(ticker)})"
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -55,16 +86,17 @@ def check_alerts(entries: list[dict], states: dict) -> list[dict]:
 
         kinds = []
         prev = s.get("prev_close")
+        lbl = _label(t)
         for lvl, val in (e.get("levels") or {}).items():
             if val and prev is not None and ((prev < val <= price) or (prev > val >= price)):
                 kinds.append((f"LIVELLO_{lvl}",
-                              f"📏 {t} chiude {price:.2f} e incrocia {lvl} @ {val:.2f}"))
+                              f"📏 {lbl} chiude {price:.2f} e incrocia {lvl} @ {val:.2f}"))
         if s.get("kind") == "🟡":
             kinds.append(("CANDIDATO",
-                          f"🟡 {t} CANDIDATO ({s['points']}/6) @ {price:.2f}"))
+                          f"🟡 {lbl} CANDIDATO ({s['points']}/6) @ {price:.2f}"))
         if s.get("kind") == "🟢":
             kinds.append(("INVERSIONE",
-                          f"🟢 {t} INVERSIONE IN ATTO ({s['points']}/6) @ {price:.2f}"))
+                          f"🟢 {lbl} INVERSIONE IN ATTO ({s['points']}/6) @ {price:.2f}"))
 
         # ── TARGET_DATE ─────────────────────────────────────
         td = e.get("target_date")
@@ -72,7 +104,7 @@ def check_alerts(entries: list[dict], states: dict) -> list[dict]:
             try:
                 if today >= td:
                     kinds.append(("TARGET_DATE",
-                                  f"📅 {t} — DATA TARGET RAGGIUNTA ({td}) @ {price:.2f}"))
+                                  f"📅 {lbl} — DATA TARGET RAGGIUNTA ({td}) @ {price:.2f}"))
                     st_["target_fired"][t] = True
             except Exception:
                 pass
