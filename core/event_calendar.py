@@ -549,6 +549,7 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
     """
     api_key = api_key or os.environ.get("FDA_API_KEY") or ""
     if not api_key:
+        _diag_log("FDA (FAERS)", "SALTATA", "nessuna API key fornita")
         return []
 
     events = []
@@ -558,11 +559,16 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
         "Eli Lilly", "Amgen", "Gilead", "Roche", "Novartis",
     ]
 
+    n_http_errori = 0
+    n_ok_risposte = 0
     try:
         for mfr in manufacturers:
+            # I nomi multi-parola (es. "Johnson & Johnson", "Eli Lilly") vanno
+            # tra virgolette nella sintassi di ricerca openFDA, altrimenti
+            # spazi e "&" producono una query malformata.
             params = {
                 "api_key": api_key,
-                "search": f"patient.drug.openfda.manufacturer_name:{mfr}",
+                "search": f'patient.drug.openfda.manufacturer_name:"{mfr}"',
                 "limit": max_results,
             }
             # openFDA espone un endpoint GET con parametri in query string,
@@ -573,14 +579,24 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
                 params=params, timeout=20
             )
             if r.status_code != 200:
+                n_http_errori += 1
+                _diag_log("FDA (FAERS)", f"HTTP {r.status_code} su '{mfr}'", r.text[:200])
                 continue
+            n_ok_risposte += 1
             data = r.json()
             for result in data.get("results", [])[:max_results]:
                 drug = result.get("patient", {}).get("drug", [{}])[0]
                 drug_name = drug.get("medicinalproduct", "—")
                 reaction = result.get("patient", {}).get("reaction", [{}])[0]
                 reac = reaction.get("reactionmeddrapt", "—")
-                date = result.get("receiptdate", "")[:10]
+                # openFDA restituisce receiptdate come "YYYYMMDD" senza
+                # separatori (es. "20140312"): [:10] non lo converte,
+                # lascia la stringa grezza. Va riformattato in ISO.
+                raw_date = result.get("receiptdate", "")
+                if len(raw_date) == 8 and raw_date.isdigit():
+                    date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+                else:
+                    date = raw_date[:10]
                 if not date:
                     continue
                 events.append({
@@ -601,8 +617,15 @@ def fetch_fda_events(api_key: str | None = None, max_results: int = 5) -> list[d
                     "verified": True,
                     "orientamento": "passato",
                 })
-    except Exception:
-        pass
+    except Exception as ex:
+        _diag_log("FDA (FAERS)", "ECCEZIONE", str(ex)[:200])
+        return events
+
+    _diag_log(
+        "FDA (FAERS)", "OK" if events else "NESSUN RISULTATO",
+        f"risposte_200={n_ok_risposte} errori_http={n_http_errori} su {len(manufacturers)} produttori",
+        count=len(events),
+    )
     return events
 
 
