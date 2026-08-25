@@ -86,8 +86,22 @@ with st.expander("📥 Aggiorna eventi dalle fonti"):
                     st.write(f"{icon} **{d['fonte']}** — {d['status']}"
                              + (f" ({d['count']} risultati)" if d["status"] == "OK" else "")
                              + (f" — {d['dettaglio']}" if d.get("dettaglio") else ""))
+            # Diag salvata in session_state: senza questo, lo st.rerun() qui
+            # sotto (necessario per aggiornare subito la tabella con i nuovi
+            # eventi) ricarica la pagina da zero e cancella l'expander appena
+            # disegnato — la diagnostica di fatto non era mai leggibile
+            # quando almeno una fonte aveva successo.
+            st.session_state["_last_ct_diag"] = diag
             if new_events:
                 st.rerun()
+
+    if st.session_state.get("_last_ct_diag"):
+        with st.expander("🔍 Diagnostica fonti (ultimo tentativo)"):
+            for d in st.session_state["_last_ct_diag"]:
+                icon = "✅" if d["status"] == "OK" else "⏭️" if d["status"] == "SALTATA" else "❌"
+                st.write(f"{icon} **{d['fonte']}** — {d['status']}"
+                         + (f" ({d['count']} risultati)" if d["status"] == "OK" else "")
+                         + (f" — {d['dettaglio']}" if d.get("dettaglio") else ""))
 
     if events:
         st.caption(f"Ultimo aggiornamento: {events[0].get('ultimo_controllo', '—')[:10]}")
