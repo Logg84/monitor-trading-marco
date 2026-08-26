@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T07:33:35.724216+00:00",
+  "updated": "2026-08-26T16:06:04.974549+00:00",
   "entries": [
     {
       "ticker": "SAN.PA",
@@ -61,18 +61,6 @@
       "target_date": null
     },
     {
-      "ticker": "BLDR",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.440344+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.440358+00:00",
-      "poc": 13.0735,
-      "poc_origin": "auto",
-      "vwap": 75.9494,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "NCLH",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.452789+00:00",
@@ -128,18 +116,6 @@
       "poc": 143.3633,
       "poc_origin": "auto",
       "vwap": 169.9571,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "APTV",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.543238+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.543249+00:00",
-      "poc": 56.6458,
-      "poc_origin": "auto",
-      "vwap": 58.6767,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -517,18 +493,6 @@
       "target_date": null
     },
     {
-      "ticker": "AMT",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.775202+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.775214+00:00",
-      "poc": 28.4638,
-      "poc_origin": "auto",
-      "vwap": 174.4584,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "LULU",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.782701+00:00",
@@ -865,18 +829,6 @@
       "target_date": null
     },
     {
-      "ticker": "TMUS",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:47.096319+00:00",
-      "last_reviewed": "2026-08-24T14:04:47.096330+00:00",
-      "poc": 24.861,
-      "poc_origin": "auto",
-      "vwap": 181.2752,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "KR",
       "origin": "auto",
       "created": "2026-08-24T14:04:47.105222+00:00",
@@ -956,18 +908,6 @@
       "poc": 16.7701,
       "poc_origin": "auto",
       "vwap": 214.1696,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "ALB",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:47.254913+00:00",
-      "last_reviewed": "2026-08-24T14:04:47.254927+00:00",
-      "poc": 80.0661,
-      "poc_origin": "auto",
-      "vwap": 137.894,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1345,18 +1285,6 @@
       "target_date": null
     },
     {
-      "ticker": "NFLX",
-      "origin": "auto",
-      "created": "2026-08-25T15:19:23.487112+00:00",
-      "last_reviewed": "2026-08-25T15:19:23.487119+00:00",
-      "poc": 7.7623,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "DGE.L",
       "origin": "auto",
       "created": "2026-08-25T15:19:23.488833+00:00",
@@ -1518,6 +1446,18 @@
       "created": "2026-08-26T07:30:43.128024+00:00",
       "last_reviewed": "2026-08-26T07:30:43.128027+00:00",
       "poc": 21.0798,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "WY",
+      "origin": "auto",
+      "created": "2026-08-26T16:03:13.552464+00:00",
+      "last_reviewed": "2026-08-26T16:03:13.552474+00:00",
+      "poc": 19.8817,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
