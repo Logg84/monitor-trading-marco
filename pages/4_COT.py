@@ -276,6 +276,26 @@ with tab_fx:
                 st.caption(f"🧊 **{p['pair']}** — {p['base']} {p['pBase']:.0f}° e "
                           f"{p['quote']} {p['pQuote']:.0f}° entrambe {verso} estremo: "
                           f"segnali che si annullano a vicenda.")
+        # ── Primi segnali (accelerazione, indipendenti dal gate estremo) ──
+        # A differenza di "avviso_inversione" sopra (che scatta solo se una
+        # gamba è GIÀ al proprio estremo), questo guarda TUTTE le coppie
+        # definite: cattura il caso di USD/CAD ancora lontano dagli
+        # estremi ma con le due gambe che iniziano ad accelerare in
+        # direzioni opposte — segnale anticipato, non un cambio di
+        # ranking o classificazione.
+        tutte = [C.fx_pair_state(p, FX) for p in C.FX_PAIRS]
+        early = [p for p in tutte if p and p.get("traiettorie_divergenti")]
+        if early:
+            with st.expander(f"🔎 Primi segnali di divergenza traiettorie ({len(early)})",
+                             expanded=True):
+                st.caption("Le due gambe accelerano in direzioni opposte, anche se "
+                          "ancora lontane dal proprio estremo storico (soglia rumore "
+                          f"±{C.ACCEL_MIN:.0f}°). Precede l'avviso di inversione classico, "
+                          "che scatta solo a estremo raggiunto.")
+                for p in early:
+                    st.caption(f"↔️ **{p['pair']}** — {p['direzione_traiettorie']} "
+                              f"({p['base']} {p['pBase']:.0f}° · {p['quote']} {p['pQuote']:.0f}°)")
+
         if aligned:
             with st.expander(f"📋 Coppie con divergenza pulita ({len(aligned)})"):
                 for p in aligned:
@@ -289,15 +309,27 @@ with tab_fx:
 
         # ── Dettaglio valuta (una o più, anche tutte) ───────────
         st.markdown("### Dettaglio valuta")
+        # FIX StreamlitAPIException: prima il bottone scriveva su
+        # st.session_state["fx_detail_multi"] DOPO che il multiselect con
+        # quella stessa key era già stato istanziato nello stesso run —
+        # Streamlit lo vieta esplicitamente. Ora: (1) inizializziamo lo
+        # state una sola volta se manca, (2) il bottone lo aggiorna e fa
+        # rerun PRIMA che il widget venga creato più sotto, (3) il
+        # multiselect non passa più `default=` (ignorato comunque una
+        # volta che la key esiste in session_state, quindi ridondante).
+        if "fx_detail_multi" not in st.session_state:
+            st.session_state["fx_detail_multi"] = [syms[0]] if syms else []
+
         c_sel1, c_sel2 = st.columns([4, 1])
-        fx_sel_list = c_sel1.multiselect(
-            "Valute da sovrapporre", syms, default=[syms[0]] if syms else [],
-            key="fx_detail_multi",
-            help="Seleziona una o più valute per confrontarne l'andamento del "
-                 "net speculativo sullo stesso grafico.")
         if c_sel2.button("Tutte", key="fx_detail_all"):
             st.session_state["fx_detail_multi"] = list(syms)
             st.rerun()
+
+        fx_sel_list = c_sel1.multiselect(
+            "Valute da sovrapporre", syms,
+            key="fx_detail_multi",
+            help="Seleziona una o più valute per confrontarne l'andamento del "
+                 "net speculativo sullo stesso grafico.")
 
         if fx_sel_list:
             cols_d = st.columns(min(4, len(fx_sel_list)) or 1)
