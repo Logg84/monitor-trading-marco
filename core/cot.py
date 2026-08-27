@@ -1,12 +1,11 @@
 """
 COT: parsing CFTC robusto con RILEVAMENTO AUTOMATICO COLONNE
 (Producer / Managed-Spec / Swap × Long/Short) per Legacy, Disaggregated, TFF.
-MATERIE PRIME: acquisizione DINAMICA di tutti i mercati del zip Disaggregated
-(niente lista hardcoded). FOREX invariato (mapping CFTC_TO_FX).
 Mancante = None (mai zeri finti). Storage locale + publish GitHub opzionale
 se GITHUB_TOKEN/GITHUB_REPO nei secrets. Reset per storico avvelenato.
 """
 from __future__ import annotations
+
 import datetime
 import io
 import json
@@ -14,6 +13,7 @@ import re
 import zipfile
 import base64
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import requests
@@ -23,6 +23,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 COT_DIR = DATA_DIR / "cot"
 COT_JSON = COT_DIR / "cot_data.json"
 DIAG_JSON = COT_DIR / "last_diag.json"
+
 WINDOW = 104
 MINW = 52
 
@@ -32,7 +33,6 @@ try:
 except Exception:
     GITHUB_TOKEN, GITHUB_REPO = None, None
 
-# Mappa prezzi yfinance di default (merge con quella dinamica del payload)
 YF_COMM = {
     "GOLD": "GC=F", "SILVER": "SI=F", "COPPER": "HG=F", "PLATINUM": "PL=F",
     "WTI": "CL=F", "BRENT": "BZ=F", "NG": "NG=F",
@@ -47,10 +47,14 @@ CFTC_TO_FX = {
     "EURO FX": "EUR", "BRITISH POUND": "GBP", "JAPANESE YEN": "JPY",
     "AUSTRALIAN DOLLAR": "AUD", "CANADIAN DOLLAR": "CAD",
     "SWISS FRANC": "CHF", "NEW ZEALAND DOLLAR": "NZD",
+    # Il nome reale nel campo Market_and_Exchange_Names di CFTC è
+    # "USD INDEX - ICE FUTURES U.S.", non "US DOLLAR INDEX": con la
+    # stringa sbagliata _mask_mercato non trovava mai nessuna riga
+    # (né match esatto né come prefisso), quindi il dollaro veniva
+    # silenziosamente saltato in ogni elaborazione, senza errore visibile.
     "USD INDEX": "USD",
 }
 
-# Mapping legacy usato SOLO se il zip non è Disaggregated (compatibilità)
 CFTC_TO_COMM = {
     "WHEAT": "WHEAT", "CORN": "CORN", "OATS": "OATS", "SOYBEANS": "SOYBEANS",
     "SOYBEAN OIL": "SOYBEAN_OIL", "SOYBEAN MEAL": "SOYBEAN_MEAL",
@@ -72,38 +76,10 @@ COMM_NAMES = {
 }
 
 FX_ORDER = ["EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "USD"]
-COMM_ORDER = list(COMM_NAMES.keys())  # solo default; il payload porta l'ordine reale
-
-# Regole ordinate (specifiche prima) per il prezzo yfinance dei mercati dinamici
-YF_RULES = [
-    (r"SILVER", "SI=F"),
-    (r"GOLD", "GC=F"),
-    (r"COPPER", "HG=F"),
-    (r"PLATINUM", "PL=F"),
-    (r"PALLADIUM", "PA=F"),
-    (r"BRENT", "BZ=F"),
-    (r"CRUDE", "CL=F"),
-    (r"HEATING", "HO=F"),
-    (r"GASOLINE|RBOB", "RB=F"),
-    (r"NATURAL|HENRY", "NG=F"),
-    (r"SOYBEAN_OIL|SOY_OIL", "ZL=F"),
-    (r"SOYBEAN_MEAL|SOY_MEAL", "ZM=F"),
-    (r"SOYBEAN|SOYB", "ZS=F"),
-    (r"CORN", "ZC=F"),
-    (r"OATS", "ZO=F"),
-    (r"RICE", "ZR=F"),
-    (r"KANSAS|HARD_RED", "KE=F"),
-    (r"MINNEAPOLIS|SPRING", "MWE=F"),
-    (r"WHEAT", "ZW=F"),
-    (r"COTTON", "CT=F"),
-    (r"COFFEE", "KC=F"),
-    (r"SUGAR", "SB=F"),
-    (r"COCOA", "CC=F"),
-    (r"ORANGE|OJ", "OJ=F"),
-    (r"CATTLE", "LE=F"),
-    (r"HOGS", "HE=F"),
-    (r"LUMBER", "LBS=F"),
-]
+COMM_ORDER = ["GOLD", "SILVER", "COPPER", "WTI", "BRENT", "NG",
+              "CORN", "WHEAT", "SOYBEANS", "SOYBEAN_OIL", "SOYBEAN_MEAL",
+              "OATS", "ROUGH_RICE", "COTTON", "OJ", "LUMBER",
+              "LIVE_CATTLE", "LEAN_HOGS"]
 
 # ════════════════════════════════════════════════════════════
 # RILEVAMENTO AUTOMATICO COLONNE (indipendente dal formato CFTC)
@@ -138,24 +114,6 @@ def _colmap(df: pd.DataFrame) -> dict:
         if cat and ls:
             m.setdefault(cat, {}).setdefault(ls, c)
     return m
-
-# ════════════════════════════════════════════════════════════
-# NOMI MERCATO: slug stabile + nome leggibile + simbolo yfinance
-# ════════════════════════════════════════════════════════════
-def _is_fx_market(name_u: str) -> bool:
-    return any(name_u == k or name_u.startswith(k) for k in CFTC_TO_FX)
-
-def _slug(name_u: str) -> str:
-    return re.sub(r"[^A-Z0-9]+", "_", name_u).strip("_")
-
-def _clean_name(name_u: str) -> str:
-    return name_u.title().replace(" - ", " · ")
-
-def _yf_for(name_u: str):
-    for pat, sym in YF_RULES:
-        if re.search(pat, name_u):
-            return sym
-    return None
 
 # ════════════════════════════════════════════════════════════
 # LETTURA ZIP CFTC (Annual → 0 → qualsiasi foglio valido)
@@ -219,11 +177,9 @@ def _num(row, col):
     v = pd.to_numeric(row.get(col), errors="coerce")
     return float(v) if pd.notna(v) else None
 
-def processa_dfs(df: pd.DataFrame, is_disagg: bool = False) -> tuple[dict, dict, dict]:
-    """Ritorna (fx, comm, meta). comm dinamico: tutti i mercati non-FX del
-    Disaggregated; mapping legacy solo per file non-Disaggregated."""
+def processa_dfs(df: pd.DataFrame) -> tuple[dict, dict]:
     cm = _colmap(df)
-    fx, comm, meta = {}, {}, {}
+    fx, comm = {}, {}
 
     mm_cols = cm.get("mm", {})
     if mm_cols.get("L") and mm_cols.get("S"):
@@ -242,37 +198,26 @@ def processa_dfs(df: pd.DataFrame, is_disagg: bool = False) -> tuple[dict, dict,
             if serie:
                 fx[simbolo] = serie
 
-    pc, mc, sc = cm.get("prod", {}), cm.get("mm", {}), cm.get("swap", {})
-    if "Market_and_Exchange_Names" in df.columns:
-        if is_disagg:
-            names = [str(x).upper().strip()
-                     for x in df["Market_and_Exchange_Names"].dropna().unique()]
-            targets = [(n, _slug(n)) for n in names if not _is_fx_market(n)]
-        else:
-            targets = [(k, v) for k, v in CFTC_TO_COMM.items()]
-        for nome_cftc, simbolo in targets:
-            rows = _rows_ordinate(df, nome_cftc)
-            if rows.empty:
+    for nome_cftc, simbolo in CFTC_TO_COMM.items():
+        rows = _rows_ordinate(df, nome_cftc)
+        if rows.empty:
+            continue
+        pc, mc, sc = cm.get("prod", {}), cm.get("mm", {}), cm.get("swap", {})
+        serie = []
+        for _, row in rows.iterrows():
+            pl, ps = _num(row, pc.get("L")), _num(row, pc.get("S"))
+            ml, ms = _num(row, mc.get("L")), _num(row, mc.get("S"))
+            sl, ss = _num(row, sc.get("L")), _num(row, sc.get("S"))
+            prod = (pl - ps) if (pl is not None and ps is not None) else None
+            mm = (ml - ms) if (ml is not None and ms is not None) else None
+            swap = (sl - ss) if (sl is not None and ss is not None) else None
+            if prod is None and mm is None and swap is None:
                 continue
-            serie = []
-            for _, row in rows.iterrows():
-                pl, ps = _num(row, pc.get("L")), _num(row, pc.get("S"))
-                ml, ms = _num(row, mc.get("L")), _num(row, mc.get("S"))
-                sl, ss = _num(row, sc.get("L")), _num(row, sc.get("S"))
-                prod = (pl - ps) if (pl is not None and ps is not None) else None
-                mm = (ml - ms) if (ml is not None and ms is not None) else None
-                swap = (sl - ss) if (sl is not None and ss is not None) else None
-                if prod is None and mm is None and swap is None:
-                    continue
-                serie.append({"t": int(row["_rd"].timestamp() * 1000),
-                              "prod": prod, "mm": mm, "swap": swap})
-            if serie:
-                comm[simbolo] = serie
-                meta[simbolo] = {
-                    "name": COMM_NAMES.get(simbolo, _clean_name(nome_cftc)),
-                    "yf": YF_COMM.get(simbolo) or _yf_for(nome_cftc),
-                }
-    return fx, comm, meta
+            serie.append({"t": int(row["_rd"].timestamp() * 1000),
+                          "prod": prod, "mm": mm, "swap": swap})
+        if serie:
+            comm[simbolo] = serie
+    return fx, comm
 
 def _rich(x: dict, keys) -> int:
     return sum(1 for k in keys if x.get(k) is not None)
@@ -306,8 +251,7 @@ def merge_con_esistente(existing_fx, existing_comm, new_fx, new_comm):
 def _diag_zip(content: bytes, fname: str) -> dict:
     info = {"file": fname, "n_xls": 0, "xls_in_zip": [], "shape": None,
             "columns": [], "colmap": {}, "date_min": None, "date_max": None,
-            "markets_sample": [], "fx_matched": 0, "comm_matched": 0,
-            "comm_dynamic": 0}
+            "markets_sample": [], "fx_matched": 0, "comm_matched": 0}
     try:
         zf = zipfile.ZipFile(io.BytesIO(content))
         nomi = [n for n in zf.namelist() if n.lower().endswith((".xls", ".xlsx"))]
@@ -333,7 +277,6 @@ def _diag_zip(content: bytes, fname: str) -> dict:
                                      if any(u == n or u.startswith(n) for u in mk))
             info["comm_matched"] = sum(1 for n in CFTC_TO_COMM
                                        if any(u == n or u.startswith(n) for u in mk))
-            info["comm_dynamic"] = sum(1 for u in mk if not _is_fx_market(u))
     except Exception as e:
         info["error"] = str(e)
     return info
@@ -347,28 +290,17 @@ def load_diag() -> list | None:
     return None
 
 # ════════════════════════════════════════════════════════════
-# STORAGE + PUBLISH GITHUB (opzionale)
+# STORAGE + PUBLISH GITHUB (opzionale, come vecchio codice)
 # ════════════════════════════════════════════════════════════
-def _apply_payload_globals(payload: dict) -> None:
-    """Aggiorna YF_COMM/COMM_NAMES di modulo così 4_COT legge i simboli
-    dinamici senza modifiche (C.YF_COMM.get(sym))."""
-    global YF_COMM, COMM_NAMES
-    if payload.get("yf_comm"):
-        YF_COMM = {**YF_COMM, **payload["yf_comm"]}
-    if payload.get("comm_name"):
-        COMM_NAMES = {**COMM_NAMES, **payload["comm_name"]}
-
 def load_cot_data() -> dict | None:
     if COT_JSON.exists():
         try:
-            payload = json.loads(COT_JSON.read_text(encoding="utf-8"))
-            _apply_payload_globals(payload)
-            return payload
+            return json.loads(COT_JSON.read_text(encoding="utf-8"))
         except Exception:
             return None
     return None
 
-def _build_payload(fx: dict, comm: dict, meta: dict) -> dict:
+def _build_payload(fx: dict, comm: dict) -> dict:
     ultima = 0
     for v in list(fx.values()) + list(comm.values()):
         if v:
@@ -376,8 +308,6 @@ def _build_payload(fx: dict, comm: dict, meta: dict) -> dict:
     data_str = (datetime.datetime.fromtimestamp(ultima / 1000, datetime.timezone.utc)
                 .strftime("%Y-%m-%d")) if ultima else ""
     max_sett = max((len(v) for v in list(fx.values()) + list(comm.values())), default=0)
-    comm_order = sorted(comm.keys(),
-                        key=lambda k: meta.get(k, {}).get("name", k))
     return {
         "meta": {
             "date": data_str,
@@ -388,21 +318,22 @@ def _build_payload(fx: dict, comm: dict, meta: dict) -> dict:
             "rec": sum(len(v) for v in list(fx.values()) + list(comm.values())),
         },
         "fx": {k: fx[k] for k in FX_ORDER if k in fx},
-        "comm": comm,
-        "comm_name": {k: meta.get(k, {}).get("name", k) for k in comm},
-        "yf_comm": {k: meta[k]["yf"] for k in comm
-                    if meta.get(k, {}).get("yf")},
+        "comm": {k: comm[k] for k in COMM_ORDER if k in comm},
+        "comm_name": COMM_NAMES,
         "fx_order": [k for k in FX_ORDER if k in fx],
-        "comm_order": [k for k in comm_order if k in comm],
+        "comm_order": [k for k in COMM_ORDER if k in comm],
     }
 
-def salva_payload(fx: dict, comm: dict, meta: dict) -> dict:
+def salva_payload(fx: dict, comm: dict) -> dict:
     COT_DIR.mkdir(parents=True, exist_ok=True)
-    payload = _build_payload(fx, comm, meta)
+    payload = _build_payload(fx, comm)
     COT_JSON.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    _apply_payload_globals(payload)
+
     if GITHUB_TOKEN and GITHUB_REPO:
         try:
+            # Allineato al percorso locale (data/cot/cot_data.json): prima
+            # scriveva su "cot_data.json" in root, creando un duplicato
+            # disallineato mai riletto da nessuna parte del codice.
             url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/cot/cot_data.json"
             headers = {"Authorization": f"token {GITHUB_TOKEN}",
                        "Accept": "application/vnd.github.v3+json"}
@@ -424,24 +355,22 @@ def processa_e_salva(zip_list: list[tuple[str, bytes]], reset: bool = False) -> 
     COT_DIR.mkdir(parents=True, exist_ok=True)
     diag = [_diag_zip(b, n) for n, b in zip_list]
     DIAG_JSON.write_text(json.dumps(diag, indent=2), encoding="utf-8")
-    fx_acc, comm_acc, meta_acc = {}, {}, {}
-    for fname, b in zip_list:
+
+    fx_acc, comm_acc = {}, {}
+    for _, b in zip_list:
         df = leggi_zip_bytes(b)
-        is_disagg = "disagg" in fname.lower()
-        f_i, c_i, m_i = processa_dfs(df, is_disagg=is_disagg)
+        f_i, c_i = processa_dfs(df)
         fx_acc = _acc(fx_acc, f_i, ["nc"])
         comm_acc = _acc(comm_acc, c_i, ["prod", "mm", "swap"])
-        meta_acc.update(m_i)
+
     if not fx_acc and not comm_acc:
         raise RuntimeError("Nessun mercato riconosciuto nei zip caricati. "
                            "Apri data/cot/last_diag.json per vedere colonne reali.")
+    # reset=True → ignora lo storico (es. avvelenato da elaborazioni sbagliate)
     old = {} if reset else (load_cot_data() or {})
     fx, comm = merge_con_esistente(old.get("fx", {}), old.get("comm", {}),
                                    fx_acc, comm_acc)
-    for k in comm:
-        meta_acc.setdefault(k, {"name": COMM_NAMES.get(k, k),
-                                "yf": YF_COMM.get(k)})
-    return salva_payload(fx, comm, meta_acc)
+    return salva_payload(fx, comm)
 
 # ════════════════════════════════════════════════════════════
 # ANALYTICS (None-safe)
@@ -483,7 +412,7 @@ def reversing(a: list, w: int = 2) -> bool:
     return all(x > 0 for x in d) or all(x < 0 for x in d)
 
 def comm_state(sym: str, comm: dict) -> dict:
-    """REGOLA HOT ALLARGATA: Producer estremo (pP <10 o pP >90) = hot anche
+    """REGOLA HOT ALLARGATA: Producer estremo (pP<10 o pP>90) => hot anche
     senza Managed estremo."""
     arr = comm.get(sym) or []
     pA, mA, sA = series(arr, "prod"), series(arr, "mm"), series(arr, "swap")
@@ -511,28 +440,75 @@ def comm_state(sym: str, comm: dict) -> dict:
 # ════════════════════════════════════════════════════════════
 # ANALISI PER COPPIA FOREX (non per singola valuta)
 # ════════════════════════════════════════════════════════════
+# Il dato COT per il forex è per-valuta (net positioning speculativo
+# contro USD, o l'indice USD stesso), ma una coppia è per definizione
+# un confronto tra due gambe. Guardare EUR da sola e ignorare cosa fa
+# USD nello stesso momento significa perdere il caso più informativo:
+# quando entrambe le gambe sono estreme nella STESSA direzione, i
+# segnali si annullano a vicenda invece di sommarsi.
+#
+# "quote_is_usd_index": True per le coppie dirette contro USD (la
+# valuta base è quotata sui futures CME/ICE direttamente contro USD,
+# quindi la "gamba quote" è l'USD Index). False per i cross (entrambe
+# le gambe sono valute non-USD, es. EURGBP, EURJPY).
 FX_PAIRS = {
     "EURUSD": ("EUR", "USD"), "GBPUSD": ("GBP", "USD"),
     "AUDUSD": ("AUD", "USD"), "NZDUSD": ("NZD", "USD"),
     "USDJPY": ("USD", "JPY"), "USDCHF": ("USD", "CHF"),
     "USDCAD": ("USD", "CAD"),
+    # Cross: nessuna gamba è USD, la divergenza si calcola direttamente
+    # tra le due valute non-USD, senza passare dall'indice.
     "EURGBP": ("EUR", "GBP"), "EURJPY": ("EUR", "JPY"),
     "GBPJPY": ("GBP", "JPY"), "AUDJPY": ("AUD", "JPY"),
     "EURCHF": ("EUR", "CHF"), "EURAUD": ("EUR", "AUD"),
 }
 
 def _fx_leg(sym: str, fx: dict) -> dict:
-    """Percentile e derivata del net positioning di una singola valuta."""
+    """Percentile, derivata e accenno di inversione del net positioning
+    di una singola valuta."""
     arr = fx.get(sym) or []
     v = series(arr, "nc")
     if len(arr) < MINW or len(v) < 10:
-        return {"p": 50.0, "d": 0.0, "n": len(v)}
-    return {"p": percentile(v, v[-1]), "d": deriv(v), "n": len(v)}
+        return {"p": 50.0, "d": 0.0, "n": len(v), "turn": None}
+    p = percentile(v, v[-1])
+    d_ultimo = deriv(v, w=1)   # variazione ultima settimana
+    d_trend = deriv(v, w=4)    # variazione ultime 4 settimane (il trend che ha portato all'estremo)
+    # Accenno di inversione: la gamba è al proprio estremo, il trend a
+    # 4 settimane è ancora nella direzione che l'ha portata lì, ma
+    # l'ULTIMO tick va nella direzione opposta. Un solo tick non fa un
+    # nuovo trend — per questo resta un "avviso", non un cambio di
+    # classificazione: la userà chi legge per pesare la convinzione,
+    # non per ribaltare il segnale.
+    turn = None
+    if p > 80 and d_trend > 0 and d_ultimo < 0:
+        turn = "down"   # long estremo che inizia a cedere
+    elif p < 20 and d_trend < 0 and d_ultimo > 0:
+        turn = "up"     # short estremo che inizia a recuperare
+    return {"p": p, "d": deriv(v), "n": len(v), "turn": turn}
 
 def fx_pair_state(pair: str, fx: dict) -> dict | None:
     """
     Stato COT per una coppia forex, basato sulla DIVERGENZA tra le due
     gambe — non sul percentile isolato di una sola valuta.
+
+    key:
+      "bull_aligned"  — base in accumulo estremo (pB<20) mentre la quote
+                         non lo è (pQ>35): le due gambe puntano nella
+                         stessa direzione per la coppia, segnale pulito.
+      "bear_aligned"  — speculare, ribassista.
+      "crowded"       — entrambe le gambe estreme nella STESSA direzione
+                         (es. EUR long estremo E USD long estremo): i
+                         segnali si annullano, il posizionamento non dice
+                         nulla sulla direzione della COPPIA anche se dice
+                         molto sulle due valute prese singolarmente.
+      "watch"         — solo una gamba è estrema, l'altra è neutra:
+                         segnale parziale, da monitorare non da seguire.
+      "flat"          — nessuna gamba in zona estrema, dati insufficienti.
+
+    "avviso_inversione": non None se una delle due gambe che alimentano
+    il segnale mostra un accenno (un solo tick) di inversione rispetto
+    al trend che l'ha portata all'estremo — riduce la convinzione sul
+    segnale senza cancellarlo.
     """
     if pair not in FX_PAIRS:
         return None
@@ -541,13 +517,20 @@ def fx_pair_state(pair: str, fx: dict) -> dict | None:
     quote = _fx_leg(quote_sym, fx)
     if base["n"] < 10 or quote["n"] < 10:
         return {"key": "flat", "tone": "muted", "pBase": 50, "pQuote": 50,
-                "divergenza": 0, "base": base_sym, "quote": quote_sym}
+                "divergenza": 0, "base": base_sym, "quote": quote_sym,
+                "avviso_inversione": None}
+
     pB, pQ = base["p"], quote["p"]
+    # Divergenza diretta: quanto la base è più "comprata" della quote sul
+    # proprio storico. Va da -100 (quote massimamente più comprata) a
+    # +100 (base massimamente più comprata).
     divergenza = (pB - pQ)
+
     base_estrema_long = pB > 80
     base_estrema_short = pB < 20
     quote_estrema_long = pQ > 80
     quote_estrema_short = pQ < 20
+
     if base_estrema_long and quote_estrema_long:
         key, tone = "crowded", "ice"
     elif base_estrema_short and quote_estrema_short:
@@ -560,15 +543,41 @@ def fx_pair_state(pair: str, fx: dict) -> dict | None:
         key, tone = "watch", "yellow"
     else:
         key, tone = "flat", "muted"
+
+    # L'avviso guarda solo la/le gamba/e effettivamente estrema/e che
+    # determina/determinano il segnale (non una gamba neutra in mezzo).
+    avviso = None
+    if key in ("bull_aligned", "bear_aligned", "crowded", "watch"):
+        note = []
+        if base_estrema_long and base["turn"] == "down":
+            note.append(f"{base_sym} long estremo in possibile cedimento")
+        elif base_estrema_short and base["turn"] == "up":
+            note.append(f"{base_sym} short estremo in possibile recupero")
+        if quote_estrema_long and quote["turn"] == "down":
+            note.append(f"{quote_sym} long estremo in possibile cedimento")
+        elif quote_estrema_short and quote["turn"] == "up":
+            note.append(f"{quote_sym} short estremo in possibile recupero")
+        if note:
+            avviso = "; ".join(note)
+
     return {
         "key": key, "tone": tone,
         "pBase": pB, "pQuote": pQ, "divergenza": divergenza,
         "dBase": base["d"], "dQuote": quote["d"],
         "base": base_sym, "quote": quote_sym,
+        "avviso_inversione": avviso,
     }
 
 def fx_pairs_ranked(fx: dict) -> list[dict]:
-    """Tutte le coppie definite, ordinate per intensità di divergenza assoluta."""
+    """Tutte le coppie definite, ordinate per intensità di divergenza
+    assoluta (le più 'sbilanciate' — quindi potenzialmente le più
+    interessanti — in cima). Le 'crowded' vengono segnalate ma non sono
+    per forza in cima, dato che il loro segnale direzionale è nullo per
+    costruzione anche se entrambe le gambe sono estreme.
+    NOTA: l'ordinamento resta per divergenza assoluta anche in presenza
+    di "avviso_inversione" — l'avviso è un fattore di convinzione da
+    mostrare, non un motivo per escludere o riordinare la coppia: un
+    solo tick di inversione non giustifica un cambio di ranking."""
     out = []
     for pair in FX_PAIRS:
         st_ = fx_pair_state(pair, fx)
