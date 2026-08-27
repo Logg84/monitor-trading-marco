@@ -463,28 +463,36 @@ FX_PAIRS = {
     "EURCHF": ("EUR", "CHF"), "EURAUD": ("EUR", "AUD"),
 }
 
+ACCEL_MIN = 3.0  # soglia di rumore minima sotto cui un'accelerazione non è considerata un segnale
+
 def _fx_leg(sym: str, fx: dict) -> dict:
-    """Percentile, derivata e accenno di inversione del net positioning
-    di una singola valuta."""
+    """Percentile, derivata, accelerazione e accenno di inversione del
+    net positioning di una singola valuta."""
     arr = fx.get(sym) or []
     v = series(arr, "nc")
     if len(arr) < MINW or len(v) < 10:
-        return {"p": 50.0, "d": 0.0, "n": len(v), "turn": None}
+        return {"p": 50.0, "d": 0.0, "accel": 0.0, "n": len(v), "turn": None}
     p = percentile(v, v[-1])
     d_ultimo = deriv(v, w=1)   # variazione ultima settimana
     d_trend = deriv(v, w=4)    # variazione ultime 4 settimane (il trend che ha portato all'estremo)
-    # Accenno di inversione: la gamba è al proprio estremo, il trend a
-    # 4 settimane è ancora nella direzione che l'ha portata lì, ma
-    # l'ULTIMO tick va nella direzione opposta. Un solo tick non fa un
-    # nuovo trend — per questo resta un "avviso", non un cambio di
-    # classificazione: la userà chi legge per pesare la convinzione,
-    # non per ribaltare il segnale.
+    # Accelerazione (derivata seconda, approssimata): quanto l'ultimo tick
+    # si discosta dal trend a 4 settimane. A differenza di "turn" sotto,
+    # NON richiede che la gamba sia già al proprio estremo — è un
+    # indicatore anticipato pensato per catturare un cambio di direzione
+    # che parte da valori ancora lontani dall'estremo (i grandi broker/
+    # dashboard professionali lo trattano come segnale più precoce del
+    # solo livello percentile: vedi "position velocity").
+    accel = d_ultimo - d_trend
+    # Accenno di inversione "classico": la gamba è GIÀ al proprio estremo,
+    # il trend a 4 settimane è ancora nella direzione che l'ha portata lì,
+    # ma l'ULTIMO tick va nella direzione opposta. Resta un "avviso", non
+    # un cambio di classificazione.
     turn = None
     if p > 80 and d_trend > 0 and d_ultimo < 0:
         turn = "down"   # long estremo che inizia a cedere
     elif p < 20 and d_trend < 0 and d_ultimo > 0:
         turn = "up"     # short estremo che inizia a recuperare
-    return {"p": p, "d": deriv(v), "n": len(v), "turn": turn}
+    return {"p": p, "d": deriv(v), "accel": accel, "n": len(v), "turn": turn}
 
 def fx_pair_state(pair: str, fx: dict) -> dict | None:
     """
@@ -518,7 +526,8 @@ def fx_pair_state(pair: str, fx: dict) -> dict | None:
     if base["n"] < 10 or quote["n"] < 10:
         return {"key": "flat", "tone": "muted", "pBase": 50, "pQuote": 50,
                 "divergenza": 0, "base": base_sym, "quote": quote_sym,
-                "avviso_inversione": None}
+                "avviso_inversione": None,
+                "traiettorie_divergenti": False, "direzione_traiettorie": None}
 
     pB, pQ = base["p"], quote["p"]
     # Divergenza diretta: quanto la base è più "comprata" della quote sul
@@ -560,12 +569,33 @@ def fx_pair_state(pair: str, fx: dict) -> dict | None:
         if note:
             avviso = "; ".join(note)
 
+    # Segnale precoce indipendente dal gate di estremità: due gambe la
+    # cui accelerazione va in direzioni opposte (una accenna a cedere,
+    # l'altra ad accelerare nella direzione opposta) possono precedere
+    # un cambio di regime della coppia MOLTO prima che una delle due
+    # tocchi il proprio estremo storico — è il caso segnalato dall'utente
+    # su USD/CAD, dove USD e CAD erano ancora lontani dagli estremi ma le
+    # traiettorie avevano già iniziato a divergere. Non altera key/tone/
+    # ranking: è un'informazione aggiuntiva, non un cambio di segnale.
+    accel_base, accel_quote = base["accel"], quote["accel"]
+    traiettorie_divergenti = (
+        abs(accel_base) >= ACCEL_MIN and abs(accel_quote) >= ACCEL_MIN and
+        (accel_base > 0) != (accel_quote > 0)
+    )
+    direzione_traiettorie = None
+    if traiettorie_divergenti:
+        base_dir = "in accelerazione" if accel_base > 0 else "in cedimento"
+        quote_dir = "in accelerazione" if accel_quote > 0 else "in cedimento"
+        direzione_traiettorie = f"{base_sym} {base_dir}, {quote_sym} {quote_dir}"
+
     return {
         "key": key, "tone": tone,
         "pBase": pB, "pQuote": pQ, "divergenza": divergenza,
         "dBase": base["d"], "dQuote": quote["d"],
         "base": base_sym, "quote": quote_sym,
         "avviso_inversione": avviso,
+        "traiettorie_divergenti": traiettorie_divergenti,
+        "direzione_traiettorie": direzione_traiettorie,
     }
 
 def fx_pairs_ranked(fx: dict) -> list[dict]:
