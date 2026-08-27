@@ -283,7 +283,7 @@ with tab_fx:
         # estremi ma con le due gambe che iniziano ad accelerare in
         # direzioni opposte — segnale anticipato, non un cambio di
         # ranking o classificazione.
-        tutte = [C.fx_pair_state(p, FX) for p in C.FX_PAIRS]
+        tutte = [{"pair": pr, **(C.fx_pair_state(pr, FX) or {})} for pr in C.FX_PAIRS]
         early = [p for p in tutte if p and p.get("traiettorie_divergenti")]
         if early:
             with st.expander(f"🔎 Primi segnali di divergenza traiettorie ({len(early)})",
