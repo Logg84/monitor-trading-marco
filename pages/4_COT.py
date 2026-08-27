@@ -330,6 +330,16 @@ with tab_fx:
             key="fx_detail_multi",
             help="Seleziona una o più valute per confrontarne l'andamento del "
                  "net speculativo sullo stesso grafico.")
+        # FIX KeyError nella sezione sotto (metriche/grafico/tabella
+        # momentum): session_state["fx_detail_multi"] persiste tra i
+        # rerun, ma se nel frattempo i dati COT vengono ricaricati con un
+        # set di valute diverso (es. dopo il fix che ha aggiunto USD, o
+        # se una valuta scende sotto la soglia minima di settimane), una
+        # valuta rimasta selezionata da una sessione precedente non è più
+        # una chiave di P/Z/D4 (costruiti solo su `syms` correnti) →
+        # KeyError su P[s] appena sotto. Si scarta qui, silenziosamente,
+        # qualunque simbolo non più valido.
+        fx_sel_list = [s for s in fx_sel_list if s in P]
 
         if fx_sel_list:
             cols_d = st.columns(min(4, len(fx_sel_list)) or 1)
