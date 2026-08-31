@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-28T19:00:49.070989+00:00",
+  "updated": "2026-08-31T07:53:22.250141+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -1442,18 +1442,6 @@
       "target_date": null
     },
     {
-      "ticker": "EL.PA",
-      "origin": "auto",
-      "created": "2026-08-28T18:57:32.622585+00:00",
-      "last_reviewed": "2026-08-28T18:57:32.622594+00:00",
-      "poc": 22.5241,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "ADBE",
       "origin": "auto",
       "created": "2026-08-28T18:57:32.624492+00:00",
@@ -1502,35 +1490,11 @@
       "target_date": null
     },
     {
-      "ticker": "CTSH",
-      "origin": "auto",
-      "created": "2026-08-28T18:57:32.634022+00:00",
-      "last_reviewed": "2026-08-28T18:57:32.634029+00:00",
-      "poc": 13.3045,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "TMUS",
       "origin": "auto",
       "created": "2026-08-28T18:57:32.635937+00:00",
       "last_reviewed": "2026-08-28T18:57:32.635943+00:00",
       "poc": 24.861,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "SAP.DE",
-      "origin": "auto",
-      "created": "2026-08-28T18:57:32.637909+00:00",
-      "last_reviewed": "2026-08-28T18:57:32.637915+00:00",
-      "poc": 25.5004,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
