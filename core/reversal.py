@@ -1,14 +1,16 @@
 """
 Operazioni watchlist basate sul reversal state:
-- analyze_ticker: pacchetto completo per un ticker
+- analyze_ticker: pacchetto completo per un ticker (incl. Wyckoff)
 - auto_populate: promuove 🟡/🟢 dello screening in watchlist 🤖 (write-through GitHub)
-- prune_watchlist: uscite automatiche (🤖 e 👤) con persistenza 5 chiusure (write-through).
+- prune_watchlist: uscite automatiche (🤖 e 👤) con persistenza 5 chiusure (write-through)
+  e MESSAGGIO CON CAUSA REALE (quale ramo della regola è scattato).
 CIRCUITO DI PROTEZIONE: il pruning non pubblica mai una watchlist che resterebbe
 vuota (svuotamenti totali sono quasi sempre bug, non mercato).
 Regole uscita (punti come da reversal_state, 🟡 a ≥2):
  🤖: (DD > −20% OR punti < 2) per 5 chiusure consecutive.
  👤: (punti < 2 AND chiusura < livello minimo inserito) per 5 chiusure consecutive.
  👤 senza livelli inseriti: nessuna uscita automatica.
+ REGOLA: le entry con target_date non vengono mai rimosse.
 """
 from __future__ import annotations
 import numpy as np
@@ -70,19 +72,27 @@ def auto_populate(rows) -> list[str]:
     return added
 
 def _check_exit_conditions(df, zones, anchors, D, E, origin, min_lvl,
-                            points_threshold=2, dd_threshold=-20):
+                           points_threshold=2, dd_threshold=-20):
     """Verifica condizioni di uscita sulle ultime 5 chiusure.
-    Versione ottimizzata: calcola RSI/ATR/medie una sola volta."""
+    Versione ottimizzata: calcola RSI/ATR/medie una sola volta.
+    Ritorna (bad, motivo): motivo descrive la CAUSA REALE dell'uscita
+    (quale ramo della regola è scattato, con i valori odierni)."""
     close = df["Close"]
     n = len(close)
     if n < 30:
-        return False
+        return False, ""
     ma20 = close.rolling(20).mean()
     a20 = atr(df)
     idxs = list(range(max(25, n - 5), n))
+
+    dd_days = pts_days = both_days = 0
+    dd_last = pts_last = None
+    price_last = None
+
     for i in idxs:
         c = close.iloc[:i + 1]
         price = float(c.iloc[-1])
+        price_last = price
         dd = (price / float(c.max()) - 1) * 100
         roc = c.pct_change(10) * 100
         roc_now = float(roc.iloc[-1]) if not np.isnan(roc.iloc[-1]) else 0.0
@@ -107,16 +117,40 @@ def _check_exit_conditions(df, zones, anchors, D, E, origin, min_lvl,
                     for j in range(1, min(5, i) + 1)) if i >= 1 else False
         G = bool(above[-1] and cross)
         pts = int(B) + int(C) + 2 * int(G) + int(D) + int(E)
+        dd_last, pts_last = dd, pts
+
         if origin == "auto":
-            if not (dd > dd_threshold or pts < points_threshold):
-                return False
+            dd_bad = dd > dd_threshold
+            pts_bad = pts < points_threshold
+            if not (dd_bad or pts_bad):
+                return False, ""
+            if dd_bad and pts_bad:
+                both_days += 1
+            elif dd_bad:
+                dd_days += 1
+            else:
+                pts_days += 1
         else:
             if not (pts < points_threshold and min_lvl is not None and price < min_lvl):
-                return False
-    return True
+                return False, ""
+
+    # ── Causa reale ─────────────────────────────────────────
+    if origin == "manual":
+        return True, (f"sotto soglia candidato ({pts_last}/6 < {points_threshold}) e chiusura "
+                      f"{price_last:.2f} sotto il livello minimo inserito "
+                      f"({min_lvl:.2f}) per 5 chiusure consecutive")
+    if dd_days == 5:
+        return True, (f"tornato sopra il ritracciamento minimo: drawdown "
+                      f"{dd_last:+.1f}% (> {dd_threshold}%) per 5 chiusure consecutive")
+    if pts_days == 5:
+        return True, (f"sotto soglia candidato: {pts_last}/6 punti (< {points_threshold}) "
+                      f"per 5 chiusure consecutive")
+    return True, (f"causa mista su 5 chiusure: {dd_days + both_days}× tornato sopra il "
+                  f"ritracciamento minimo, {pts_days + both_days}× sotto soglia candidato "
+                  f"(DD oggi {dd_last:+.1f}%, punti oggi {pts_last}/6)")
 
 def prune_watchlist(analyses: dict | None = None) -> list[tuple[str, str]]:
-    """Rimuove entry che soddisfano le condizioni di uscita. Ritorna [(ticker, motivo)].
+    """Rimuove entry che soddisfano le condizioni di uscita. Ritorna [(ticker, motivo_reale)].
     Se analyses è fornito (dict ticker→risultato analyze_ticker), li riusa
     invece di ricalcolare ogni entry.
     REGOLA: le entry con target_date non vengono mai rimosse."""
@@ -139,11 +173,9 @@ def prune_watchlist(analyses: dict | None = None) -> list[tuple[str, str]]:
             min_lvl = min(lv)
         D = a["rev"]["flags"]["D"]
         E = a["rev"]["flags"]["E"]
-        if _check_exit_conditions(a["df"], a["zones"], a["anchors"],
-                                   D, E, e["origin"], min_lvl):
-            motivo = ("sconto recuperato o sotto soglia candidato"
-                      if e["origin"] == "auto"
-                      else "non candidato e sotto il livello minimo inserito")
+        bad, motivo = _check_exit_conditions(a["df"], a["zones"], a["anchors"],
+                                             D, E, e["origin"], min_lvl)
+        if bad:
             try:
                 remove_entry(e["ticker"])
                 removed.append((e["ticker"], motivo))
