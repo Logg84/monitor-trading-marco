@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T09:46:37.737783+00:00",
+  "updated": "2026-09-01T12:04:01.960608+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -818,18 +818,6 @@
       "target_date": null
     },
     {
-      "ticker": "ADS.DE",
-      "origin": "auto",
-      "created": "2026-08-25T07:28:56.513024+00:00",
-      "last_reviewed": "2026-08-25T07:28:56.513030+00:00",
-      "poc": 23.4856,
-      "poc_origin": "auto",
-      "vwap": 168.6815,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "CNA.L",
       "origin": "auto",
       "created": "2026-08-25T07:28:56.516213+00:00",
@@ -1538,18 +1526,6 @@
       "target_date": null
     },
     {
-      "ticker": "ARM",
-      "origin": "auto",
-      "created": "2026-09-01T08:53:12.454963+00:00",
-      "last_reviewed": "2026-09-01T08:53:12.454971+00:00",
-      "poc": 144.1359,
-      "poc_origin": "auto",
-      "vwap": 322.4448,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "SHL.DE",
       "origin": "auto",
       "created": "2026-09-01T08:53:12.457993+00:00",
@@ -1557,6 +1533,174 @@
       "poc": 50.4621,
       "poc_origin": "auto",
       "vwap": 36.1294,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "FIS",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.617961+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.617972+00:00",
+      "poc": 17.2969,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "ADBE",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.619877+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.619884+00:00",
+      "poc": 28.8684,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "NXPI",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.621743+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.621751+00:00",
+      "poc": 84.8202,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "ON",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.623556+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.623562+00:00",
+      "poc": 9.4603,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "TEP.PA",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.625387+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.625393+00:00",
+      "poc": 14.3002,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "MCHP",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.627238+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.627244+00:00",
+      "poc": 7.187,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "AZO",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.629080+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.629086+00:00",
+      "poc": 240.8555,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "CMCSA",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.630905+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.630911+00:00",
+      "poc": 5.9832,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "COHR",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.632771+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.632777+00:00",
+      "poc": 52.0375,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "INTC",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.634612+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.634617+00:00",
+      "poc": 17.9723,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "MRSH",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.636484+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.636489+00:00",
+      "poc": 22.258,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "CTSH",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.640264+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.640270+00:00",
+      "poc": 13.3045,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "SGE.L",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.642194+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.642200+00:00",
+      "poc": 98.1841,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null
+    },
+    {
+      "ticker": "SBAC",
+      "origin": "auto",
+      "created": "2026-09-01T11:59:25.644107+00:00",
+      "last_reviewed": "2026-09-01T11:59:25.644113+00:00",
+      "poc": 25.5673,
+      "poc_origin": "auto",
+      "vwap": null,
       "levels": {},
       "notes": "",
       "target_date": null
