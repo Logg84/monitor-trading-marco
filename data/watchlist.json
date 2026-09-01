@@ -1,11 +1,11 @@
 {
-  "updated": "2026-09-01T08:53:12.458196+00:00",
+  "updated": "2026-09-01T09:45:54.684280+00:00",
   "entries": [
     {
       "ticker": "APP",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.390803+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.390816+00:00",
+      "last_reviewed": "2026-09-01T09:45:54.683878+00:00",
       "poc": 54.1981,
       "poc_origin": "auto",
       "vwap": 419.4049,
@@ -20,7 +20,7 @@
       "last_reviewed": "2026-08-24T14:04:46.402036+00:00",
       "poc": 23.9275,
       "poc_origin": "auto",
-      "vwap": 25.5463,
+      "vwap": 25.5398,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -68,7 +68,7 @@
       "last_reviewed": "2026-08-24T14:04:46.503775+00:00",
       "poc": 752.5342,
       "poc_origin": "auto",
-      "vwap": 553.9571,
+      "vwap": 553.8618,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -176,7 +176,7 @@
       "last_reviewed": "2026-08-24T14:04:46.580103+00:00",
       "poc": 558.2856,
       "poc_origin": "auto",
-      "vwap": 500.8771,
+      "vwap": 500.8833,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -380,7 +380,7 @@
       "last_reviewed": "2026-08-24T14:04:46.723038+00:00",
       "poc": 2766.1246,
       "poc_origin": "auto",
-      "vwap": 3841.0662,
+      "vwap": 3841.0289,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -512,7 +512,7 @@
       "last_reviewed": "2026-08-24T14:04:46.817212+00:00",
       "poc": 36.9506,
       "poc_origin": "auto",
-      "vwap": 76.6949,
+      "vwap": 76.8679,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -560,7 +560,7 @@
       "last_reviewed": "2026-08-24T14:04:46.876834+00:00",
       "poc": 12.0655,
       "poc_origin": "auto",
-      "vwap": 87.904,
+      "vwap": 88.2911,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -572,7 +572,7 @@
       "last_reviewed": "2026-08-24T14:04:46.894686+00:00",
       "poc": 442.9765,
       "poc_origin": "auto",
-      "vwap": 2604.9645,
+      "vwap": 2605.1253,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -620,7 +620,7 @@
       "last_reviewed": "2026-08-24T14:04:46.986851+00:00",
       "poc": 84.7244,
       "poc_origin": "auto",
-      "vwap": 75.4741,
+      "vwap": 75.417,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -668,7 +668,7 @@
       "last_reviewed": "2026-08-24T14:04:47.050668+00:00",
       "poc": 512.1595,
       "poc_origin": "auto",
-      "vwap": 2701.1567,
+      "vwap": 2701.3761,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -692,7 +692,7 @@
       "last_reviewed": "2026-08-24T14:04:47.078636+00:00",
       "poc": 102.4147,
       "poc_origin": "auto",
-      "vwap": 289.1597,
+      "vwap": 289.1967,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -704,7 +704,7 @@
       "last_reviewed": "2026-08-24T14:04:47.086782+00:00",
       "poc": 2585.0924,
       "poc_origin": "auto",
-      "vwap": 12577.322,
+      "vwap": 12575.5149,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -788,7 +788,7 @@
       "last_reviewed": "2026-08-24T14:36:31.342034+00:00",
       "poc": 1039.2427,
       "poc_origin": "auto",
-      "vwap": 8673.7569,
+      "vwap": 8673.8722,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -800,7 +800,7 @@
       "last_reviewed": "2026-08-25T07:28:56.497129+00:00",
       "poc": 591.8188,
       "poc_origin": "auto",
-      "vwap": 2517.7679,
+      "vwap": 2517.832,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -812,7 +812,7 @@
       "last_reviewed": "2026-08-25T07:28:56.509861+00:00",
       "poc": 35.5629,
       "poc_origin": "auto",
-      "vwap": 170.5337,
+      "vwap": 170.38,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -822,9 +822,9 @@
       "origin": "auto",
       "created": "2026-08-25T07:28:56.513024+00:00",
       "last_reviewed": "2026-08-25T07:28:56.513030+00:00",
-      "poc": 24.7101,
+      "poc": 23.4856,
       "poc_origin": "auto",
-      "vwap": 168.8617,
+      "vwap": 168.6815,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -836,7 +836,7 @@
       "last_reviewed": "2026-08-25T07:28:56.516220+00:00",
       "poc": 140.7129,
       "poc_origin": "auto",
-      "vwap": 167.5706,
+      "vwap": 167.5592,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -848,7 +848,7 @@
       "last_reviewed": "2026-08-25T07:28:56.519475+00:00",
       "poc": 129.0897,
       "poc_origin": "auto",
-      "vwap": 477.6377,
+      "vwap": 477.7178,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -860,7 +860,7 @@
       "last_reviewed": "2026-08-25T07:28:56.529582+00:00",
       "poc": 106.9736,
       "poc_origin": "auto",
-      "vwap": 1621.6763,
+      "vwap": 1616.2773,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -884,7 +884,7 @@
       "last_reviewed": "2026-08-25T07:28:56.545393+00:00",
       "poc": 478.0522,
       "poc_origin": "auto",
-      "vwap": 2661.7874,
+      "vwap": 2662.1533,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -920,7 +920,7 @@
       "last_reviewed": "2026-08-25T15:19:23.477001+00:00",
       "poc": 123.0378,
       "poc_origin": "auto",
-      "vwap": 339.1747,
+      "vwap": 339.1656,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1028,7 +1028,7 @@
       "last_reviewed": "2026-08-27T17:51:58.413007+00:00",
       "poc": 27.5865,
       "poc_origin": "auto",
-      "vwap": 28.2504,
+      "vwap": 28.2342,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1040,7 +1040,7 @@
       "last_reviewed": "2026-08-27T17:51:58.414560+00:00",
       "poc": 20.3923,
       "poc_origin": "auto",
-      "vwap": 27.2035,
+      "vwap": 27.2696,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1064,7 +1064,7 @@
       "last_reviewed": "2026-08-27T17:51:58.419214+00:00",
       "poc": 424.5313,
       "poc_origin": "auto",
-      "vwap": 1110.4368,
+      "vwap": 1110.3976,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1076,7 +1076,7 @@
       "last_reviewed": "2026-08-27T17:51:58.420776+00:00",
       "poc": 226.3937,
       "poc_origin": "auto",
-      "vwap": 220.0467,
+      "vwap": 220.0576,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1100,7 +1100,7 @@
       "last_reviewed": "2026-08-27T17:51:58.428681+00:00",
       "poc": 21.7458,
       "poc_origin": "auto",
-      "vwap": 96.7239,
+      "vwap": 97.0024,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1112,7 +1112,7 @@
       "last_reviewed": "2026-08-27T17:51:58.435235+00:00",
       "poc": 16.912,
       "poc_origin": "auto",
-      "vwap": 60.2296,
+      "vwap": 60.1527,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1124,7 +1124,7 @@
       "last_reviewed": "2026-08-27T17:51:58.436924+00:00",
       "poc": 263.1739,
       "poc_origin": "auto",
-      "vwap": 1615.0506,
+      "vwap": 1614.428,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1148,7 +1148,7 @@
       "last_reviewed": "2026-08-27T17:51:58.440254+00:00",
       "poc": 149.6883,
       "poc_origin": "auto",
-      "vwap": 1096.3937,
+      "vwap": 1095.5287,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1160,7 +1160,7 @@
       "last_reviewed": "2026-08-27T17:51:58.448897+00:00",
       "poc": 248.5494,
       "poc_origin": "auto",
-      "vwap": 3780.374,
+      "vwap": 3780.2258,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1172,7 +1172,7 @@
       "last_reviewed": "2026-08-28T18:57:32.618646+00:00",
       "poc": 10.4441,
       "poc_origin": "auto",
-      "vwap": 5.0682,
+      "vwap": 5.0495,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1472,7 +1472,7 @@
       "last_reviewed": "2026-08-31T20:19:53.195988+00:00",
       "poc": 22.5242,
       "poc_origin": "auto",
-      "vwap": 169.4193,
+      "vwap": 169.0312,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1520,7 +1520,7 @@
       "last_reviewed": "2026-09-01T08:53:12.448620+00:00",
       "poc": 43.4331,
       "poc_origin": "auto",
-      "vwap": null,
+      "vwap": 64.1311,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1532,7 +1532,7 @@
       "last_reviewed": "2026-09-01T08:53:12.452048+00:00",
       "poc": 48.9516,
       "poc_origin": "auto",
-      "vwap": null,
+      "vwap": 263.1479,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1544,7 +1544,7 @@
       "last_reviewed": "2026-09-01T08:53:12.454971+00:00",
       "poc": 144.1359,
       "poc_origin": "auto",
-      "vwap": null,
+      "vwap": 322.4448,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -1556,7 +1556,7 @@
       "last_reviewed": "2026-09-01T08:53:12.458002+00:00",
       "poc": 50.4621,
       "poc_origin": "auto",
-      "vwap": null,
+      "vwap": 36.1294,
       "levels": {},
       "notes": "",
       "target_date": null
