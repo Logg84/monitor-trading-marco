@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T18:02:19.655000+00:00",
+  "updated": "2026-09-02T12:59:15.448823+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -45,30 +45,6 @@
       "poc": 8.1056,
       "poc_origin": "auto",
       "vwap": 51.5625,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "NCLH",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.452789+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.452800+00:00",
-      "poc": 19.2622,
-      "poc_origin": "auto",
-      "vwap": 19.3252,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "ENT.L",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.503757+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.503775+00:00",
-      "poc": 752.5342,
-      "poc_origin": "auto",
-      "vwap": 553.8618,
       "levels": {},
       "notes": "",
       "target_date": null
@@ -902,18 +878,6 @@
       "target_date": null
     },
     {
-      "ticker": "BAX",
-      "origin": "auto",
-      "created": "2026-08-27T17:51:58.423911+00:00",
-      "last_reviewed": "2026-08-27T17:51:58.423918+00:00",
-      "poc": 21.1853,
-      "poc_origin": "auto",
-      "vwap": 23.797,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "CAP.PA",
       "origin": "auto",
       "created": "2026-08-27T17:51:58.428673+00:00",
@@ -1238,18 +1202,6 @@
       "target_date": null
     },
     {
-      "ticker": "RI.PA",
-      "origin": "auto",
-      "created": "2026-09-01T08:53:12.448606+00:00",
-      "last_reviewed": "2026-09-01T08:53:12.448620+00:00",
-      "poc": 43.4331,
-      "poc_origin": "auto",
-      "vwap": 64.1311,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
       "ticker": "KER.PA",
       "origin": "auto",
       "created": "2026-09-01T08:53:12.452040+00:00",
@@ -1315,18 +1267,6 @@
       "created": "2026-09-01T11:59:25.634612+00:00",
       "last_reviewed": "2026-09-01T11:59:25.634617+00:00",
       "poc": 17.9723,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null
-    },
-    {
-      "ticker": "SGE.L",
-      "origin": "auto",
-      "created": "2026-09-01T11:59:25.642194+00:00",
-      "last_reviewed": "2026-09-01T11:59:25.642200+00:00",
-      "poc": 98.1841,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
