@@ -1,0 +1,406 @@
+"""
+Screening: ultima scansione persistente, calcolo in BACKGROUND (la navigazione
+non lo interrompe), zone volumetriche, VWAP ancorati, Segnale 🟡/🟢,
+auto-popolazione watchlist 🤖, pruning, selezione titolo col click su
+QUALSIASI tabella, grafico di decelerazione.
+"""
+import streamlit as st
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+
+st.set_page_config(page_title="Screening", page_icon="🎛️", layout="wide",
+                   initial_sidebar_state="collapsed")
+
+from ui.theme import inject_css, COLORS, style_fig
+from ui.nav import render_navbar, sidebar_nav
+from core.data_engine import (
+    INDICES_DIR, load_index_constituents,
+    save_screening_cache, load_screening_cache,
+    get_prices, get_prices_long, atr, vwap_anchored,
+    volume_zones, structural_anchors, bottom_score,
+)
+from core import bg_screening as bg
+from core.reversal import auto_populate, prune_watchlist
+from core.sectors import (bonus_sector, note_for, priorita, sector_label,
+                          sector_of, sector_rows, vento)
+from core.watchlist_io import add_entry, load_watchlist
+
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+inject_css(dark=st.session_state.dark_mode)
+render_navbar(title="Screening")
+sidebar_nav()
+
+st.markdown("## Screening")
+st.caption("Lettura, mai ordine — non è consulenza.")
+
+available = []
+if INDICES_DIR.exists():
+    available = sorted(p.stem for p in INDICES_DIR.glob("*.csv"))
+
+ALL_INDICES = "📊 VISUALIZZA TUTTI INSIEME"
+options = [ALL_INDICES] + available
+
+c1, c2 = st.columns([3, 1])
+index_name = c1.selectbox("Indice", options)
+snap0 = bg.snapshot()
+run = c2.button("🚀 Avvia screening", type="primary",
+                disabled=snap0["running"])
+
+if run:
+    if not available:
+        st.error("Nessun file indice in data/indices. Genera i CSV con scripts/download_indices.py --force e fai commit.")
+        st.stop()
+
+    if index_name == ALL_INDICES:
+        per_index = {}
+        raw_tickers = []
+        for n in available:
+            tks = load_index_constituents(n)
+            per_index[n] = len(tks)
+            raw_tickers.extend(tks)
+        gross = len(raw_tickers)
+        tickers = sorted(set(raw_tickers))
+    else:
+        tickers = load_index_constituents(index_name)
+        per_index = {index_name: len(tickers)}
+        gross = len(tickers)
+
+    if not tickers:
+        st.error(
+            f"Nessun ticker disponibile per '{index_name}': file indice vuoto o mancante. "
+            "Rigenera con `python scripts/download_indices.py --force` e fai commit+push."
+        )
+        st.stop()
+
+    started = bg.start(tickers, per_index, gross, index_name)
+    if not started:
+        st.info("Screening già in corso.")
+
+# ── Stato background: progress bar + log live ──────────────
+snap = bg.snapshot()
+if snap["running"]:
+    done, total = snap["progress"]
+    pct = done / max(total, 1)
+    st.progress(pct, text=f"Elaborati {done}/{total} ticker ({pct*100:.0f}%)")
+    with st.status("Screening in corso in background: puoi navigare su Regime/COT, non si interrompe.",
+                   expanded=True) as status:
+        for line in snap["log"]:
+            status.write(line)
+    st.button("🔄 Aggiorna stato")
+
+if (snap["done"] and snap["df"] is not None
+        and st.session_state.get("bg_consumed") != snap["started_at"]):
+    df = snap["df"]
+    diagnostics = snap["diag"] or {}
+    per_index = snap["per_index"] or {}
+    gross = snap["gross"]
+    if diagnostics.get("valid", 0) > 0:
+        added = auto_populate(df.to_dict("records"))
+        removed = prune_watchlist()
+        st.session_state["screening_result"] = df
+        st.session_state["screening_diagnostics"] = diagnostics
+        st.session_state["screening_per_index"] = per_index
+        st.session_state["screening_gross"] = gross
+        st.session_state["screening_saved_at"] = snap["started_at"]
+        st.session_state["screening_index_label"] = snap["index_label"]
+        st.session_state["screening_ops"] = {"added": added, "removed": removed}
+    st.session_state["bg_consumed"] = snap["started_at"]
+    st.rerun()
+
+# ── Recupero ultima scansione se la sessione è vuota ───────
+if st.session_state.get("screening_result") is None:
+    df_c, meta = load_screening_cache()
+    if df_c is not None:
+        st.session_state["screening_result"] = df_c
+        st.session_state["screening_diagnostics"] = meta.get("diagnostics", {})
+        st.session_state["screening_per_index"] = meta.get("per_index")
+        st.session_state["screening_gross"] = meta.get("gross")
+        st.session_state["screening_saved_at"] = meta.get("saved_at", "n/d")
+        st.session_state["screening_index_label"] = meta.get("index", "n/d")
+
+df = st.session_state.get("screening_result")
+diagnostics = st.session_state.get("screening_diagnostics")
+per_index = st.session_state.get("screening_per_index")
+gross = st.session_state.get("screening_gross")
+saved_at = st.session_state.get("screening_saved_at")
+index_label = st.session_state.get("screening_index_label")
+ops = st.session_state.get("screening_ops")
+
+if df is None or df.empty:
+    st.info("Nessuna scansione in memoria né salvata. Avvia lo screening.")
+    st.stop()
+
+if saved_at:
+    st.caption(f"Ultima scansione: {saved_at} · indice: {index_label}")
+
+if ops:
+    added, removed = ops.get("added", []), ops.get("removed", [])
+    if added:
+        st.caption(f"🤖 aggiunti in watchlist: {', '.join(added)}")
+    for t, motivo in removed:
+        st.caption(f"🗑 rimosso {t}: {motivo}")
+
+if per_index:
+    detail = " · ".join(f"{k}: {v}" for k, v in sorted(per_index.items()))
+    st.caption(f"Costituenti per indice → {detail}")
+
+if diagnostics:
+    unici = diagnostics["total"]
+    lordi = gross if gross is not None else unici
+    duplicati = max(0, lordi - unici)
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Costituenti lordi", lordi)
+    m2.metric("Titoli unici", unici)
+    m3.metric("Duplicati tra indici", duplicati)
+    m4.metric("Titoli validi", diagnostics["valid"])
+    m5.metric("Scartati download", diagnostics["discarded"])
+
+st.caption(
+    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
+    "larghezza max = min(15% range, 8×ATR20). "
+    "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
+    "Segnale 🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D (G pesa doppio). "
+    "Wyckoff: rilevamento pattern accumulazione SC→AR→ST→Spring→SOS→LPS, punteggio 1-10. "
+    "Settore: stato 0-100 del paniere ETF di settore (cap-weighted) con divergenza "
+    "Δ EW−CW a 3 mesi; Priorità = Bottom + bonus settore (±10), serve a ordinare, "
+    "non a decidere. Dettaglio numerico e grafico nel pannello 🏭 Settori. "
+    "Clicca una riga in una delle tre tabelle per aprire l'analisi di decelerazione. Lettura, mai ordine."
+)
+
+# ── Contesto di settore: BIOS di rotazione + segnali contro-trend ──
+# Queste righe NON filtrano e NON modificano i segnali: il 🟡/🟢 resta quello di
+# reversal_state. Qui si legge soltanto il vento del settore.
+# Cache di una scansione vecchia (senza colonne di settore) → colonne "—", che
+# in UI significano "nessun dato", mai "settore debole".
+_SECT_COLS = {"Settore": "—", "SettoreKey": "", "Sector": "—", "SectorETF": "—",
+              "SectorScore": None, "Δ EW−CW": None, "Vento": "nd",
+              "Sotto-settore": "—", "SottoKey": "", "SottoScore": None,
+              "SottoΔ": None, "Priorità": None}
+_missing = [c for c in _SECT_COLS if c not in df.columns]
+df = df.copy()
+if _missing:
+    for c in _missing:
+        df[c] = _SECT_COLS[c]
+    st.info("Cache screening senza contesto settori (scansione precedente): "
+            "riesegui lo screening per averlo.")
+for c in ("SectorScore", "Δ EW−CW", "SottoScore", "SottoΔ", "Priorità"):
+    df[c] = pd.to_numeric(df[c], errors="coerce")
+df["SectorScore"] = df["SectorScore"].astype("Int64")
+df["Δ EW−CW"] = df["Δ EW−CW"].round(1)
+df["Priorità"] = df["Priorità"].astype("Int64")
+
+srows, ssrc = sector_rows()
+_sig = df[df["Segnale"].astype(str).str.startswith(("🟡", "🟢"))]
+_contro = _sig[_sig["Vento"] == "contro"]
+_favore = _sig[_sig["Vento"] == "favore"]
+if len(_contro):
+    st.warning(
+        f"⚠️ {len(_contro)} segnali su settori IN CALO: "
+        + ", ".join(f"{r['Ticker']} [{str(r['Settore']).replace('⚠️ ', '')} "
+                    f"{r['Sector']}]" for _, r in _contro.head(8).iterrows())
+        + ("…" if len(_contro) > 8 else "")
+        + " — il segnale vale, ma l'ingresso è contro-trend di settore: lettura "
+          "di prudenza, non blocco (nessuna regola cambia)."
+    )
+if len(_favore):
+    st.success(
+        f"🟢 {len(_favore)} segnali su settori IN CRESCITA: "
+        + ", ".join(f"{r['Ticker']} [{r['Settore']} {r['Sector']}]"
+                    for _, r in _favore.head(8).iterrows())
+        + ("…" if len(_favore) > 8 else "")
+        + " — vento a favore (Δ e stato nel pannello 🏭 Settori)."
+    )
+_top = sorted(((k, v) for k, v in srows.items() if v.get("score") is not None),
+              key=lambda kv: -kv[1]["score"])
+if _top:
+    def _chip(kv) -> str:
+        k, v = kv
+        br = ""
+        if v.get("spread") is not None:
+            sgn = "≈" if abs(v["spread"]) < 1 else ("+" if v["spread"] > 0 else "−")
+            br = f" ·Δ{sgn}{abs(v['spread']):.0f}"
+        return f"{v['emoji']}{v['label']} {v['score']:.0f}{br}"
+    st.caption("Rotazione settori (stato · breadth EW−CW) — forti: "
+               + " · ".join(_chip(kv) for kv in _top[:6]))
+    st.caption("… deboli: " + " · ".join(_chip(kv) for kv in _top[-6:][::-1]))
+    st.caption(f"Sorgente stato settori: {ssrc}. 'n/d' ≠ neutro: è assenza di dato.")
+
+discount = df[df["DD%"] <= -20].copy()
+alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
+
+sc1, sc2 = st.columns([2, 1])
+sort_col = sc1.selectbox(
+    "Ordina per",
+    ["Bottom", "Priorità", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "VWA1",
+     "Wyckoff", "SectorScore", "Δ EW−CW", "SottoScore", "SottoΔ",
+     "Settore", "Sotto-settore", "Nome", "Ticker"],
+    index=0,
+)
+sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
+ascending = sort_dir == "Ascendente"
+
+df_sorted = df.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
+discount_sorted = discount.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
+alert_sorted = alert.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
+
+tab1, tab2, tab3 = st.tabs([
+    f"Tutti ({len(df_sorted)})",
+    f"In sconto ({len(discount_sorted)})",
+    f"Alert POC/VWAP ({len(alert_sorted)})",
+])
+_sec_cfg = {
+    "Settore": st.column_config.TextColumn(
+        "Settore", help="Settore del titolo (classificazione da settore/"
+                         "industria di mercato). ⚠️ = segnale attivo su settore "
+                         "in calo: nota di prudenza, il segnale resta valido."),
+    "Sector": st.column_config.TextColumn(
+        "Sector", help="Settore GICS: emoji + freccia di direzione + punteggio "
+                       "0-100 + Δ EW−CW a 3 mesi (divergenza pesi uguali vs "
+                       "capitalizzazione, sullo STESSO perimetro di titoli)"),
+    "Sotto-settore": st.column_config.TextColumn(
+        "Sotto-settore", help="Livello S&P Select Industry (sotto il settore "
+                              "GICS): è dove il Δ si vede spesso per primo."),
+    "SottoΔ": st.column_config.NumberColumn(
+        "SottoΔ", format="%+.1f",
+        help="Δ EW−CW 3 mesi del solo sotto-settore (non del settore intero)."),
+    "SectorScore": st.column_config.NumberColumn(
+        "Score sett.", format="%d",
+        help="Punteggio di settore 0-100 (stessa formula della colonna Sector)."),
+    "Δ EW−CW": st.column_config.NumberColumn(
+        "Δ EW−CW", format="%+.1f",
+        help="Spread momentum 3 mesi EW − CW in punti: >0 = moto "
+                        "diffuso (ingresso statisticamente più affidabile), "
+                        "<0 = moto trascinato dai pesi massimi."),
+    "Priorità": st.column_config.NumberColumn(
+        "Priorità", format="%d",
+        help="Bottom Score + bonus di settore (±10). Serve a ORDINARE, non a "
+             "decidere: i punti 🟡/🟢 non cambiano."),
+}
+with tab1:
+    ev_all = st.dataframe(df_sorted, use_container_width=True, hide_index=True,
+                          column_config=_sec_cfg,
+                          on_select="rerun", selection_mode="single-row",
+                          key="tbl_tutti")
+with tab2:
+    ev_disc = st.dataframe(discount_sorted, use_container_width=True, hide_index=True,
+                           column_config=_sec_cfg,
+                           on_select="rerun", selection_mode="single-row",
+                           key="tbl_sconto")
+with tab3:
+    ev_alert = st.dataframe(alert_sorted, use_container_width=True, hide_index=True,
+                            column_config=_sec_cfg,
+                            on_select="rerun", selection_mode="single-row",
+                            key="tbl_alert")
+
+# ── Click su qualsiasi tabella: vince la selezione cambiata ─
+for key, ev, dfx in (
+    ("tbl_tutti", ev_all, df_sorted),
+    ("tbl_sconto", ev_disc, discount_sorted),
+    ("tbl_alert", ev_alert, alert_sorted),
+):
+    rows = list(ev.selection["rows"]) if ev is not None and ev.selection else []
+    prev = st.session_state.get(f"prevsel_{key}")
+    if rows != prev:
+        st.session_state[f"prevsel_{key}"] = rows
+        if rows and rows[0] < len(dfx):
+            st.session_state["decel_ticker"] = dfx.iloc[rows[0]]["Ticker"]
+
+all_tickers = df_sorted["Ticker"].tolist()
+stored = st.session_state.get("decel_ticker")
+sel = stored if stored in all_tickers else (all_tickers[0] if all_tickers else None)
+if sel is None:
+    st.stop()
+
+# ── Analisi di decelerazione ───────────────────────────────
+st.markdown(f"### Analisi di decelerazione — {sel}")
+
+try:
+    full = get_prices(sel)
+except Exception as e:
+    st.error(f"Dati non disponibili per {sel}: {e}")
+    st.stop()
+
+try:
+    wdf = get_prices_long(sel)
+except Exception:
+    wdf = full
+zones = volume_zones(wdf, atr20=atr(full))
+anchors = structural_anchors(wdf)
+vwap60 = vwap_anchored(full)
+bs = bottom_score(full, zones=zones)
+
+col = COLORS["dark"] if st.session_state.dark_mode else COLORS["light"]
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                    row_heights=[0.7, 0.3], vertical_spacing=0.03)
+fig.add_trace(go.Scatter(x=full.index, y=full["Close"], name="Close",
+                         line=dict(color=col["accent"], width=1.5)), 1, 1)
+ylo = float(full["Low"].min()) * 0.97
+yhi = float(full["High"].max()) * 1.03
+for zi, z in enumerate(zones[:3], 1):
+    if z["hi"] < ylo or z["lo"] > yhi:
+        continue
+    fig.add_hrect(y0=z["lo"], y1=z["hi"], fillcolor=col["warning"],
+                  opacity=0.08 + 0.20 * z["score"] / 100,
+                  line_width=0, annotation_text=f"Z{zi} ·{z['score']}",
+                  row=1, col=1)
+for an in anchors:
+    if ylo <= an["vwap"] <= yhi:
+        fig.add_hline(y=an["vwap"], line_color=col["positive"], line_dash="dot",
+                      annotation_text=f"{an['label']} {an['date'].strftime('%m/%y')}",
+                      row=1, col=1)
+fig.add_hline(y=vwap60, line_color=col["text_muted"], line_dash="dot",
+              annotation_text="VWAP60", row=1, col=1)
+fig.update_yaxes(range=[ylo, yhi], row=1, col=1)
+roc = full["Close"].pct_change(10) * 100
+fig.add_trace(go.Bar(x=full.index, y=roc, name="ROC 10g",
+                     marker_color=[col["negative"] if v < 0 else col["positive"]
+                                   for v in roc]), 2, 1)
+style_fig(fig, st.session_state.dark_mode, height=520)
+st.plotly_chart(fig, use_container_width=True)
+
+m1, m2, m3, m4, m5 = st.columns(5)
+m1.metric("Bottom Score", f"{bs['score']}/100")
+m2.metric("Drawdown", f"{bs['drawdown']:.1f}%")
+m3.metric("RSI", f"{bs['rsi']:.0f}")
+m4.metric("ROC 10g", f"{bs['roc10']:+.1f}%")
+m5.metric("Decelerazione", f"{bs['decel']:+.1f}")
+
+# ── Contesto di settore sul titolo selezionato ─────────────
+_sel_key = sector_of(sel)
+_sel_row = (srows or {}).get(_sel_key or "")
+_sel_vento = vento(_sel_key, srows)
+m6, m7 = st.columns(2)
+m6.metric("Settore (contesto)", sector_label(_sel_key) if _sel_key else "—",
+          (f"{_sel_row['emoji']} {_sel_row['score']}/100 · {_sel_row['dir']}"
+           if _sel_row and _sel_row.get("score") is not None else "n/d"),
+          delta_color="off")
+m7.metric("Priorità (Bottom + bonus settore)",
+          str(priorita(bs["score"], (_sel_row or {}).get("score"))),
+          f"bonus settore {bonus_sector((_sel_row or {}).get('score')):+d}",
+          delta_color="off")
+_sel_note = note_for(_sel_key, srows)
+if _sel_vento == "contro":
+    st.warning(f"⚠️ {_sel_note} — la decelerazione è reale ma il settore non "
+               "coopera: ingresso contro-trend di settore.")
+elif _sel_note:
+    st.caption(_sel_note)
+
+if bs["score"] >= 70:
+    st.success(f"**Operazione Potenziale** — sconto profondo e discesa in decelerazione. {sel} a ridosso di una zona volumetrica.")
+elif bs["score"] >= 50:
+    st.warning(f"**Da osservare** — {sel} mostra elementi parziali; attendi conferma dalla zona.")
+else:
+    st.info(f"**Nessun setup** — {sel} non soddisfa i criteri di sconto/decelerazione.")
+
+in_wl = any(e["ticker"] == sel for e in load_watchlist())
+if not in_wl:
+    if st.button(f"➕ Promuovi {sel} in watchlist (🤖 auto)", type="primary"):
+        add_entry(sel, origin="auto",
+                  poc=zones[0]["center"] if zones else None)
+        st.success(f"{sel} promosso in watchlist come 🤖")
+else:
+    st.caption(f"{sel} è già in watchlist.")
