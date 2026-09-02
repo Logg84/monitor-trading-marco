@@ -18,6 +18,9 @@ from core.data_engine import (
     atr, vwap_anchored, company_name, health_check, bottom_score,
     build_universe, resolve_ticker, tradingview_url,
 )
+from core.sectors import (freschezza, note_for, priorita, sector_cell, sector_label,
+                          snapshot_and_source, sub_note, valid_key, vento)
+
 from core.reversal import analyze_ticker, prune_watchlist
 from core.gh_sync import publish_watchlist
 from core.watchlist_io import (
@@ -55,6 +58,48 @@ def zones_caption(zones: list[dict]) -> None:
     else:
         st.caption("Zone volumetriche: nessuna mensola significativa sullo storico lungo.")
 
+def sector_detail(sr: dict | None, key: str | None, sub_key: str | None = None) -> None:
+    """Tabella di contesto settore (usata sia in watchlist sia in analisi
+    singola): lettura, nessuna decisione. sr=None → 'n/d' dichiarato, mai 50
+    inventato o 'neutro' di default."""
+    if sr is None:
+        st.caption(f"Settore {sector_label(key)}: stato non disponibile (n/d) — "
+                   "né live né cache del repo. 'n/d' non significa 'neutro'.")
+        return
+    st.dataframe(pd.DataFrame([
+        {"Metrica": "Settore", "Valore": sr["label"]},
+        {"Metrica": "Livello", "Valore": sr.get("livello") or "settore GICS"},
+        {"Metrica": "Gamba capitalizzazione (CW)", "Valore": sr["cw"]},
+        {"Metrica": "Gamba pesi uguali (EW)", "Valore": sr.get("ew") or "—"},
+        {"Metrica": "Chi tira il settore", "Valore": sr.get("guida") or "n/d"},
+        {"Metrica": "Δ EW−CW 1m / 3m / 6m",
+         "Valore": " / ".join("n/d" if sr.get(k) is None else f"{sr[k]:+.1f} pt"
+                              for k in ("spread21", "spread63", "spread126"))},
+        {"Metrica": "Stato", "Valore": f"{sr['emoji']} {sr['stato']} · {sr['score']}/100"},
+        {"Metrica": "Direzione", "Valore": sr["dir"]},
+        {"Metrica": "Momentum 1m / 3m / 6m",
+         "Valore": " / ".join("n/d" if sr.get(k) is None else f"{sr[k]:+.1f}%"
+                              for k in ("mom21", "mom63", "mom126"))},
+        {"Metrica": "Forza relativa 3m vs benchmark",
+         "Valore": "n/d" if sr.get("rs63") is None else f"{sr['rs63']:+.1f} pt"},
+        {"Metrica": "Vantaggio EW persistente",
+         "Valore": ("n/d" if sr.get("consistenza") is None
+                    else f"{sr['consistenza']:.0f}% sedute su 63 · "
+                         + f"{abs(sr.get('streak') or 0)} sedute di fila "
+                           f"({'a favore EW' if (sr.get('streak') or 0) > 0 else 'a favore CW'})")},
+        {"Metrica": "Posizione range 52 sett.",
+         "Valore": "n/d" if sr.get("pos52") is None else f"{sr['pos52']:.0f}%"},
+        {"Metrica": "Sopra SMA50 / SMA200 (gamba cw)",
+         "Valore": f"{'sì' if sr.get('above50') else 'no'} / "
+                   f"{'sì' if sr.get('above200') else 'no'}"},
+    ]), use_container_width=True, hide_index=True)
+    if sr.get("note"):
+        st.caption(sr["note"])
+    if sr.get("ew_note"):
+        st.caption(f"Gamba equal-weighted: {sr['ew_note']}")
+    st.caption("Il settore è contesto: non aggiunge né toglie punti al segnale "
+               "🟡/🟢 e non partecipa al pruning. Dettagli nel pannello Settori.")
+
 def cname(ticker: str) -> str:
     if ticker not in st.session_state.company_cache:
         st.session_state.company_cache[ticker] = company_name(ticker)
@@ -68,6 +113,8 @@ st.caption(
     "Segnale 🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D (G pesa doppio). "
     "Wyckoff: rilevamento pattern accumulazione SC→AR→ST→Spring→SOS→LPS, punteggio 1-10. "
     "Uscite automatiche: 🤖 se DD>−20% o punti<2 per 5 chiusure; 👤 se punti<2 e sotto il livello minimo inserito per 5 chiusure. "
+    "Contesto di settore (ETF capitalization-weighted + equal-weighted): stato 0-100 del settore di ogni titolo, nota ⚠️ se il segnale è su un settore in calo, "
+    "e Priorità = Bottom + bonus settore (±10) per ordinare: il settore NON modifica i punti 🟡/🟢 né le uscite. "
     "Clicca una riga della tabella per aprire l'analisi. Lettura, mai ordine."
 )
 
@@ -75,6 +122,24 @@ st.caption(
 entries = load_watchlist_with_restore()
 if entries and not load_watchlist():
     st.caption("Watchlist ripristinata da GitHub (fonte di verità).")
+
+# ── Contesto di settore (ETF cap-w + equal-w): lettura, non regola ──────
+_snap, ssrc = snapshot_and_source()
+srows = {k: v for k, v in (_snap or {}).get("rows", {}).items()
+         if v.get("livello") == "settore"}
+subrows = {k: v for k, v in (_snap or {}).get("rows", {}).items()
+           if v.get("livello") != "settore"}
+
+def valid_sub(k):
+    """Chiave di sotto-settore utilizzabile (vedi valid_key per i settori)."""
+    return k if k in subrows else None
+
+def sub_label_str(k):
+    return subrows[k]["label"] if k in subrows else "—"
+st.caption(f"Contesto settori ({len(srows)} GICS + {len(subrows)} sotto-settori/temi): "
+           f"{freschezza(_snap, ssrc == 'live')}. Il settore è lettura di contesto: "
+           "non modifica i punti 🟡/🟢 né le uscite.")
+
 
 # ── SINGOLO PASSO di analisi per pruning + display ─────────
 analyses = {}
@@ -107,7 +172,8 @@ for t, a in analyses.items():
     ath = float(dfx["Close"].max())
     metrics[t] = {"vwap": round(vwap_anchored(dfx), 4),
                   "poc_auto": round(a["zones"][0]["center"], 4) if a["zones"] else None,
-                  "drawdown": (price / ath - 1) * 100}
+                  "drawdown": (price / ath - 1) * 100,
+                  "sector": valid_key(a.get("sector")), "sub": a.get("sub")}
 
 n_before = len(entries)
 entries, msgs = reconcile(entries, {k: v for k, v in metrics.items() if v})
@@ -169,6 +235,14 @@ else:
                 break
         trim = "✅" if es["positive"] is True else ("❌" if es["positive"] is False else "n/d")
         wyk_str = f"{wyk['score_10']}/10" if wyk["n_events"] >= 2 else "—"
+        sec_key = a.get("sector") or valid_key(e.get("sector"))
+        sub_key = a.get("sub") or valid_sub(e.get("sub"))
+        sec_score = (srows.get(sec_key) or {}).get("score") if sec_key else None
+        sec_vento = vento(sec_key, srows)
+        contro = bool(rev["kind"] and sec_vento == "contro")
+        sec_lbl = sector_label(sec_key)
+        if contro and sec_lbl != "—":
+            sec_lbl = f"⚠️ {sec_lbl}"
         levels_e = e.get("levels", {}) or {}
         td_raw = e.get("target_date")
         td_fmt = "—"
@@ -183,6 +257,10 @@ else:
             "Ticker": e["ticker"],
             "TV": tradingview_url(e["ticker"]),
             "Nome": cname(e["ticker"]),
+            "Settore": sec_lbl,
+            "Sotto": sub_label_str(sub_key),
+            "SottoΔ": ((subrows.get(sub_key) or {}).get("d63") if sub_key else None),
+            "Sector": sector_cell(sec_key, srows),
             "Prezzo": round(price, 2),
             "DD%": round(bs["drawdown"], 1),
             "RSI": round(bs["rsi"], 0),
@@ -197,6 +275,7 @@ else:
             "Wyckoff": wyk_str,
             "Trim.": trim,
             "Bottom": bs["score"],
+            "Priorità": priorita(bs["score"], sec_score),
             "L1": levels_e.get("L1") or "—",
             "L2": levels_e.get("L2") or "—",
             "L3": levels_e.get("L3") or "—",
@@ -208,7 +287,8 @@ else:
         sc1, sc2 = st.columns([2, 1])
         sort_col = sc1.selectbox(
             "Ordina per",
-            ["Bottom", "DD%", "RSI", "Prezzo", "VWA1", "Wyckoff", "Nome", "Ticker"],
+            ["Bottom", "Priorità", "DD%", "RSI", "Prezzo", "VWA1", "Wyckoff",
+             "Settore", "Sotto", "Sector", "Nome", "Ticker"],
             index=0, key="wl_sort",
         )
         sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"],
@@ -224,6 +304,23 @@ else:
                 display_text="📈",
                 width="small",
             ),
+            "Settore": st.column_config.TextColumn(
+                "Settore",
+                help="Settore del titolo (classificazione da settore/"
+                     "industria di mercato). ⚠️ = segnale attivo su settore in "
+                     "calo: è una nota di prudenza, il segnale resta valido."),
+            "Sector": st.column_config.TextColumn(
+                "Sector",
+                help="Stato del settore: emoji (FORTE / IN MIGLIORAMENTO / "
+                     "NEUTRO / DEBOLE / IN CALO) + freccia di direzione + "
+                     "punteggio 0-100 (trend, momentum 3/6m, forza relativa vs "
+                     "SPY, posizione su 52 sett., breadth EW−CW). Contesto, mai "
+                     "regola di ingresso."),
+            "Priorità": st.column_config.NumberColumn(
+                "Priorità",
+                help="Bottom Score + bonus di settore (±10 = (stato−50)/5). "
+                     "Serve a ORDINARE la lista, non a decidere l'ingresso.",
+                format="%d"),
             "L1": st.column_config.TextColumn(
                 "L1", help="Livello manuale L1 (supporto forte) — impostato da te sotto la tabella"),
             "L2": st.column_config.TextColumn(
@@ -338,6 +435,8 @@ else:
             style_fig(fig, st.session_state.dark_mode, height=420)
             st.plotly_chart(fig, use_container_width=True)
             zones_caption(a["zones"])
+            sec_note = note_for(a.get("sector"), srows)
+            sotto_note = sub_note(a.get("sub"), subrows)
             st.caption(
                 f"Segnale: {a['rev']['kind'] or '—'} {a['rev']['points']}/6 · "
                 f"flag B/C/G/D/E = "
@@ -345,6 +444,20 @@ else:
                 + f" · Wyckoff {wyk['score_10']}/10 ({wyk['confidence']})"
                 + (f" — {'+'.join(wyk['events'])}" if wyk["events"] else "")
             )
+            # Contesto di settore: è una RIGA IN PIÙ, non un filtro — il segnale
+            # 🟡/🟢 resta quello di reversal_state. ⚠️ quando c'è un segnale su
+            # un settore che sta scendendo (lettura prudente, non blocco).
+            if sec_note:
+                if a["rev"]["kind"] and vento(a.get("sector"), srows) == "contro":
+                    st.warning(f"⚠️ {sec_note}")
+                else:
+                    st.caption(sec_note)
+            if sotto_note:
+                st.caption(sotto_note)
+
+            with st.expander("🏭 Contesto di settore (ETF cap-w + equal-w)"):
+                sec_k_det = a.get("sector") or valid_key(sel_entry.get("sector"))
+                sector_detail((srows or {}).get(sec_k_det or ""), sec_k_det)
 
             with st.expander("📅 Trimestrali"):
                 es = a["es"]
@@ -475,6 +588,25 @@ if ticker:
     )
 
     st.markdown(f"[📈 Apri **{ticker}** su TradingView]({tradingview_url(ticker)})")
+
+    # ── Contesto di settore nell'analisi singola ───────────
+    sec_k = valid_key(a.get("sector"))
+    sec_r = (srows or {}).get(sec_k or "")
+    st.metric("Settore / stato",
+              f"{sector_label(sec_k)}",
+              f"{sec_r['emoji']} {sec_r['score']}/100 {sec_r['dir']}"
+              if sec_r and sec_r.get("score") is not None else "n/d",
+              delta_color="off")
+    _note = note_for(sec_k, srows)
+    if sub_note(a.get("sub"), subrows):
+        st.caption(sub_note(a.get("sub"), subrows))
+    if _note:
+        if a["rev"]["kind"] and vento(sec_k, srows) == "contro":
+            st.warning(f"⚠️ {_note}")
+        else:
+            st.caption(_note)
+    with st.expander("🏭 Contesto di settore (ETF cap-w + equal-w)"):
+        sector_detail(sec_r, sec_k)
 
     if st.button("➕ Promuovi in watchlist (👤 manuale)", type="primary"):
         add_entry(ticker, origin="manual",
