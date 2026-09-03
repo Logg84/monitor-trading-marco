@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-03T18:03:43.803851+00:00",
+  "updated": "2026-09-03T18:05:27.948329+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1693,34 +1693,6 @@
       "created": "2026-09-03T18:01:19.687643+00:00",
       "last_reviewed": "2026-09-03T18:01:19.687650+00:00",
       "poc": 23.0684,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
-      "ticker": "AJG",
-      "origin": "auto",
-      "created": "2026-09-03T18:01:19.689842+00:00",
-      "last_reviewed": "2026-09-03T18:01:19.689849+00:00",
-      "poc": 24.8484,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "assicurazioni"
-    },
-    {
-      "ticker": "WDAY",
-      "origin": "auto",
-      "created": "2026-09-03T18:01:19.692122+00:00",
-      "last_reviewed": "2026-09-03T18:01:19.692129+00:00",
-      "poc": 79.1605,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
