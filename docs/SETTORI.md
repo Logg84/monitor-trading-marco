@@ -245,3 +245,13 @@ Se vuoi spostare l'orario: il fuso del cron GitHub è **UTC** — 21:35 UTC =
 con l'ora solare. Per una fotografia *dopo la chiusura europea* ma *prima* di
 quella USA si salirebbe a ~22:30 UTC, sacrificando la chiusura di Wall Street
 che è quella che muove questi ETF.
+
+## M. COT (materie prime): dove sta la cornice di lettura
+
+Il modulo settori e il modulo COT sono separati, ma condividono un principio:
+**una sola cornice dichiarata, nessun duplicato di regole**. Per il COT la cornice
+(product percentile → rialzista o ribassista) vive in `core/cot.py:_SEGNO_PROD`
+e la sua spiegazione + fonti sta in **`docs/COT-LETTURE.md`**. Chi modifica il
+COT non deve mai aggiungere condizioni `pP …` ripetute nelle pagine: gli stati
+arrivano da `comm_state()` (chiavi `bull|bear|watch|trend|hot_producer|flat`) e
+i messaggi della pagina sono derivati da quella chiave.
