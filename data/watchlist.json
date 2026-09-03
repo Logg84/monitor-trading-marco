@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-03T13:41:46.288571+00:00",
+  "updated": "2026-09-03T13:58:54.065385+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -1545,7 +1545,7 @@
       "last_reviewed": "2026-09-03T13:41:46.285015+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 14.1191,
       "levels": {
         "L1": 16.5,
         "L2": 10.0
@@ -1554,6 +1554,23 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
+    },
+    {
+      "ticker": "CE",
+      "origin": "manual",
+      "created": "2026-09-03T13:58:54.059705+00:00",
+      "last_reviewed": "2026-09-03T13:58:54.059800+00:00",
+      "poc": null,
+      "poc_origin": null,
+      "vwap": null,
+      "levels": {
+        "L1": 49.0,
+        "L2": 45.0
+      },
+      "notes": "",
+      "target_date": null,
+      "sector": "materiali",
+      "sub": "chimica"
     }
   ]
 }
