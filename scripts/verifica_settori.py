@@ -144,6 +144,48 @@ sample = {t: S.inquadra(t) for t in ["NVDA", "PFE", "UNH", "DUK", "ENI.MI"]}
 check("sotto-settori non vuoti sul campione", all(v[1] for v in sample.values()),
       "; ".join(f"{k}={v[1]}" for k, v in sample.items()))
 
+
+# ═══ D) COT: cornice dichiarata, coerenza chip ↔ Bussola ═════
+import core.cot as CT
+
+check("COT: cornice producer dichiarata in un solo punto",
+      hasattr(CT, "_SEGNO_PROD") and CT._SEGNO_PROD in (1, -1),
+      f"_SEGNO_PROD={CT._SEGNO_PROD}")
+_d = json.loads((Path(CT.__file__).resolve().parent.parent / "data" / "cot" /
+                 "cot_data.json").read_text()) if (
+    Path(CT.__file__).resolve().parent.parent / "data" / "cot" /
+    "cot_data.json").exists() else None
+if _d:
+    stati = {k: CT.comm_state(k, _d.get("comm", {})) for k in _d.get("comm_order", [])}
+    # coerenza: bull deve avere percentile alto (cornice +1), bear basso
+    inv = []
+    for k, st in stati.items():
+        if CT._SEGNO_PROD > 0:
+            if st["key"] == "bull" and st["pP"] < 50: inv.append((k, "bull con pP<50"))
+            if st["key"] == "bear" and st["pP"] > 50: inv.append((k, "bear con pP>50"))
+        else:
+            if st["key"] == "bull" and st["pP"] > 50: inv.append((k, "bull con pP>50"))
+            if st["key"] == "bear" and st["pP"] < 50: inv.append((k, "bear con pP<50"))
+    check("COT: etichette bull/bear coerenti con la cornice", not inv, str(inv[:4]))
+    rs = CT.regime_scores(_d)
+    pavg = float(re.search(r"producer (\d+)", rs["producers_detail"]).group(1))
+    atteso = CT._SEGNO_PROD * (pavg - 50) * 2
+    check("COT: il contributo 'Produttori' della Bussola segue la STESSA cornice",
+          abs(rs["producers"] - atteso) < 0.6, f"{rs['producers']:.1f} vs {atteso:.1f}")
+    chk = Path("pages/4_COT.py").read_text()
+    check("COT: nessun hovertemplate sulle Shape (esplode a runtime)",
+          "annotation_text" in chk and "hovertemplate=" not in
+          chk[chk.index("add_vrect"):chk.index("add_vrect") + 600])
+    check("COT: le 4 chiavi di stato restano le stesse (filtri/chip non si rompono)",
+          {"bull", "bear", "watch", "trend", "hot_producer", "flat"} >=
+          {st["key"] for st in stati.values()})
+    z = CT.divergenze(_d["comm"].get("WTI", []), [1.0] * len(_d["comm"].get("WTI", [])))
+    check("COT: divergenze() regge un prezzo piatto (nessuna zona, nessun crash)",
+          z == [], f"{len(z)} zone")
+else:
+    check("COT: data/cot/cot_data.json presente", False,
+          "nessun file: rigenera lo storico o carica uno zip dalla pagina COT")
+
 # ═══ esito ═════════════════════════════════════════════════════════
 n_fail = sum(1 for _, ok in risultati if not ok)
 print(f"\n{len(risultati)} controlli, {n_fail} falliti.")
