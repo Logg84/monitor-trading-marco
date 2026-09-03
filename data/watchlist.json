@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-03T13:58:54.065385+00:00",
+  "updated": "2026-09-03T14:43:37.193845+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -372,34 +372,6 @@
       "target_date": null,
       "sector": "sanita",
       "sub": "biotech"
-    },
-    {
-      "ticker": "BEI.DE",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.817202+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.817212+00:00",
-      "poc": 37.5084,
-      "poc_origin": "auto",
-      "vwap": 77.1144,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "prodotti_persona"
-    },
-    {
-      "ticker": "APO",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.847768+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.847778+00:00",
-      "poc": 56.8696,
-      "poc_origin": "auto",
-      "vwap": 126.2669,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
     },
     {
       "ticker": "CEG",
@@ -1562,7 +1534,7 @@
       "last_reviewed": "2026-09-03T13:58:54.059800+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 46.2949,
       "levels": {
         "L1": 49.0,
         "L2": 45.0
