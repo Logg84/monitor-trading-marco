@@ -40,7 +40,7 @@ YF_COMM = {
     "SOYBEAN_OIL": "ZL=F", "SOYBEAN_MEAL": "ZM=F",
     "COTTON": "CT=F", "COFFEE": "KC=F", "SUGAR11": "SB=F", "COCOA": "CC=F",
     "OJ": "OJ=F", "LUMBER": "LBS=F", "LIVE_CATTLE": "LE=F",
-    "LEAN_HOGS": "HE=F",
+    "LEAN_HOGS": "HE=F", "OATS": "ZO=F", "ROUGH_RICE": "ZR=F",
 }
 
 CFTC_TO_FX = {
@@ -411,9 +411,28 @@ def reversing(a: list, w: int = 2) -> bool:
     d = [r[i] - r[i - 1] for i in range(1, len(r))]
     return all(x > 0 for x in d) or all(x < 0 for x in d)
 
+# CORNICE DI LETTURA DEI PRODUCER (una sola, dichiarata — vedi
+# docs/COT-LETTURE.md per le fonti):
+#   percentile ALTO   → il lato reale accumula / blocca costi  → POSITIVO
+#   percentile BASSO  → il lato reale vende copertura sui forti → NEGATIVO
+# Il campo aggregato "prod" mescola produttori (short strutturale) e utilizzatori
+# (long strutturale): per questo conta il percentile *di questo mercato*, non il
+# segno grezzo. Per usare la cornice opposta ("hedge pressure": producer molto
+# short = poca copertura ancora da vendere = combustibile di squeeze) inverti
+# _SEGNO_PROD: è l'unica riga da toccare, e cambia sia la Bussola sia i stati.
+_SEGNO_PROD = 1
+
+
 def comm_state(sym: str, comm: dict) -> dict:
-    """REGOLA HOT ALLARGATA: Producer estremo (pP<10 o pP>90) => hot anche
-    senza Managed estremo."""
+    """Stato del mercato. Chiavi STABILI (le usano filtri, chip e Bussola):
+      "bull"          accumulo dal lato reale (producer alto) con spec non euforici
+      "bear"          il reale distribuisce/copre (producer basso) con spec long
+      "watch"         speculatore a estremo senza invertimento del reale
+      "trend"         il money manager muore/più veloce del reale, in zona neutra
+      "hot_producer"  estremo storico di copertura/accumulazione: attenzione, non
+                      direzione (regola hot allargata, anche senza MM estremo)
+      "flat"          niente di leggibile
+    revP = la linea producer ha girato nelle ultime 2 settimane (timing)."""
     arr = comm.get(sym) or []
     pA, mA, sA = series(arr, "prod"), series(arr, "mm"), series(arr, "swap")
     if len(arr) < MINW or len(pA) < 10 or len(mA) < 10:
@@ -422,9 +441,11 @@ def comm_state(sym: str, comm: dict) -> dict:
     pP, pM = percentile(pA, pA[-1]), percentile(mA, mA[-1])
     pS = percentile(sA, sA[-1]) if sA else 50.0
     dP, dM, revP = deriv(pA), deriv(mA), reversing(pA)
-    if pP < 20 and pM > 65:
+    # Inversione semantica del percentile se si adotta la cornice "hedge pressure"
+    lP = pP if _SEGNO_PROD > 0 else 100.0 - pP
+    if lP > 70 and pM < 45:
         key, tone = "bull", "green"
-    elif pP > 80 and pM < 35:
+    elif lP < 30 and pM > 60:
         key, tone = "bear", "red"
     elif (pM > 85 or pM < 15) and not revP:
         key, tone = "watch", "yellow"
@@ -436,6 +457,228 @@ def comm_state(sym: str, comm: dict) -> dict:
         key, tone = "flat", "muted"
     return {"key": key, "tone": tone, "pP": pP, "pM": pM, "pS": pS,
             "dP": dP, "dM": dM, "revP": revP}
+
+# ════════════════════════════════════════════════════════════
+# LETTURE: cosa sono davvero Swap Dealer e Producer/Merchant + DIVERGENZE
+# ════════════════════════════════════════════════════════════
+# Definizione CFTC (Disaggregated Explanatory Notes):
+#   Producer/Merchant/Processor/User = "entity that predominantly engages in the
+#   production, processing, packing or handling of a physical commodity and uses
+#   the futures markets to manage or hedge risks associated with those
+#   activities". Quindi il NETTO è la somma di due coperture OPPOSTE: chi deve
+#   VENDERE il fisico ha paura che il prezzo SCENDA e si copre SHORT; chi deve
+#   COMPRARE il fisico (refiner, miller, food company) ha paura che il prezzo
+#   SALGA e si copre LONG. Da qui la correzione da fare alla lettura comune:
+#   "producer long = si copre da un ribasso" è sbagliato — un producer long è o
+#   un utilizzatore che blocca costi, o un produttore che HA GIÀ coperto e
+#   ricopre (short covering). La linea non dice "cosa prevede il produttore",
+#   dice DA CHE PARTE sta il rischio fisico che viene trasferito.
+#   Swap Dealer = "entity that deals primarily in swaps for a commodity and uses
+#   the futures markets to manage or hedge the risk associated with those swaps
+#   transactions; the swap dealer's counterparties may be speculative traders,
+#   like hedge funds, or traditional commercial clients". Non è una categoria con
+#   un'opinione: è il book di copertura di chi sta dall'altra parte dell'OTC
+#   (indici commodity, CTA via swap, commerciali). Il suo netto è una
+#   CONSEGUENZA MECCANICA dei flussi dei clienti: acquisto di uno swap = il dealer
+#   compra futures, riscatto = vende. Per questo il LIVELLO dice poco (nel Legacy
+#   report stava dentro i "commercial" e per questo molti leggevano i commercial
+#   come smart money); quello che informa è il CAMBIO contro il prezzo.
+# Nota di affidabilità (limiti dichiarati dagli stessi CFTC notes): "some traders
+# being classified in the swap dealers category engage in some commercial
+# activities" -> la linea blu non è mai pura, e la classificazione può cambiare
+# nel tempo (back-casting fino al 2006 con accuratezza decrescente).
+
+W_DIV = 8      # settimane del confronto prezzo / posizionamento
+MIN_ZONE = 3   # una zona tale se dura almeno N settimane
+TH_PX = 0.025  # variazione prezzo minima (2,5% su 8 settimane)
+
+
+def _sd(a: list) -> float:
+    """Deviazione standard dei delta settimanali: scala di riferimento per dire
+    se un movimento di posizionamento è rumoroso o no."""
+    d = [a[i] - a[i - 1] for i in range(1, len(a))]
+    if len(d) < 4:
+        return 0.0
+    m = sum(d) / len(d)
+    return (sum((x - m) ** 2 for x in d) / len(d)) ** .5
+
+
+def swap_lettura(arr: list) -> dict:
+    """Come leggere la linea BLU adesso: flusso, non opinione."""
+    sA = series(arr, "swap")
+    out = {"key": "nd", "txt": "nessun dato swap per questo mercato",
+           "pS": 50.0, "dS": 0.0, "conferma": ""}
+    if len(sA) < MINW:
+        return out
+    pS, dS = percentile(sA, sA[-1]), deriv(sA, 4)
+    scala = _sd(sA)
+    out.update({"pS": pS, "dS": dS})
+    if scala and abs(dS) < 0.8 * scala and abs(pS - 50) < 20:
+        out["key"] = "neutro"
+        out["txt"] = ("book in posizione: nessun flusso direzionale da leggere. "
+                      "Qui la linea blu non aggiunge nulla: ignorala.")
+    elif dS > 0 and pS > 55:
+        out["key"] = "afflusso"
+        out["txt"] = ("netto in crescita su un livello alto: dall'OTC arriva "
+                      "domanda di esposizione (indici che comprano o commerciali "
+                      "che vendono swap di copertura al dealer).")
+    elif dS < 0 and pS < 45:
+        out["key"] = "deflusso"
+        out["txt"] = ("netto in calo su un livello basso: il dealer sta "
+                      "dismettendo futures = i clienti OTC stanno uscendo "
+                      "(riscatti di indici, copertura che si alleggerisce).")
+    elif dS > 0:
+        out["key"] = "afflusso_debole"
+        out["txt"] = ("netto in crescita da un livello basso: esposizione OTC nuova "
+                      "che entra, ancora senza peso storico: da confermare")
+    else:
+        out["key"] = "deflusso_debole"
+        out["txt"] = ("netto in calo da un livello alto: copertura/flusso in "
+                      "riduzione, non ancora un'inversione")
+    mA = series(arr, "mm")
+    if mA and len(mA) > MINW:
+        dM = deriv(mA, 4)
+        if dS * dM > 0:
+            out["conferma"] = ("stessa direzione del Managed Money: OTC e speculazione "
+                               "nella stessa mano — se gira, gira doppia")
+        elif dS * dM < 0:
+            out["conferma"] = ("direzione OPPOSTA al Managed Money: passaggio di "
+                               "mano del rischio (cambia proprietario, non dimensione "
+                               "totale dell'esposizione)")
+        else:
+            out["conferma"] = "Managed Money fermo: nessun confronto leggibile"
+    return out
+
+
+def producer_lettura(arr: list) -> dict:
+    """Lettura onesta della linea ROSSA: chi sta trasferendo rischio, in che
+    verso, e quanto è estremo. Il segnale utile è il PERCENTILE: il segno grezzo
+    non conta (quasi tutti i mercati fisici sono strutturalmente short).
+
+    I due incentivi, da non confondere tra loro:
+      • produttore/merchant che.detiene fisico → teme il RIBASSO → si copre SHORT
+      • utilizzatore/refiner/mulino che deve comprare → teme il RIALZO → LONG
+    Il campo "prod" della Disaggregated è la SOMMA dei due: un netto che sale
+    può essere 'meno vendita di copertura' o 'più blocco costi'. Non è una
+    previsione: è il prezzo del rischio che passa di mano."""
+    pA = series(arr, "prod")
+    out = {"key": "nd", "txt": "nessun dato producer", "pP": 50.0, "dP": 0.0,
+           "estremo": "", "incentivo": ""}
+    if len(pA) < MINW:
+        return out
+    pP, dP = percentile(pA, pA[-1]), deriv(pA, 4)
+    if pP < 30:
+        livello = "netto su minimi storici (copertura più pesante del solito)"
+    elif pP > 70:
+        livello = "netto su massimi storici (poca copertura / blocco costi)"
+    else:
+        livello = "netto nella norma di questo mercato"
+    estremo = ""
+    if pP < 10:
+        estremo = (" · ESTREMO: gran parte del fisico è già coperta → poca "   
+                   "vendita di copertura in arrivo; è la condizione dello "     
+                   "squeeze se il Managed Money è long")
+    elif pP > 90:
+        estremo = (" · ESTREMO: il lato reale ha scaricato quasi tutto il "     
+                   "rischio (non vende copertura, o blocca costi): lettura di "
+                   "accumulazione")
+    if dP > 0 and pP > 55:
+        inc = ("il netto sale da un livello alto: chi deve comprare fisico "   
+               "blocca i costi, o chi era coperto sta ricoprendo "              
+               "(short covering)")
+    elif dP < 0 and pP < 45:
+        inc = ("il netto scende da un livello basso: il lato reale vende "     
+               "copertura, cioè fissa prezzi di vendita: non crede nella "      
+               "forza che sta vedendo")
+    else:
+        inc = "copertura in movimento ma non estrema: contesto, non evento"
+    out.update({"pP": pP, "dP": dP, "estremo": estremo, "incentivo": inc,
+                "txt": (f"producer: {livello}, 4 settimane "
+                        + ("in crescita" if dP > 0 else
+                           "in calo" if dP < 0 else "piatti") + estremo)})
+    return out
+
+
+def divergenze(arr: list, px: list) -> list[dict]:
+    """Zone in cui prezzo e posizionamento hanno detto cose opposte.
+
+    Quattro tipi, ognuno con una logica diversa (non 'RSI divergente'):
+      COP-  prezzo sale e il netto producer SCENDE: i detentori di fisico vendono
+            sui forti = non credono al rally (contesto prudenziale).
+      COP+  prezzo scende e il netto producer SALE: qualcuno blocca costi/compra
+            fisico sui deboli = accumulo dal lato reale (contesto costruttivo).
+      CARB- prezzo sale ma il netto Managed/Swap CALA: salita senza carburante
+            (nessun flusso che la sostiene).
+      CARB+ prezzo scende ma il netto Managed/Swap SALE: entra esposizione mentre
+            il prezzo cala (assorbimento).
+    Ritorna [{"t0","t1","i":[i0,i1],"tipo","lato","nome","esito"}] con esito =
+    variazione prezzo nelle 13 settimane successive (se disponibile): così la
+    divergenza è falsificabile, non decorativa.
+    """
+    r = arr[-WINDOW:]
+    n = min(len(r), len(px))
+    if n < W_DIV + MIN_ZONE + 1:
+        return []
+    prezzi = [px[i] for i in range(n)]
+    zone: list[dict] = []
+    for k, campo in (("prod", "prod"), ("mm", "mm"), ("swap", "swap")):
+        net = [r[i].get(campo) for i in range(n)]
+        if any(v is None for v in net):
+            continue
+        scala = _sd([v for v in net if v is not None]) or 1.0
+        per_i = []
+        for i in range(W_DIV, n):
+            if prezzi[i] is None or prezzi[i - W_DIV] in (None, 0) or net[i] is None:
+                continue
+            dp = prezzi[i] / prezzi[i - W_DIV] - 1.0
+            dn = net[i] - net[i - W_DIV]
+            if abs(dp) < TH_PX or abs(dn) < 0.5 * scala:
+                continue
+            if (dp > 0 > dn) and k == "prod":
+                t, lato = "COP-", "ribassista"
+            elif (dp < 0 < dn) and k == "prod":
+                t, lato = "COP+", "rialzista"
+            elif (dp > 0 > dn) and k in ("mm", "swap"):
+                t, lato = "CARB-", "ribassista"
+            elif (dp < 0 < dn) and k in ("mm", "swap"):
+                t, lato = "CARB+", "rialzista"
+            else:
+                continue
+            per_i.append((i, t, lato))
+        # raggruppa settimane consecutive della STESSA tipologia
+        for idx, (i, t, lato) in enumerate(per_i):
+            if zone and zone[-1]["tipo"] == t and i - 1 == zone[-1]["i"][1]:
+                zone[-1]["i"][1] = i
+                zone[-1]["t1"] = r[i]["t"]
+            else:
+                zone.append({"t0": r[i]["t"], "t1": r[i]["t"], "i": [i, i],
+                             "tipo": t, "lato": lato, "cat": k})
+    out = []
+    for z in zone:
+        i0, i1 = z["i"]
+        if i1 - i0 + 1 < MIN_ZONE:
+            continue
+        nxt = [v for v in prezzi[i1 + 1:i1 + 14] if v]
+        z["esito"] = (round((nxt[-1] / prezzi[i1] - 1.0) * 100, 1)
+                      if nxt and prezzi[i1] else None)
+        z["settimane"] = i1 - i0 + 1
+        out.append(z)
+    return sorted(out, key=lambda z: z["t1"])
+
+
+def Zones_summary(zone: list) -> dict:
+    """Quante zone, quale categoria, e con che esito medio (per non venderla
+    come legge: è storia, con il suo punteggio)."""
+    if not zone:
+        return {"n": 0, "per_tipo": {}, "hit": None}
+    per = {}
+    for z in zone:
+        per[z["tipo"]] = per.get(z["tipo"], 0) + 1
+    hits = [z for z in zone if z.get("esito") is not None]
+    azzeccate = [z for z in hits if (z["esito"] < 0) == (z["lato"] == "ribassista")]
+    return {"n": len(zone), "per_tipo": per,
+            "hit": round(len(azzeccate) / len(hits) * 100) if hits else None}
+
 
 # ════════════════════════════════════════════════════════════
 # ANALISI PER COPPIA FOREX (non per singola valuta)
@@ -639,9 +882,16 @@ def regime_scores(payload: dict | None) -> dict | None:
     pP_avg = float(np.mean(pPs)) if pPs else 50.0
     extreme = any(p <= 10 or p >= 90 for p in pPs)
     return {
+        # speculatore estremo = contrarian (si inverte), producer = segue la
+        # cornice dichiarata in comm_state (_SEGNO_PROD) così Bussola e chip
+        # dicono la STESSA cosa.
         "managed_money": float(np.clip((50 - pM_avg) * 2, -100, 100)),
-        "producers": float(np.clip((50 - pP_avg) * 2, -100, 100)),
+        "producers": float(np.clip(_SEGNO_PROD * (pP_avg - 50) * 2, -100, 100)),
         "managed_money_detail": f"percentile medio MM/spec {pM_avg:.0f}°",
-        "producers_detail": f"percentile medio producer {pP_avg:.0f}°",
+        "producers_detail": (f"percentile medio producer {pP_avg:.0f}° · "
+                             + ("accumulo/copertura costi" if pP_avg > 55
+                                else "vendita di copertura" if pP_avg < 45
+                                else "in norma")),
+        "producers_frame": _SEGNO_PROD,
         "extreme_producer": extreme,
     }
