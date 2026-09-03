@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-03T13:40:08.357848+00:00",
+  "updated": "2026-09-03T13:41:04.330625+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -1509,7 +1509,7 @@
       "last_reviewed": "2026-09-03T13:40:08.354112+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 16.9192,
       "levels": {
         "L1": 19.0,
         "L2": 20.0,
@@ -1519,6 +1519,24 @@
       "target_date": null,
       "sector": "sanita",
       "sub": "farmaci"
+    },
+    {
+      "ticker": "RELX",
+      "origin": "manual",
+      "created": "2026-09-03T13:41:04.327030+00:00",
+      "last_reviewed": "2026-09-03T13:41:04.327044+00:00",
+      "poc": null,
+      "poc_origin": null,
+      "vwap": null,
+      "levels": {
+        "L1": 37.5,
+        "L2": 31.0,
+        "L3": 41.54
+      },
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": null
     }
   ]
 }
