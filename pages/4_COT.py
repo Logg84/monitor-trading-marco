@@ -470,6 +470,14 @@ with tab_cm:
                            format_func=lambda s: opts[s], label_visibility="collapsed")
         arr = COMM[sym]
         pA, mA, sA = C.series(arr, "prod"), C.series(arr, "mm"), C.series(arr, "swap")
+        # x esplicito = date COT: senza, Plotly numera le settimane e le bande di
+        # divergenza non si allineerebbero mai (e i buchi di dato sfalsano tutto).
+        rr = arr[-C.WINDOW:]
+        xset = [pd.Timestamp(int(x["t"]), unit="ms") for x in rr]
+        pAx = [x.get("prod") for x in rr]
+        mAx = [x.get("mm") for x in rr]
+        sAx = [x.get("swap") for x in rr]
+        px_all = [None] * len(rr)
         S = stati[sym]
         pP, pM, pS, dP, dM, revP = S["pP"], S["pM"], S["pS"], S["dP"], S["dM"], S["revP"]
         zP, zM = C.zscore(pA), C.zscore(mA)
@@ -480,31 +488,55 @@ with tab_cm:
                         f"· la linea ambra (asse destro) è il prezzo front-month.")
             show_price = st.checkbox("Sovrapponi prezzo dell'asset (asse destro)",
                                      value=True, key="cot_price_on")
+            # il prezzo serve sempre (per le bande); show_price controlla solo se
+            # disegnarne la linea
+            close = prezzo_yf(C.YF_COMM.get(sym))
+            if close is not None and len(close) > 1:
+                px_all = [(None if pd.isna(v) else float(v))
+                          for v in close.asof(pd.DatetimeIndex(xset))]
+            # ── zone di divergenza operative ─────────────────────────
+            zone = []
+            if any(v is not None for v in px_all):
+                zone = C.divergenze(arr, px_all)
+            div_on = st.checkbox("Evidenzia le zone di divergenza sul grafico",
+                                 value=True, key="cot_div_on")
             figc = make_subplots(specs=[[{"secondary_y": True}]])
-            figc.add_trace(go.Scatter(y=pA, name="Producer/Merchant",
+            if div_on:
+                for z in zone:
+                    cazona = (col["positive"] if z["lato"] == "rialzista"
+                              else col["negative"])
+                    # NB: layout.Shape NON ha hovertemplate (plugin che esplode a
+                    # runtime): il contenuto del tooltip va nell'annotazione.
+                    figc.add_vrect(x0=xset[z["i"][0]], x1=xset[z["i"][1]],
+                                   fillcolor=cazona, opacity=0.10, line_width=0,
+                                   annotation_text=(f"{z['tipo']}"
+                                                    f"<br>{z['settimane']}w"
+                                                    + (f"<br>es {z['esito']:+.0f}%"
+                                                       if z["esito"] is not None else "")),
+                                   annotation_position="top left",
+                                   annotation_font_size=8.5)
+            figc.add_trace(go.Scatter(x=xset, y=pAx, name="Producer/Merchant",
                          line={"color": col["negative"], "width": 2},
                          fill="tozeroy", fillcolor=_rgba(col["negative"], 0.08)),
                          secondary_y=False)
-            figc.add_trace(go.Scatter(y=mA, name="Managed Money",
+            figc.add_trace(go.Scatter(x=xset, y=mAx, name="Managed Money",
                          line={"color": col["positive"], "width": 2}), secondary_y=False)
-            figc.add_trace(go.Scatter(y=sA, name="Swap Dealer",
+            figc.add_trace(go.Scatter(x=xset, y=sAx, name="Swap Dealer",
                          line={"color": col["accent"], "width": 1.5, "dash": "dash"}),
                          secondary_y=False)
             if show_price:
-                close = prezzo_yf(C.YF_COMM.get(sym))
                 if close is not None and len(close) > 1:
-                    times = [x["t"] for x in arr[-C.WINDOW:]]
-                    py = []
-                    for t in times:
-                        ts = pd.Timestamp(int(t), unit="ms")
-                        v = close.asof(ts)
-                        py.append(None if pd.isna(v) else float(v))
-                    figc.add_trace(go.Scatter(y=py, name="Prezzo (front-month)",
+                    figc.add_trace(go.Scatter(x=xset, y=px_all,
+                                 name="Prezzo (front-month)",
                                  line={"color": col["warning"], "width": 2.4},
                                  hovertemplate="prezzo %{y:.2f}<extra></extra>"),
                                  secondary_y=True)
                 else:
-                    st.caption(f"Prezzo non disponibile per {sym}.")
+                    st.caption(f"Prezzo non disponibile per {sym}: senza prezzo non "
+                               "è possibile calcolare le divergenze (n/d, non 'zero "
+                               "divergenze').")
+            figc.update_layout(xaxis={"tickformat": "%b %y"},
+                               hovermode="x unified")
             figc.update_layout(
                 template="plotly_dark" if st.session_state.dark_mode else "plotly_white",
                 height=340, margin=dict(l=10, r=10, t=10, b=10),
@@ -524,53 +556,180 @@ with tab_cm:
             m7.metric("Δ Prod 2w", f"{dP:+.0f}")
             m8.metric("Δ MM 2w", f"{dM:+.0f}")
 
-            # FIX: if/else espliciti (le espressioni nude venivano stampate dal magic)
-            if pP < 20 and pM > 65:
-                if revP:
-                    st.error("**CONTESTO RIALZISTA ATTIVO** · Producer depresso e in inversione: "
-                             "il rischio si trasferisce. Cerca conferma volumetrica.")
-                else:
-                    st.warning("**TENSIONE RIALZISTA** · Producer molto short vs Managed long. "
-                               "Non è ancora long: attendi che la linea rossa salga.")
-            elif pP > 80 and pM < 35:
-                if revP:
-                    st.error("**CONTESTO RIBASSISTA ATTIVO** · Producer in inversione verso più "
-                             "copertura + Managed short. Setup di contesto short.")
-                else:
-                    st.warning("**TENSIONE RIBASSISTA** · Attendi che la linea rossa scenda.")
-            elif (pM > 85 or pM < 15) and not revP:
-                st.warning(f"**SPECULATORI A ESTREMO** · Managed {'max long' if pM > 85 else 'max short'} "
-                           f"({pM:.0f}°) ma producer non inverte: trend maturo → non inseguirlo, "
-                           f"non invertirlo. Watchlist.")
-            elif abs(dM) > abs(dP) * 1.2 and 15 <= pM <= 85:
+            # ── chi fa che cosa (semantica corretta, non "smart money") ──
+            sw = C.swap_lettura(arr)
+            pr = C.producer_lettura(arr)
+            c1x, c2x = st.columns(2, gap="large")
+            with c1x:
+                st.markdown("**🟦 Swap Dealer — flusso, non opinione**")
+                st.caption(f"{sw['pS']:.0f}° percentile · Δ 4 sett. {sw['dS']:+.0f} · "
+                           f"**{sw['key']}** — {sw['txt']}")
+                if sw["conferma"]:
+                    st.caption("Confronto col Managed Money: " + sw["conferma"])
+            with c2x:
+                st.markdown("**🟥 Producer/Merchant — chi trasferisce rischio**")
+                st.caption(f"{pr['pP']:.0f}° percentile · Δ 4 sett. {pr['dP']:+.0f} · "
+                           + pr["txt"])
+                st.caption("Incentivo leggibile ora: " + pr["incentivo"])
+
+            # ── messaggio di stato: generato dalla CHIAVE dello stato, non da
+            # condizioni duplicate qui (era l'origine dell'incoerenza con la
+            # Bussola). La cornice dichiarata è in core/cot.py:_SEGNO_PROD.
+            ESTREMO = (pr["estremo"] or "")
+            if S["key"] == "bull":
+                st.success(f"**CONTESTO RIALZISTA** · producer {pP:.0f}° (accumula o "
+                           f"blocca costi) con spec non euforici ({pM:.0f}°)."
+                           + ESTREMO + f" {pr['incentivo'].capitalize()}.")
+            elif S["key"] == "bear":
+                st.error(f"**CONTESTO RIBASSISTA** · producer {pP:.0f}° (vende "
+                         f"copertura sui forti: non crede alla forza che vede) e "
+                         f"Managed {pM:.0f}° long." + ESTREMO)
+            if S["key"] in ("bull", "bear"):
+                st.caption("Il percentile del lato reale ha "
+                           + ("girato da <2 settimane: il movimento è fresco"
+                              if revP else "già girato: il segnale non è più "
+                              "freschissimo, è struttura"))
+            elif S["key"] == "watch":
+                st.warning(f"**SPECULATORI A ESTREMO** · Managed "
+                           f"{'max long' if pM > 85 else 'max short'} ({pM:.0f}°) "
+                           "senza invertimento del lato reale: trend maturo, non "
+                           "inseguirlo e non contrattarlo ancora (servirebbe il "
+                           "cambio della linea rossa/nera).")
+            elif S["key"] == "trend":
                 st.info(f"**TREND SPECULATIVO IN CORSO** · Managed "
-                        f"{'accumula long' if dM > 0 else 'accumula short'} (Δ {dM:+.0f}) senza "
-                        f"estremi: trend vivo → non operare contro.")
-            elif (pP < 10 or pP > 90):
-                st.warning(f"**PRODUCER ESTREMO** · Producer a {pP:.0f}° con Managed neutro "
-                           f"({pM:.0f}°): copertura commerciale anomala → monitora quando la "
-                           f"linea rossa inverte.")
+                        f"{'accumula long' if dM > 0 else 'accumula short'} "
+                        f"(Δ {dM:+.0f} vs producer {dP:+.0f}) in zona neutra: "
+                        "non operare contro.")
+            elif S["key"] == "hot_producer":
+                st.warning(f"**PRODUCER ESTREMO** · {pP:.0f}°{ESTREMO}. Da solo non "
+                           "dice né su né giù: dice che il premio per trasferire "
+                           "rischio è a un estremo storico.")
             else:
-                st.success(f"**NESSUNA LETTURA DOMINANTE** · Producer {pP:.0f}° · Managed {pM:.0f}° "
-                           f"· Swap {pS:.0f}°. Stai fermo.")
+                st.info(f"**NESSUNA LETTURA DOMINANTE** · producer {pP:.0f}° · "
+                        f"Managed {pM:.0f}° · swap {pS:.0f}°. Contesto pulito: "
+                        "nessuna posizione estrema da monitorare.")
 
         with g2:
+            with st.expander("🧭 cornice di lettura (e come cambiarla)"):
+                st.markdown(
+                    """
+Il **verso** con cui il percentile dei producer diventa "rialzista" o
+"ribassista" è una scelta dichiarata, non la matematica: in `core/cot.py` c'è
+`_SEGNO_PROD`.
+
+* `+1` (attuale) — cornice *commerciale/accumulo*: percentile alto = il lato
+  reale blocca costi o ricopre → positivo; percentile basso = vende copertura
+  sui forti → negativo. Chip, messaggi e Bussola stanno tutti su questa.
+* `-1` — cornice *hedge pressure / squeeze*: un producer molto short significa
+  che poca copertura deve ancora essere venduta, quindi il percentile basso
+  diventa positivo (era la lettura del codice prima della correzione — che però
+  era incoerente con la sua stessa legenda).
+
+Cambiando quel numero cambiano insieme le etichette di stato, il colore dei chip
+**e** il contributo "Produttori" della Bussola: è l'unico posto da toccare, non
+ci sono regole duplicate in giro. Nessuna delle due cornici è "vera": la CFTC
+stessa avverte che classifica l'attività *prevalente* del trader, non ogni sua
+posizione, e che parte dello storico è back-cast.
+""")
+            with st.expander(f"⚡ Divergenze prezzo/posizionamento ({len(zone)})",
+                             expanded=bool(zone)):
+                if not zone:
+                    st.info("Nessuna zona: o il prezzo non è disponibile, o nelle "
+                            "8 settimane mobili prezzo e posizionamento hanno "
+                            "camminato nella stessa direzione (o con movimenti "
+                            "sotto soglia). 'Nessuna zona' non è 'mercato pulito': "
+                            "è 'nessuna evidenza in questa finestra'.")
+                else:
+                    tzz = pd.DataFrame([{
+                        "tipo": z["tipo"],
+                        "da": str(pd.Timestamp(int(z["t0"]), unit="ms").date()),
+                        "a": str(pd.Timestamp(int(z["t1"]), unit="ms").date()),
+                        "sett.": z["settimane"],
+                        "linea": {"prod": "Producer", "mm": "Managed",
+                                 "swap": "Swap"}[z["cat"]],
+                        "lettura": ("prezzo su, copertura/giro OTC giù"
+                                    if z["tipo"] == "COP-" or z["tipo"] == "CARB-"
+                                    else "prezzo giù, posizionamento su"),
+                        "lato": z["lato"],
+                        "esito 13m": (f"{z['esito']:+.1f}%" if z["esito"] is not None
+                                      else "n/d (fine storico)"),
+                    } for z in zone[::-1]])
+                    st.dataframe(tzz, use_container_width=True, hide_index=True,
+                                 height=min(330, 40 + 34 * len(tzz)))
+                    rs = C.Zones_summary(zone)
+                    picco = rs["n"] < 8
+                    st.caption(f"{rs['n']} zone in {len(arr)} settimane · "
+                               + " · ".join(f"{k}: {v}" for k, v in rs["per_tipo"].items())
+                               + ("" if rs["hit"] is None else
+                                  (f" · esito a 13 settimane: {rs['hit']}% zone "
+                                   "risoltesi dalla parte annunciata"
+                                   + (" — campione troppo piccolo per parlarne come "
+                                      "di 'tasso': è il conto delle settimane "
+                                      "disponibili, non una statistica."
+                                      if picco else ".")))
+                               )
             with st.expander("📖 Come leggere le 3 linee + prezzo", expanded=True):
                 st.markdown(
-                    "- 🟥 **Producer/Merchant** — strutturalmente *short*: il segnale è il "
-                    "**percentile**. Linea che **sale** = contesto di **bottom**; che **scende** "
-                    "= contesto di **top**.\n"
-                    "- 🟩 **Managed Money** — sopra zero = long, sotto = short. A **estremi** "
-                    "il trend è maturo.\n"
-                    "- 🟦 **Swap Dealer** — rumoroso; utile solo se cambia segno / riduce.\n"
-                    "- 🟨 **Prezzo (asse destro)** — per la **divergenza**: prezzo su nuovi "
-                    "massimi ma Managed no = carburante in calo.")
+                    "**🟥 Producer/Merchant/Processor/User** (definizione CFTC: "
+                    "*«entity that predominantly engages in the production, processing, "
+                    "packing or handling of a physical commodity and uses the futures "
+                    "markets to manage or hedge risks associated with those activities*»). "
+                    "Qui dentro ci sono DUE incentivi opposti: chi deve **vendere** il "
+                    "fisico teme il **ribasso** e si copre **short**; chi deve **comprarlo** "
+                    "(refiner, mulino, food company) teme il **rialzo** e si copre **long**. "
+                    "La linea è la *somma*: non dice «cosa prevede il produttore», dice chi "
+                    "sta trasferendo rischio e a che condizioni. Il segnale utile è quindi "
+                    "il **percentile** (rispetto alla storia di QUESTO mercato, non del "
+                    "segno grezzo: quasi tutti sono strutturalmente short) e il **verso del "
+                    "cambio**:\n"
+                    "  · netto che **scende da livelli bassi** = vendono copertura sui "
+                    "forti → il lato reale non crede al rally (cautela);\n"
+                    "  · netto che **sale da livelli alti** = bloccano costi o ricoprono "
+                    "-> il rischio fisico è già passato (costruttivo);\n"
+                    "  · **ESTREMO** (pP<10): quasi tutto il fisico è già coperto → poca "
+                    "vendita di copertura in arrivo, ed è la condizione dello *squeeze* se "
+                    "il Managed Money è long.\n\n"
+                    "**🟩 Managed Money** — speculazione vera (CTA, fondi, hedge fund): "
+                    "sopra zero = long. Agli estremi il trend è maturo, non invertito.\n"
+                    "**🟦 Swap Dealer** — non ha un'opinione: *«uses the futures markets to "
+                    "manage or hedge the risk associated with those swaps transactions… "
+                    "counterparties may be speculative traders, like hedge funds, or "
+                    "traditional commercial clients»*. Il suo netto è la **conseguenza "
+                    "meccanica dei flussi OTC dei clienti** (indici commodity: acquisto di "
+                    "uno swap = il dealer compra futures; riscatto = vende). Perciò: il "
+                    "**livello** dice poco (nel report Legacy stava dentro i «commercial», "
+                    "ed è da lì che nasce il mito dello «smart money» commerciale); è "
+                    "informativo il **cambio contro il prezzo**: prezzo che sale e swap che "
+                    "riduce il netto = sta uscendo il compratore passivo, non un'idea; "
+                    "prezzo che scende e swap che aumenta = domanda di esposizione che "
+                    "arriva dall'OTC. Se si muove **nella stessa direzione** del Managed "
+                    "Money, la mano è una sola (e se gira, gira doppia).\n"
+                    "**🟨 Prezzo** (asse destro) — serve per le **divergenze**: bande verdi/"
+                    "rosse sul grafico = settimane in cui prezzo e posizionamento hanno "
+                    "detto cose opposte (COP± = lato fisico, CARB± = speculative/OTC). "
+                    "Nelle note a piè di pagina i limiti dichiarati dalla stessa CFTC: la "
+                    "classificazione è per *prevalent activity*, alcuni swap dealer fanno "
+                    "attività commerciale e viceversa, e lo storico 2006-oggi è "
+                    "*back-cast* con accuratezza decrescente.")
             with st.expander("⚙️ Configurazioni operative"):
                 st.markdown(
-                    "- **▲ RIALZISTA** — Producer ai minimi + Managed ai massimi = tensione; "
-                    "long **solo quando il Producer inverte**.\n"
-                    "- **▼ RIBASSISTA** — speculare: conferma quando il Producer riprende a coprire.\n"
-                    "- **🔥 PRODUCER ESTREMO** — solo la linea rossa al limite storico: aspetta "
-                    "che inverta per il timing.\n"
-                    "- **TREND VIVO** — Managed in trend *senza* estremi → non operare contro.\n"
-                    "- **DIVERGENZA** — prezzo fa nuovi massimi ma il Managed no → carburante in calo.")
+                    "- **▲ RIALZISTA (CONTESTO)** — producer su minimi storici "
+                    "(*quasi tutto il fisico è già venduto/coperto: poca offerta di "
+                    "copertura in arrivo*) + Managed long = struttura tesa al rialzo. "
+                    "Non è un segnale d'ingresso: il timing viene dall'inversione della "
+                    "linea rossa o dalla conferma del prezzo.\n"
+                    "- **▼ RIBASSISTA (CONTESTO)** — speculare: producer che torna a "
+                    "coprirsi (netto che scende) mentre il Managed Money molla.\n"
+                    "- **🔥 PRODUCER ESTREMO** — linea rossa al limite storico: da sola "
+                    "non dice né su né giù; dice che il premio per trasferire rischio è "
+                    "estremo. Aspetta l'inversione per il timing.\n"
+                    "- **TREND VIVO** — Managed in trend *senza* estremi → non operare "
+                    "contro.\n"
+                    "- **⚡ COP− / COP+** — divergenza col **lato fisico**: prezzo su e "
+                    "copertura che non cresce (o si riduce) = i detentori di fisico non "
+                    "difendono quel livello; prezzo giù e netto che sale = blocco costi / "
+                    "short covering.\n"
+                    "- **⚡ CARB− / CARB+** — divergenza col **denaro**: prezzo su ma "
+                    "Managed/Swap giù = salita senza carburante; prezzo giù maManaged/Swap "
+                    "su = qualcuno assorbe. Le bande hanno l'esito a 13 settimane: usate "
+                    "quel numero, non la vista.")
