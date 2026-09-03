@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-03T15:41:34.104502+00:00",
+  "updated": "2026-09-03T15:41:35.675037+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -1700,20 +1700,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "NVR",
-      "origin": "auto",
-      "created": "2026-09-03T15:41:34.104117+00:00",
-      "last_reviewed": "2026-09-03T15:41:34.104131+00:00",
-      "poc": 537.8081,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "edilizia_casa"
     }
   ]
 }
