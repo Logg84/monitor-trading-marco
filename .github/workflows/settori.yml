@@ -27,7 +27,10 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          SETTORI_NOTIFICA: ${{ inputs.notifica && "1" || "" }}
+          # NB: niente && / ||: nelle espressioni di Actions le stringhe vogliono
+          # gli apici singoli e comunque qui non serve — il booleano arriva già
+          # come true/false (e vuoto da cron). Lo interpreta il script.
+          SETTORI_NOTIFICA: ${{ inputs.notifica }}
         run: python scripts/update_sectors.py
       - name: Commit della cache
         run: |
