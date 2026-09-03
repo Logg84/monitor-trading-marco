@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-03T11:34:30.081724+00:00",
+  "updated": "2026-09-03T13:39:05.850055+00:00",
   "entries": [
     {
       "ticker": "APP",
@@ -666,20 +666,6 @@
       "sub": "moda_lusso"
     },
     {
-      "ticker": "LRCX",
-      "origin": "auto",
-      "created": "2026-08-25T07:28:56.541769+00:00",
-      "last_reviewed": "2026-08-25T07:28:56.541775+00:00",
-      "poc": 19.5102,
-      "poc_origin": "auto",
-      "vwap": 339.0847,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "semiconduttori"
-    },
-    {
       "ticker": "BNZL.L",
       "origin": "auto",
       "created": "2026-08-25T07:28:56.545387+00:00",
@@ -1153,20 +1139,6 @@
       "sub": "auto_componenti"
     },
     {
-      "ticker": "STX",
-      "origin": "auto",
-      "created": "2026-08-31T14:20:32.383271+00:00",
-      "last_reviewed": "2026-08-31T14:20:32.383274+00:00",
-      "poc": 63.8869,
-      "poc_origin": "auto",
-      "vwap": 885.6929,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "hardware"
-    },
-    {
       "ticker": "MU",
       "origin": "auto",
       "created": "2026-08-31T14:20:32.384770+00:00",
@@ -1248,20 +1220,6 @@
       "notes": "",
       "target_date": null,
       "sector": "industriale"
-    },
-    {
-      "ticker": "COHR",
-      "origin": "auto",
-      "created": "2026-09-01T11:59:25.632771+00:00",
-      "last_reviewed": "2026-09-01T11:59:25.632777+00:00",
-      "poc": 52.0375,
-      "poc_origin": "auto",
-      "vwap": 328.1093,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "hardware"
     },
     {
       "ticker": "INTC",
@@ -1348,20 +1306,6 @@
       "sub": "mercati_capitali"
     },
     {
-      "ticker": "GLW",
-      "origin": "auto",
-      "created": "2026-09-01T17:58:52.736478+00:00",
-      "last_reviewed": "2026-09-01T17:58:52.736485+00:00",
-      "poc": 17.1146,
-      "poc_origin": "auto",
-      "vwap": 175.1758,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "hardware"
-    },
-    {
       "ticker": "HII",
       "origin": "auto",
       "created": "2026-09-01T17:58:52.738539+00:00",
@@ -1387,20 +1331,6 @@
       "notes": "",
       "target_date": null,
       "sector": "industriale"
-    },
-    {
-      "ticker": "AMD",
-      "origin": "auto",
-      "created": "2026-09-01T17:58:52.742717+00:00",
-      "last_reviewed": "2026-09-01T17:58:52.742724+00:00",
-      "poc": 31.7986,
-      "poc_origin": "auto",
-      "vwap": 506.1674,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "semiconduttori"
     },
     {
       "ticker": "ELV",
@@ -1501,20 +1431,6 @@
       "sub": "utility_regolate"
     },
     {
-      "ticker": "DDOG",
-      "origin": "auto",
-      "created": "2026-09-02T18:07:05.042110+00:00",
-      "last_reviewed": "2026-09-02T18:07:05.042116+00:00",
-      "poc": 115.295,
-      "poc_origin": "auto",
-      "vwap": 245.737,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
       "ticker": "UNH",
       "origin": "auto",
       "created": "2026-09-02T18:07:05.044970+00:00",
@@ -1543,20 +1459,6 @@
       "sub": null
     },
     {
-      "ticker": "CMG",
-      "origin": "auto",
-      "created": "2026-09-02T18:07:05.047885+00:00",
-      "last_reviewed": "2026-09-02T18:07:05.047890+00:00",
-      "poc": 8.0589,
-      "poc_origin": "auto",
-      "vwap": 34.0559,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "tempo_libero"
-    },
-    {
       "ticker": "DHR",
       "origin": "auto",
       "created": "2026-09-02T18:07:05.052371+00:00",
@@ -1583,20 +1485,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "MBG.DE",
-      "origin": "auto",
-      "created": "2026-09-03T11:34:30.079512+00:00",
-      "last_reviewed": "2026-09-03T11:34:30.079519+00:00",
-      "poc": 12.3362,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "auto_componenti"
     },
     {
       "ticker": "SAP.DE",
