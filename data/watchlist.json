@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-04T08:04:01.638849+00:00",
+  "updated": "2026-09-04T08:04:05.191629+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1618,20 +1618,6 @@
       "sub": "capital_goods"
     },
     {
-      "ticker": "JD.L",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.586838+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.586855+00:00",
-      "poc": 84.0576,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "moda_lusso"
-    },
-    {
       "ticker": "IFX.DE",
       "origin": "auto",
       "created": "2026-09-04T08:04:01.591675+00:00",
@@ -1784,6 +1770,20 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
+    },
+    {
+      "ticker": "JD.L",
+      "origin": "auto",
+      "created": "2026-09-04T08:04:05.191248+00:00",
+      "last_reviewed": "2026-09-04T08:04:05.191261+00:00",
+      "poc": 84.0576,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "consumi_disc",
+      "sub": "moda_lusso"
     }
   ]
 }
