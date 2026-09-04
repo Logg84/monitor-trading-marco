@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-04T10:08:24.569815+00:00",
+  "updated": "2026-09-04T12:22:32.377310+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1028,20 +1028,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "moda_lusso"
-    },
-    {
-      "ticker": "SHL.DE",
-      "origin": "auto",
-      "created": "2026-09-01T08:53:12.457993+00:00",
-      "last_reviewed": "2026-09-01T08:53:12.458002+00:00",
-      "poc": 50.4621,
-      "poc_origin": "auto",
-      "vwap": 36.3405,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "dispositivi"
     },
     {
       "ticker": "ON",
