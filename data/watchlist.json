@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-04T13:41:55.369914+00:00",
+  "updated": "2026-09-04T17:48:46.847850+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -778,20 +778,6 @@
       "sub": "auto_componenti"
     },
     {
-      "ticker": "ALB",
-      "origin": "auto",
-      "created": "2026-08-28T18:57:32.632134+00:00",
-      "last_reviewed": "2026-08-28T18:57:32.632140+00:00",
-      "poc": 80.0661,
-      "poc_origin": "auto",
-      "vwap": 134.2303,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "materiali",
-      "sub": "chimica"
-    },
-    {
       "ticker": "TMUS",
       "origin": "auto",
       "created": "2026-08-28T18:57:32.635937+00:00",
@@ -888,20 +874,6 @@
       "target_date": null,
       "sector": "materiali",
       "sub": "chimica"
-    },
-    {
-      "ticker": "LHX",
-      "origin": "auto",
-      "created": "2026-08-31T14:20:32.353883+00:00",
-      "last_reviewed": "2026-08-31T14:20:32.353887+00:00",
-      "poc": 21.0602,
-      "poc_origin": "auto",
-      "vwap": 285.1041,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "aero_difesa"
     },
     {
       "ticker": "LYB",
@@ -1423,20 +1395,6 @@
       "sub": "software"
     },
     {
-      "ticker": "BF-B",
-      "origin": "auto",
-      "created": "2026-09-03T18:01:19.676612+00:00",
-      "last_reviewed": "2026-09-03T18:01:19.676619+00:00",
-      "poc": 3.1368,
-      "poc_origin": "auto",
-      "vwap": 26.9147,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
-    },
-    {
       "ticker": "IT",
       "origin": "auto",
       "created": "2026-09-03T18:01:19.678813+00:00",
@@ -1561,6 +1519,146 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
+    },
+    {
+      "ticker": "CRWV",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.957202+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.957212+00:00",
+      "poc": 102.9064,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "tech",
+      "sub": "software"
+    },
+    {
+      "ticker": "RKLB",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.959255+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.959262+00:00",
+      "poc": 7.6313,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "aero_difesa"
+    },
+    {
+      "ticker": "APP",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.961397+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.961403+00:00",
+      "poc": 54.1981,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "comunicazioni",
+      "sub": "media_intratten"
+    },
+    {
+      "ticker": "STMPA.PA",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.963436+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.963442+00:00",
+      "poc": 6.4498,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "tech",
+      "sub": "semiconduttori"
+    },
+    {
+      "ticker": "HII",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.965428+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.965435+00:00",
+      "poc": 194.5501,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "aero_difesa"
+    },
+    {
+      "ticker": "VRT",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.967567+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.967574+00:00",
+      "poc": 17.9244,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "capital_goods"
+    },
+    {
+      "ticker": "NRG",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.969626+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.969633+00:00",
+      "poc": 16.4114,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "utilities",
+      "sub": "utility_regolate"
+    },
+    {
+      "ticker": "STJ.L",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.971661+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.971667+00:00",
+      "poc": 132.8959,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "finanziario",
+      "sub": "mercati_capitali"
+    },
+    {
+      "ticker": "AOS",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.974266+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.974273+00:00",
+      "poc": 5.2859,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "capital_goods"
+    },
+    {
+      "ticker": "TSCO",
+      "origin": "auto",
+      "created": "2026-09-04T17:46:46.976372+00:00",
+      "last_reviewed": "2026-09-04T17:46:46.976379+00:00",
+      "poc": 1.8308,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "consumi_disc",
+      "sub": "distribuzione"
     }
   ]
 }
