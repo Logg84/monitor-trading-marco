@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-04T08:04:05.191629+00:00",
+  "updated": "2026-09-04T08:05:48.220958+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1618,20 +1618,6 @@
       "sub": "capital_goods"
     },
     {
-      "ticker": "IFX.DE",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.591675+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.591687+00:00",
-      "poc": 34.5332,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "semiconduttori"
-    },
-    {
       "ticker": "LII",
       "origin": "auto",
       "created": "2026-09-04T08:04:01.596571+00:00",
@@ -1646,48 +1632,6 @@
       "sub": "capital_goods"
     },
     {
-      "ticker": "HWDN.L",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.601226+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.601237+00:00",
-      "poc": 832.0359,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "moda_lusso"
-    },
-    {
-      "ticker": "ICG.L",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.605853+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.605863+00:00",
-      "poc": 2041.5911,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
-    },
-    {
-      "ticker": "HCA",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.610988+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.610998+00:00",
-      "poc": 381.9245,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "servizi_sanita"
-    },
-    {
       "ticker": "APO",
       "origin": "auto",
       "created": "2026-09-04T08:04:01.615125+00:00",
@@ -1700,20 +1644,6 @@
       "target_date": null,
       "sector": null,
       "sub": null
-    },
-    {
-      "ticker": "LOW",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.619690+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.619700+00:00",
-      "poc": 218.8346,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "distribuzione"
     },
     {
       "ticker": "G24.DE",
@@ -1770,20 +1700,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "JD.L",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:05.191248+00:00",
-      "last_reviewed": "2026-09-04T08:04:05.191261+00:00",
-      "poc": 84.0576,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "moda_lusso"
     }
   ]
 }
