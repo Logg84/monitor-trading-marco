@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-04T17:48:46.847850+00:00",
+  "updated": "2026-09-04T17:49:48.315666+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1617,20 +1617,6 @@
       "target_date": null,
       "sector": "utilities",
       "sub": "utility_regolate"
-    },
-    {
-      "ticker": "STJ.L",
-      "origin": "auto",
-      "created": "2026-09-04T17:46:46.971661+00:00",
-      "last_reviewed": "2026-09-04T17:46:46.971667+00:00",
-      "poc": 132.8959,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
     },
     {
       "ticker": "AOS",
