@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-04T08:05:48.220958+00:00",
+  "updated": "2026-09-04T10:08:24.569815+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -430,34 +430,6 @@
       "sub": "capital_goods"
     },
     {
-      "ticker": "BTRW.L",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:47.078625+00:00",
-      "last_reviewed": "2026-08-24T14:04:47.078636+00:00",
-      "poc": 102.4147,
-      "poc_origin": "auto",
-      "vwap": 290.6531,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "edilizia_casa"
-    },
-    {
-      "ticker": "AZN.L",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:47.086769+00:00",
-      "last_reviewed": "2026-08-24T14:04:47.086782+00:00",
-      "poc": 2585.0922,
-      "poc_origin": "auto",
-      "vwap": 12542.5746,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "farmaci"
-    },
-    {
       "ticker": "KR",
       "origin": "auto",
       "created": "2026-08-24T14:04:47.105222+00:00",
@@ -580,20 +552,6 @@
       "target_date": null,
       "sector": "industriale",
       "sub": "capital_goods"
-    },
-    {
-      "ticker": "RMS.PA",
-      "origin": "auto",
-      "created": "2026-08-25T07:28:56.529572+00:00",
-      "last_reviewed": "2026-08-25T07:28:56.529582+00:00",
-      "poc": 106.9736,
-      "poc_origin": "auto",
-      "vwap": 1613.2516,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "moda_lusso"
     },
     {
       "ticker": "BNZL.L",
@@ -832,19 +790,6 @@
       "target_date": null,
       "sector": "finanziario",
       "sub": "mercati_capitali"
-    },
-    {
-      "ticker": "HLMA.L",
-      "origin": "auto",
-      "created": "2026-08-27T17:51:58.448889+00:00",
-      "last_reviewed": "2026-08-27T17:51:58.448897+00:00",
-      "poc": 248.5494,
-      "poc_origin": "auto",
-      "vwap": 3750.8404,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale"
     },
     {
       "ticker": "STLAP.PA",
