@@ -86,8 +86,8 @@ st.caption(
     "Δ = momentum della gamba a pesi uguali meno quello della gamba a "
     "capitalizzazione, sullo stesso perimetro di titoli. Δ>0 = moto diffuso "
     "(molte teste partecipano): il titolo medio ha più probabilità di rendere. "
-    "Δ<0 = trascinano i pesi massimi. Stato 0-100 = 25% trend (SMA50/SMA200) + "
-    "25% momentum 3m + 15% momentum 6m + 15% forza relativa 3m vs "
+    "Δ<0 = trascinano i pesi massimi. Stato 0-100 = 30% trend (SMA50/SMA200) + "
+    "20% momentum 3m + 15% momentum 6m + 15% forza relativa 3m vs "
     f"{BENCHMARK} + 10% posizione su 52 sett. + 10% Δ (breadth)."
 )
 
