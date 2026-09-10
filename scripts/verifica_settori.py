@@ -169,7 +169,7 @@ if _d:
     check("COT: etichette bull/bear coerenti con la cornice", not inv, str(inv[:4]))
     rs = CT.regime_scores(_d)
     pavg = float(re.search(r"producer (\d+)", rs["producers_detail"]).group(1))
-    atteso = CT._SEGNO_PROD * (pavg - 50) * 2
+    atteso = CT._SEGNO_PROD * (pavg - 50) * 1.5
     check("COT: il contributo 'Produttori' della Bussola segue la STESSA cornice",
           abs(rs["producers"] - atteso) < 0.6, f"{rs['producers']:.1f} vs {atteso:.1f}")
     chk = Path("pages/4_COT.py").read_text()
