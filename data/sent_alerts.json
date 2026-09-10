@@ -770,6 +770,20 @@
       "kind": "SIFREDIANA",
       "price": 331.52,
       "score": null
+    },
+    {
+      "ts": "2026-09-10T18:50:01.567284",
+      "ticker": "CRWV",
+      "kind": "REVERSAL_YELLOW",
+      "price": 90.22000122070312,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-10T18:50:06.846456",
+      "ticker": "ROL",
+      "kind": "REVERSAL_YELLOW",
+      "price": 34.529998779296875,
+      "score": 2
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1530,5 +1544,19 @@
     "type": "SIFREDIANA",
     "timestamp": "2026-09-10T17:53:41.474066",
     "score": null
+  },
+  "CRWV:REVERSAL_YELLOW": {
+    "date": "2026-09-10",
+    "ticker": "CRWV",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-10T18:50:01.567284",
+    "score": 2
+  },
+  "ROL:REVERSAL_YELLOW": {
+    "date": "2026-09-10",
+    "ticker": "ROL",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-10T18:50:06.846456",
+    "score": 2
   }
 }
