@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-10T18:06:10.131171+00:00",
+  "updated": "2026-09-10T23:23:30.144305+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -96,19 +96,6 @@
       "target_date": null,
       "sector": "industriale",
       "sub": "capital_goods"
-    },
-    {
-      "ticker": "TRI",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.599863+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.599875+00:00",
-      "poc": 83.7155,
-      "poc_origin": "auto",
-      "vwap": 95.2229,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale"
     },
     {
       "ticker": "KHC",
@@ -1857,34 +1844,6 @@
       "sub": "semiconduttori"
     },
     {
-      "ticker": "ABF.L",
-      "origin": "auto",
-      "created": "2026-09-10T10:03:35.710074+00:00",
-      "last_reviewed": "2026-09-10T10:03:35.710082+00:00",
-      "poc": 1939.5384,
-      "poc_origin": "auto",
-      "vwap": 1994.4947,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
-    },
-    {
-      "ticker": "CPRT",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.365166+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.365187+00:00",
-      "poc": 33.1335,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": null
-    },
-    {
       "ticker": "STZ",
       "origin": "auto",
       "created": "2026-09-10T17:35:54.369649+00:00",
@@ -1897,20 +1856,6 @@
       "target_date": null,
       "sector": "consumi_staples",
       "sub": "cibo_bevande"
-    },
-    {
-      "ticker": "TYL",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.374972+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.374985+00:00",
-      "poc": 336.33,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
     },
     {
       "ticker": "HSY",
@@ -1981,20 +1926,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": null
-    },
-    {
-      "ticker": "AJG",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.401854+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.401864+00:00",
-      "poc": 244.7795,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "assicurazioni"
     },
     {
       "ticker": "BR",
@@ -2093,20 +2024,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "hardware"
-    },
-    {
-      "ticker": "ROP",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.440024+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.440040+00:00",
-      "poc": 349.5501,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
     },
     {
       "ticker": "CASY",
