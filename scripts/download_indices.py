@@ -268,7 +268,9 @@ def _clean(value: object, suffix: str) -> str | None:
         return v.replace(".", "-")
 
     if not v.endswith(suffix):
-        v += suffix
+        # Alcuni codici LSE hanno un punto finale come parte del ticker
+        # (es. Rolls-Royce = "RR."): senza lo strip diventerebbe "RR..L".
+        v = v.rstrip(".") + suffix
 
     return v
 
