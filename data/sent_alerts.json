@@ -784,6 +784,13 @@
       "kind": "REVERSAL_YELLOW",
       "price": 34.529998779296875,
       "score": 2
+    },
+    {
+      "ts": "2026-09-10T22:05:34.325925",
+      "ticker": "ISRG",
+      "kind": "SIFREDIANA",
+      "price": 360.4599914550781,
+      "score": null
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1558,5 +1565,12 @@
     "type": "REVERSAL_YELLOW",
     "timestamp": "2026-09-10T18:50:06.846456",
     "score": 2
+  },
+  "ISRG:SIFREDIANA": {
+    "date": "2026-09-10",
+    "ticker": "ISRG",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-10T22:05:34.325925",
+    "score": null
   }
 }
