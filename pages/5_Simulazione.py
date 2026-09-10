@@ -9,7 +9,18 @@ import pandas as pd
 import plotly.graph_objects as go
 from pathlib import Path
 
-st.set_page_config(page_title="Simulazione Trading", page_icon="🎮", layout="wide")
+st.set_page_config(page_title="Simulazione Trading", page_icon="🎮", layout="wide",
+                   initial_sidebar_state="collapsed")
+
+from ui.theme import inject_css
+from ui.nav import render_navbar, sidebar_nav
+
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+inject_css(dark=st.session_state.dark_mode)
+render_navbar(title="Simulazione")
+sidebar_nav()
 
 CSV_PATH = Path("data/simulazione_trades.csv")
 
