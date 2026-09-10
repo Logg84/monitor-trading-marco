@@ -107,10 +107,10 @@ def cname(ticker: str) -> str:
 
 st.markdown("## Watchlist")
 st.caption(
-    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
-    "larghezza max = min(15% range, 8×ATR20). "
+    "Zone volumetriche su settimanale lungo: score = volume pesato per recency esponenziale (half-life 4y), normalizzato 0-100; "
+    "larghezza max = min(6% range, 3,5×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali (≥26 sett. apart), bonus se a ±30gg da trimestrale. "
-    "Segnale 🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D (G pesa doppio). "
+    "Segnale 🟡 = A (sconto ≥20%) + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D, oppure Sifrediana recente + punti ≥4, oppure Sifrediana OGGI (bypassa sconto e punti); G pesa doppio nel conteggio punti. "
     "Wyckoff: rilevamento pattern accumulazione SC→AR→ST→Spring→SOS→LPS, punteggio 1-10. "
     "Uscite automatiche: 🤖 se DD>−20% o punti<2 per 5 chiusure; 👤 se punti<2 e sotto il livello minimo inserito per 5 chiusure. "
     "Contesto di settore (ETF capitalization-weighted + equal-weighted): stato 0-100 del settore di ogni titolo, nota ⚠️ se il segnale è su un settore in calo, "
