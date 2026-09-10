@@ -160,10 +160,10 @@ if diagnostics:
     m5.metric("Scartati download", diagnostics["discarded"])
 
 st.caption(
-    "Zone volumetriche su settimanale lungo: score = 60% dimensione + 40% recency (half-life 4y); "
-    "larghezza max = min(15% range, 8×ATR20). "
+    "Zone volumetriche su settimanale lungo: score = volume pesato per recency esponenziale (half-life 4y), normalizzato 0-100; "
+    "larghezza max = min(6% range, 3,5×ATR20). "
     "VWA1-3: VWAP ancorati a minimi strutturali; nello screening senza bonus trimestrale (prestazioni). "
-    "Segnale 🟡 = A + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D (G pesa doppio). "
+    "Segnale 🟡 = A (sconto ≥20%) + punti ≥2 (G da sola basta; B+C insieme bastano) · 🟢 = A + punti ≥5 + D, oppure Sifrediana recente + punti ≥4, oppure Sifrediana OGGI (bypassa sconto e punti); G pesa doppio nel conteggio punti. "
     "Wyckoff: rilevamento pattern accumulazione SC→AR→ST→Spring→SOS→LPS, punteggio 1-10. "
     "Settore: stato 0-100 del paniere ETF di settore (cap-weighted) con divergenza "
     "Δ EW−CW a 3 mesi; Priorità = Bottom + bonus settore (±10), serve a ordinare, "
