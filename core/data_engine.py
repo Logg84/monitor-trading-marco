@@ -307,6 +307,53 @@ def structural_anchors(wdf: pd.DataFrame, k: int = 13, min_gap_weeks: int = 26, 
         out.append(z)
     return out
 
+def confluence_score(z1: dict | None, z2: dict | None, vwaps: list, atr20: float | None, price: float | None) -> int:
+    """
+    Punteggio 0-100 di confluenza volumetrica multi-timeframe: premia i casi in
+    cui la zona secondaria (Z2) e/o gli VWAP ancorati (VWA1-VWA3) cadono vicini
+    al centro della zona primaria (Z1, il POC Maestro pesato sul profilo lungo
+    periodo). Decadimento esponenziale sulla distanza, non soglia binaria: un
+    livello a metà tolleranza pesa meno di uno perfettamente coincidente ma non
+    viene azzerato.
+    Tolleranza ATR-based per coerenza con zone_component/atr_width_mult già
+    usati altrove nel modulo (2x ATR20, minimo 0.5% del prezzo).
+    Pesi (sommano a 1.0): Z2 0.30, VWA1 0.35, VWA2 0.20, VWA3 0.15 — i VWAP
+    ancorati pesano di più perché sono un riferimento strutturale indipendente
+    dal profilo volumetrico, non un suo sotto-prodotto.
+    """
+    if not z1 or not atr20 or atr20 <= 0:
+        return 0
+    ref = z1["center"]
+    tol = max(atr20 * 2.0, (price or ref) * 0.005)
+    if tol <= 0:
+        return 0
+    candidates = [
+        (z2["center"] if z2 else None, 0.30),
+        (vwaps[0] if len(vwaps) > 0 else None, 0.35),
+        (vwaps[1] if len(vwaps) > 1 else None, 0.20),
+        (vwaps[2] if len(vwaps) > 2 else None, 0.15),
+    ]
+    total = 0.0
+    for val, w in candidates:
+        if val is None:
+            continue
+        dist = abs(val - ref)
+        total += w * np.exp(-dist / tol)
+    return int(round(100 * min(1.0, total)))
+
+def bonus_confluence(score: int | None, max_bonus: int = 10) -> int:
+    """
+    Bonus di Priorità da 0 a `max_bonus`, SOLO positivo: un livello con alta
+    confluenza è più solido, ma bassa confluenza non è "contro" — a differenza
+    del settore (che può essere a favore o contro trend), Confluenza misura
+    forza strutturale, non direzione. Cap separato dal bonus di settore (±15)
+    perché questa metrica non è ancora validata da backtest: la teniamo
+    volutamente più piccola finché non abbiamo dati reali dalle Simulazioni.
+    """
+    if not score:
+        return 0
+    return int(round(np.clip(score, 0, 100) / 100 * max_bonus))
+
 # ── Health Check ───────────────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
 def get_info(ticker: str) -> dict:
@@ -547,6 +594,24 @@ def earnings_snapshot(ticker: str) -> dict:
         out["positive"] = out["rev_yoy"] > 0
     return out
 
+def earnings_badge(ticker: str, warn_days: int = 3) -> str:
+    """Badge da mostrare in tabella se la trimestrale è entro `warn_days` giorni.
+    Riusa earnings_dates_list (già in cache 24h), nessuna chiamata di rete
+    aggiuntiva. Ritorna '—' se nessuna trimestrale imminente o dato assente."""
+    dates = earnings_dates_list(ticker)
+    if not dates:
+        return "—"
+    today = pd.Timestamp.now().date()
+    future = [d.date() for d in dates if d.date() >= today]
+    if not future:
+        return "—"
+    days_to = (min(future) - today).days
+    if days_to == 0:
+        return "⚠️ Trimestrale oggi"
+    if days_to <= warn_days:
+        return f"⚠️ Trimestrale <{days_to}gg"
+    return "—"
+
 # ── Cache screening ────────────────────────────────────────
 def save_screening_cache(df: pd.DataFrame, meta: dict) -> None:
     try:
@@ -681,6 +746,9 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                     break
             # Risolto: anchors[0]["vwap"] invece di anchors["vwap"]
             vwa1 = anchors[0]["vwap"] if anchors else None
+            vwa2 = anchors[1]["vwap"] if len(anchors) > 1 else None
+            vwa3 = anchors[2]["vwap"] if len(anchors) > 2 else None
+            conf_val = confluence_score(z1, z2, [vwa1, vwa2, vwa3], a20, price)
             wyk_str = f"{wyk['score_10']}/10" if wyk["n_events"] >= 2 else "—"
             sec_key = sub_key = sec_score = sec_breadth = sec_prio = None
             sub_lbl = sub_score = sub_delta = None
@@ -703,6 +771,8 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                     sub_score = _sub.get("score")
                     sub_delta = _sub.get("d63")
                 sec_prio = priorita(bs["score"], sec_score)
+                if sec_prio is not None:
+                    sec_prio += bonus_confluence(conf_val)
             except Exception:
                 pass
             rows.append({
@@ -713,8 +783,8 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                 "RSI": round(bs["rsi"], 0),
                 "VWAP60": round(vwap60, 2),
                 "VWA1": round(vwa1, 2) if vwa1 else None,
-                "VWA2": round(anchors[1]["vwap"], 2) if len(anchors) > 1 else None,
-                "VWA3": round(anchors[2]["vwap"], 2) if len(anchors) > 2 else None,
+                "VWA2": round(vwa2, 2) if vwa2 else None,
+                "VWA3": round(vwa3, 2) if vwa3 else None,
                 "Z1": f"{z1['lo']:.2f}–{z1['hi']:.2f} ·{z1['score']}" if z1 else "—",
                 "Z2": f"{z2['lo']:.2f}–{z2['hi']:.2f} ·{z2['score']}" if z2 else "—",
                 "Z1c": round(z1["center"], 4) if z1 else None,
@@ -738,6 +808,8 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                 "SottoScore": round(sub_score) if sub_score is not None else None,
                 "SottoΔ": round(sub_delta, 1) if sub_delta is not None else None,
                 "Priorità": sec_prio,
+                "Avviso": earnings_badge(t),
+                "Confluenza": conf_val,
             })
         except Exception:
             continue
