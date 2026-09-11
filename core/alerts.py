@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 import streamlit as st
+from core.data_engine import earnings_dates_list
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SENT_ALERTS_FILE = DATA_DIR / "sent_alerts.json"
@@ -361,6 +362,54 @@ def _level_alert_candidates(entries: list[dict], states: dict) -> list[dict]:
     return out
 
 
+def _earnings_alert_candidates(entries: list[dict], states: dict, warn_days: int = 3) -> list[dict]:
+    """
+    Avviso trimestrale imminente per TUTTI i ticker in Watchlist (nessun
+    filtro sul Segnale attivo).
+    Dedup: nessuno stato dedicato, riusa il day_lock a 5gg già esistente sulla
+    chiave "ticker:TRIMESTRALE_IMMINENTE" (stesso meccanismo di REVERSAL/
+    LIVELLO). Basta perché la finestra di preavviso (3gg) è più corta della
+    finestra di lock (5gg): il primo giorno utile in cui scatta blocca anche
+    tutti i giorni successivi fino e oltre la trimestrale stessa.
+    """
+    out = []
+    oggi = _dt.date.today()
+    for e in entries or []:
+        t = e["ticker"]
+        s = (states or {}).get(t) or {}
+        try:
+            dates = earnings_dates_list(t)
+        except Exception:
+            continue
+        if not dates:
+            continue
+        future = [d.date() for d in dates if d.date() >= oggi]
+        if not future:
+            continue
+        next_date = min(future)
+        days_to = (next_date - oggi).days
+        if days_to > warn_days:
+            continue
+        quando = "oggi" if days_to == 0 else f"tra {days_to}gg ({next_date.strftime('%d/%m')})"
+        segnale = str(s.get("segnale", "—"))
+        messaggio = (
+            f"⚠️ *TRIMESTRALE IMMINENTE* — {t}\n\n"
+            f"*{s.get('nome', t)}* ({t}) riporta {quando}.\n"
+            f"Segnale attuale: {segnale}\n\n"
+            f"ℹ️ _Valuta di evitare ingressi impulsivi a poche ore dal "
+            f"rilascio: il movimento post-earnings è spesso rumore, non "
+            f"direzione._"
+        )
+        out.append({
+            "ticker": t,
+            "text": messaggio,
+            "type": "TRIMESTRALE_IMMINENTE",
+            "price": s.get("price"),
+            "score": None,
+        })
+    return out
+
+
 # ── SIMULAZIONE CSV ────────────────────────────────────────
 def _aggiungi_trade_simulazione(alert: dict) -> None:
     score = alert.get("score")
@@ -436,6 +485,7 @@ def check_alerts(
         if rows:
             candidati += compile_alerts(pd.DataFrame(rows))
         candidati += _level_alert_candidates(entries, states)
+        candidati += _earnings_alert_candidates(entries, states)
 
     # B. CANDELONI GLOBALI (SCREENING, fuori watchlist)
     if df_screening_global is not None and not df_screening_global.empty:
