@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-11T11:44:30.726164+00:00",
+  "updated": "2026-09-11T14:27:52.895150+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -14,20 +14,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "distribuzione"
-    },
-    {
-      "ticker": "ZTS",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.409495+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.409557+00:00",
-      "poc": 75.1215,
-      "poc_origin": "auto",
-      "vwap": 75.5824,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "farmaci"
     },
     {
       "ticker": "FISV",
@@ -96,20 +82,6 @@
       "target_date": null,
       "sector": "industriale",
       "sub": "capital_goods"
-    },
-    {
-      "ticker": "KHC",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.606080+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.606096+00:00",
-      "poc": 23.638,
-      "poc_origin": "auto",
-      "vwap": 24.7571,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
     },
     {
       "ticker": "CHRW",
@@ -207,20 +179,6 @@
       "sector": "materiali"
     },
     {
-      "ticker": "LULU",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.782701+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.782713+00:00",
-      "poc": 120.4368,
-      "poc_origin": "auto",
-      "vwap": 113.2204,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "moda_lusso"
-    },
-    {
       "ticker": "CCI",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.790843+00:00",
@@ -261,20 +219,6 @@
       "target_date": null,
       "sector": "materiali",
       "sub": "chimica"
-    },
-    {
-      "ticker": "BRO",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.919308+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.919320+00:00",
-      "poc": 67.1049,
-      "poc_origin": "auto",
-      "vwap": 67.668,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "assicurazioni"
     },
     {
       "ticker": "VOW3.DE",
@@ -686,20 +630,6 @@
       "sub": "auto_componenti"
     },
     {
-      "ticker": "MU",
-      "origin": "auto",
-      "created": "2026-08-31T14:20:32.384770+00:00",
-      "last_reviewed": "2026-08-31T14:20:32.384773+00:00",
-      "poc": 60.9282,
-      "poc_origin": "auto",
-      "vwap": 970.5865,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "semiconduttori"
-    },
-    {
       "ticker": "EL.PA",
       "origin": "auto",
       "created": "2026-08-31T20:19:53.195978+00:00",
@@ -895,20 +825,6 @@
       "sub": null
     },
     {
-      "ticker": "DHR",
-      "origin": "auto",
-      "created": "2026-09-02T18:07:05.052371+00:00",
-      "last_reviewed": "2026-09-02T18:07:05.052376+00:00",
-      "poc": 206.0482,
-      "poc_origin": "auto",
-      "vwap": 195.3427,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "biotech"
-    },
-    {
       "ticker": "TAK",
       "origin": "manual",
       "created": "2026-09-03T13:40:08.354099+00:00",
@@ -1066,20 +982,6 @@
       "sub": "software"
     },
     {
-      "ticker": "IT",
-      "origin": "auto",
-      "created": "2026-09-03T18:01:19.678813+00:00",
-      "last_reviewed": "2026-09-03T18:01:19.678820+00:00",
-      "poc": 156.0879,
-      "poc_origin": "auto",
-      "vwap": 158.9998,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
       "ticker": "KKR",
       "origin": "auto",
       "created": "2026-09-03T18:01:19.681025+00:00",
@@ -1092,20 +994,6 @@
       "target_date": null,
       "sector": "finanziario",
       "sub": "mercati_capitali"
-    },
-    {
-      "ticker": "EFX",
-      "origin": "auto",
-      "created": "2026-09-03T18:01:19.694367+00:00",
-      "last_reviewed": "2026-09-03T18:01:19.694374+00:00",
-      "poc": 194.6273,
-      "poc_origin": "auto",
-      "vwap": 171.8851,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "capital_goods"
     },
     {
       "ticker": "LII",
@@ -1134,20 +1022,6 @@
       "target_date": null,
       "sector": "finanziario",
       "sub": "mercati_capitali"
-    },
-    {
-      "ticker": "NVR",
-      "origin": "auto",
-      "created": "2026-09-04T08:04:01.629090+00:00",
-      "last_reviewed": "2026-09-04T08:04:01.629100+00:00",
-      "poc": 6328.3996,
-      "poc_origin": "auto",
-      "vwap": 6404.7846,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "edilizia_casa"
     },
     {
       "ticker": "SAP.DE",
@@ -1890,20 +1764,6 @@
       "target_date": null,
       "sector": "finanziario",
       "sub": "assicurazioni"
-    },
-    {
-      "ticker": "ODFL",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.422903+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.422911+00:00",
-      "poc": 144.5742,
-      "poc_origin": "auto",
-      "vwap": 213.3854,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "trasporti"
     },
     {
       "ticker": "ORLY",
