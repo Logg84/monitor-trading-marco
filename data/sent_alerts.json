@@ -903,6 +903,34 @@
       "kind": "LIVELLO_L2",
       "price": 141.24000549316406,
       "score": null
+    },
+    {
+      "ts": "2026-09-11T22:07:50.664220",
+      "ticker": "NBIS",
+      "kind": "REVERSAL_YELLOW",
+      "price": 224.5500030517578,
+      "score": 3
+    },
+    {
+      "ts": "2026-09-11T22:07:51.976341",
+      "ticker": "ON",
+      "kind": "SIFREDIANA",
+      "price": 76.13999938964844,
+      "score": null
+    },
+    {
+      "ts": "2026-09-11T22:08:12.656014",
+      "ticker": "GDDY",
+      "kind": "REVERSAL_YELLOW",
+      "price": 98.06999969482422,
+      "score": 4
+    },
+    {
+      "ts": "2026-09-11T22:08:15.295739",
+      "ticker": "KR",
+      "kind": "TRIMESTRALE_IMMINENTE",
+      "price": 58.4900016784668,
+      "score": null
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1795,6 +1823,34 @@
     "ticker": "AVAV",
     "type": "LIVELLO_L2",
     "timestamp": "2026-09-11T15:30:02.682264",
+    "score": null
+  },
+  "NBIS:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "NBIS",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T22:07:50.664220",
+    "score": 3
+  },
+  "ON:SIFREDIANA": {
+    "date": "2026-09-11",
+    "ticker": "ON",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-11T22:07:51.976341",
+    "score": null
+  },
+  "GDDY:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "GDDY",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T22:08:12.656014",
+    "score": 4
+  },
+  "KR:TRIMESTRALE_IMMINENTE": {
+    "date": "2026-09-11",
+    "ticker": "KR",
+    "type": "TRIMESTRALE_IMMINENTE",
+    "timestamp": "2026-09-11T22:08:15.295739",
     "score": null
   }
 }
