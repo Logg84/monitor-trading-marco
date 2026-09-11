@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-10T23:23:30.144305+00:00",
+  "updated": "2026-09-11T07:40:14.522173+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1730,20 +1730,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "moda_lusso"
-    },
-    {
-      "ticker": "FRES.L",
-      "origin": "auto",
-      "created": "2026-09-09T11:45:09.575815+00:00",
-      "last_reviewed": "2026-09-09T11:45:09.575822+00:00",
-      "poc": 613.8877,
-      "poc_origin": "auto",
-      "vwap": 2861.8682,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "materiali",
-      "sub": "metalli_minere"
     },
     {
       "ticker": "WEIR.L",
