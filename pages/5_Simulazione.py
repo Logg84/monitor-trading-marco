@@ -8,6 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from pathlib import Path
+import yfinance as yf
 
 st.set_page_config(page_title="Simulazione Trading", page_icon="🎮", layout="wide")
 
@@ -123,8 +124,6 @@ st.divider()
 st.markdown("### 🟢 Trade Aperti")
 if not trade_aperti.empty:
     # Calcola prezzo corrente per ogni trade
-    import yfinance as yf
-    
     trade_aperti_display = trade_aperti.copy()
     prezzi_correnti = []
     
