@@ -1,6 +1,6 @@
 """
 Pagina Simulazione Trading: visualizza i trade generati automaticamente
-dagli alert REVERSAL con punteggio ≥ 4/6.
+dagli alert REVERSAL con punteggio >= 4/6.
 
 Legge da: data/simulazione_trades.csv (scritto da core/simulazione_engine.py)
 """
@@ -35,9 +35,9 @@ def carica_dati() -> pd.DataFrame:
 # ── Header ────────────────────────────────────────────────────
 st.markdown("## 🎮 Simulazione Trading")
 st.caption(
-    "Trade generati automaticamente dagli alert **REVERSAL** con punteggio **≥ 4/6**. "
+    "Trade generati automaticamente dagli alert **REVERSAL** con punteggio **>= 4/6**. "
     "Entry sul prezzo dell'alert · SL sull'ultimo minimo settimanale · "
-    "TP1 a RR 1:1,5 (chiude 20%, SL → breakeven) · TP2 a +33% (chiude 20%) · "
+    "TP1 a RR 1:1,5 (chiude 20%, SL -> breakeven) · TP2 a +33% (chiude 20%) · "
     "TP3 a +50% (chiude 30%) · TP4 a +100% (chiude 30%). "
     "Il simulatore viene eseguito dal workflow GitHub Actions ogni 2 ore nei giorni di mercato."
 )
@@ -47,22 +47,22 @@ df = carica_dati()
 if df.empty:
     st.info(
         "📭 **Nessun trade in simulazione.**\n\n"
-        "Il primo alert **REVERSAL** con punteggio **≥ 4/6** genererà automaticamente il primo trade.\n\n"
+        "Il primo alert **REVERSAL** con punteggio **>= 4/6** generera automaticamente il primo trade.\n\n"
         "**Come funziona:**\n"
-        "1. Il workflow `alerts.yml` esegue `alert_checker.py` → invia segnali Telegram\n"
+        "1. Il workflow `alerts.yml` esegue `alert_checker.py` -> invia segnali Telegram\n"
         "2. Subito dopo, esegue `simulazione_engine.py` che:\n"
-        "   - Apre un nuovo trade LONG per ogni alert REVERSAL con score ≥ 4/6\n"
+        "   - Apre un nuovo trade LONG per ogni alert REVERSAL con score >= 4/6\n"
         "   - Aggiorna PnL latente dei trade aperti\n"
         "   - Chiude i trade che raggiungono SL o TP\n"
         "3. I dati vengono salvati in `data/simulazione_trades.csv` e commitati su GitHub\n\n"
         "**Cosa NON apre trade:**\n"
         "- ❌ Alert CANDELONE/Sifrediana (solo contesto informativo)\n"
         "- ❌ Alert REVERSAL con score < 4/6\n"
-        "- ❌ Ticker che ha già un trade aperto\n"
+        "- ❌ Ticker che ha gia un trade aperto\n"
         "- ❌ Ticker che ha chiuso un trade negli ultimi 30 giorni\n\n"
         "**Parametri di default** (modificabili in `core/simulazione_engine.py`):\n"
         "- Stop Loss: ultimo minimo settimanale (ultime 4 settimane)\n"
-        "- Take Profit 1: RR 1:1,5 (chiude 20% della posizione, SL → breakeven)\n"
+        "- Take Profit 1: RR 1:1,5 (chiude 20% della posizione, SL -> breakeven)\n"
         "- Take Profit 2: +33% di gain (chiude 20%)\n"
         "- Take Profit 3: +50% di gain (chiude 30%)\n"
         "- Take Profit 4: +100% di gain (chiude 30%, trade chiuso)\n"
@@ -259,14 +259,14 @@ with st.expander("📖 Come funziona il simulatore"):
 **Logica di apertura trade:**
 - Il workflow GitHub Actions (`alerts.yml`) esegue ogni 2 ore nei giorni di mercato
 - Dopo `alert_checker.py`, viene eseguito `simulazione_engine.py`
-- Per ogni alert **REVERSAL** (🟡 o 🟢) con score **≥ 4/6**, viene aperto un nuovo trade **LONG**
-- Un ticker può avere **un solo trade aperto alla volta**
+- Per ogni alert **REVERSAL** (🟡 o 🟢) con score **>= 4/6**, viene aperto un nuovo trade **LONG**
+- Un ticker puo avere **un solo trade aperto alla volta**
 - Dopo la chiusura, il ticker non viene riaperto per 30 giorni
 
 **Cosa NON apre trade:**
-- ❌ Alert CANDELONE/Sifrediana → sono solo contesto informativo
+- ❌ Alert CANDELONE/Sifrediana -> sono solo contesto informativo
 - ❌ Alert REVERSAL con score < 4/6
-- ❌ Ticker già in portafoglio (trade aperto)
+- ❌ Ticker gia in portafoglio (trade aperto)
 - ❌ Ticker chiuso da meno di 30 giorni
 
 **Logica di chiusura (scalata progressiva):**
@@ -288,3 +288,8 @@ TP2_CLOSE_PCT = 20.0        # TP2 chiude 20%
 TP3_CLOSE_PCT = 30.0        # TP3 chiude 30%
 TP4_CLOSE_PCT = 30.0        # TP4 chiude 30%
 MIN_SCORE_FOR_TRADE = 4     # Score minimo
+```
+
+**Nota**: questa e una simulazione didattica. Non tiene conto di slippage,
+commissioni, o liquidita reale. I risultati passati non garantiscono performance future.
+""")
