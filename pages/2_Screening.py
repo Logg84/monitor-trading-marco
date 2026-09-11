@@ -21,6 +21,7 @@ from core.data_engine import (
     volume_zones, structural_anchors, bottom_score,
 )
 from core import bg_screening as bg
+from core.macro_calendar import get_macro_badges
 from core.reversal import auto_populate, prune_watchlist
 from core.sectors import (bonus_sector, note_for, priorita, sector_label,
                           sector_of, sector_rows, vento)
@@ -35,6 +36,9 @@ sidebar_nav()
 
 st.markdown("## Screening")
 st.caption("Lettura, mai ordine — non è consulenza.")
+
+for _badge in get_macro_badges():
+    st.warning(_badge)
 
 available = []
 if INDICES_DIR.exists():
@@ -235,9 +239,9 @@ alert = df[(df["DD%"] <= -20) & (df["Prezzo"] <= df["VWAP60"])].copy()
 sc1, sc2 = st.columns([2, 1])
 sort_col = sc1.selectbox(
     "Ordina per",
-    ["Bottom", "Priorità", "DD%", "RSI", "Health", "Prezzo", "VWAP60", "VWA1",
-     "Wyckoff", "SectorScore", "Δ EW−CW", "SottoScore", "SottoΔ",
-     "Settore", "Sotto-settore", "Nome", "Ticker"],
+    ["Bottom", "Priorità", "Confluenza", "DD%", "RSI", "Health", "Prezzo",
+     "VWAP60", "VWA1", "Wyckoff", "SectorScore", "Δ EW−CW", "SottoScore",
+     "SottoΔ", "Settore", "Sotto-settore", "Nome", "Ticker"],
     index=0,
 )
 sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
@@ -279,6 +283,14 @@ _sec_cfg = {
         "Priorità", format="%d",
         help="Bottom Score + bonus di settore (±10). Serve a ORDINARE, non a "
              "decidere: i punti 🟡/🟢 non cambiano."),
+    "Avviso": st.column_config.TextColumn(
+        "Avviso", help="⚠️ se la trimestrale del titolo è entro 3 giorni: "
+                       "solo un promemoria, non blocca né altera il Segnale."),
+    "Confluenza": st.column_config.NumberColumn(
+        "Confluenza", format="%d",
+        help="0-100: quanto la zona secondaria (Z2) e gli VWAP ancorati "
+             "(VWA1-3) coincidono col centro della zona primaria (Z1, POC "
+             "Maestro). Metrica di contesto, NON entra nel punteggio Segnale."),
 }
 with tab1:
     ev_all = st.dataframe(df_sorted, use_container_width=True, hide_index=True,
