@@ -18,8 +18,11 @@ from core.data_engine import (
     load_screening_cache,
 )
 from core.sectors import snapshot_and_source, sector_label, vento as vento_sector
+from core.regime import compute_regime
 from core.alerts import (
     check_alerts,
+    check_regime_change,
+    register_regime_notified,
     send_telegram,
     _register_sent_alert,
     _aggiungi_trade_simulazione,
@@ -81,6 +84,12 @@ def main() -> None:
 
     # 3. Ottieni candidati (check_alerts NON salva il JSON)
     alerts_to_send = check_alerts(entries, states, df_screening_global)
+
+    # 3b. Cambio Regime (dedup a stato, separato dal day_lock a 5gg)
+    regime_candidate = check_regime_change(compute_regime())
+    if regime_candidate:
+        alerts_to_send.append(regime_candidate)
+
     if not alerts_to_send:
         print("Nessun nuovo alert.")
         return
@@ -90,10 +99,13 @@ def main() -> None:
     for a in alerts_to_send:
         sent = send_telegram(a["text"])
         if sent:
-            _register_sent_alert(
-                a["ticker"], a["type"], price=a.get("price"), score=a.get("score")
-            )
-            _aggiungi_trade_simulazione(a)
+            if a["type"] == "REGIME_CHANGE":
+                register_regime_notified(a["regime"])
+            else:
+                _register_sent_alert(
+                    a["ticker"], a["type"], price=a.get("price"), score=a.get("score")
+                )
+                _aggiungi_trade_simulazione(a)
             etichetta = a["text"].splitlines()[0][:80]
             print(f"[{a['type']}] {etichetta} → Telegram: ok")
             success_count += 1
