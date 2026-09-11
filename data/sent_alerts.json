@@ -791,6 +791,118 @@
       "kind": "SIFREDIANA",
       "price": 360.4599914550781,
       "score": null
+    },
+    {
+      "ts": "2026-09-11T15:29:10.597974",
+      "ticker": "FISV",
+      "kind": "REVERSAL_YELLOW",
+      "price": 51.13999938964844,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:29:12.009979",
+      "ticker": "CCI",
+      "kind": "REVERSAL_YELLOW",
+      "price": 75.83000183105469,
+      "score": 3
+    },
+    {
+      "ts": "2026-09-11T15:29:16.158887",
+      "ticker": "CDW",
+      "kind": "REVERSAL_YELLOW",
+      "price": 153.25,
+      "score": 3
+    },
+    {
+      "ts": "2026-09-11T15:29:17.597653",
+      "ticker": "QCOM",
+      "kind": "REVERSAL_YELLOW",
+      "price": 183.24000549316406,
+      "score": 3
+    },
+    {
+      "ts": "2026-09-11T15:29:23.206898",
+      "ticker": "TMUS",
+      "kind": "REVERSAL_GREEN",
+      "price": 182.82000732421875,
+      "score": 5
+    },
+    {
+      "ts": "2026-09-11T15:29:24.657908",
+      "ticker": "AMT",
+      "kind": "REVERSAL_YELLOW",
+      "price": 177.99000549316406,
+      "score": 4
+    },
+    {
+      "ts": "2026-09-11T15:29:40.297671",
+      "ticker": "GSK.L",
+      "kind": "REVERSAL_YELLOW",
+      "price": 1773.0,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:29:43.059884",
+      "ticker": "BSX",
+      "kind": "REVERSAL_YELLOW",
+      "price": 42.904998779296875,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:29:44.451853",
+      "ticker": "CSGP",
+      "kind": "REVERSAL_YELLOW",
+      "price": 30.229999542236328,
+      "score": 3
+    },
+    {
+      "ts": "2026-09-11T15:29:48.647314",
+      "ticker": "Q",
+      "kind": "REVERSAL_YELLOW",
+      "price": 126.94000244140625,
+      "score": 4
+    },
+    {
+      "ts": "2026-09-11T15:29:54.201607",
+      "ticker": "MAA",
+      "kind": "REVERSAL_YELLOW",
+      "price": 125.29000091552734,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:29:56.990318",
+      "ticker": "SBAC",
+      "kind": "REVERSAL_YELLOW",
+      "price": 185.30999755859375,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:29:58.391223",
+      "ticker": "MGM",
+      "kind": "REVERSAL_YELLOW",
+      "price": 40.27000045776367,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:29:59.820059",
+      "ticker": "DASH",
+      "kind": "REVERSAL_YELLOW",
+      "price": 202.8699951171875,
+      "score": 2
+    },
+    {
+      "ts": "2026-09-11T15:30:01.266378",
+      "ticker": "FLEX",
+      "kind": "REVERSAL_YELLOW",
+      "price": 116.3499984741211,
+      "score": 3
+    },
+    {
+      "ts": "2026-09-11T15:30:02.682264",
+      "ticker": "AVAV",
+      "kind": "LIVELLO_L2",
+      "price": 141.24000549316406,
+      "score": null
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1571,6 +1683,118 @@
     "ticker": "ISRG",
     "type": "SIFREDIANA",
     "timestamp": "2026-09-10T22:05:34.325925",
+    "score": null
+  },
+  "FISV:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "FISV",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:10.597974",
+    "score": 2
+  },
+  "CCI:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "CCI",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:12.009979",
+    "score": 3
+  },
+  "CDW:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "CDW",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:16.158887",
+    "score": 3
+  },
+  "QCOM:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "QCOM",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:17.597653",
+    "score": 3
+  },
+  "TMUS:REVERSAL_GREEN": {
+    "date": "2026-09-11",
+    "ticker": "TMUS",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-11T15:29:23.206898",
+    "score": 5
+  },
+  "AMT:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "AMT",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:24.657908",
+    "score": 4
+  },
+  "GSK.L:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "GSK.L",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:40.297671",
+    "score": 2
+  },
+  "BSX:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "BSX",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:43.059884",
+    "score": 2
+  },
+  "CSGP:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "CSGP",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:44.451853",
+    "score": 3
+  },
+  "Q:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "Q",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:48.647314",
+    "score": 4
+  },
+  "MAA:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "MAA",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:54.201607",
+    "score": 2
+  },
+  "SBAC:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "SBAC",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:56.990318",
+    "score": 2
+  },
+  "MGM:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "MGM",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:58.391223",
+    "score": 2
+  },
+  "DASH:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "DASH",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:29:59.820059",
+    "score": 2
+  },
+  "FLEX:REVERSAL_YELLOW": {
+    "date": "2026-09-11",
+    "ticker": "FLEX",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-11T15:30:01.266378",
+    "score": 3
+  },
+  "AVAV:LIVELLO_L2": {
+    "date": "2026-09-11",
+    "ticker": "AVAV",
+    "type": "LIVELLO_L2",
+    "timestamp": "2026-09-11T15:30:02.682264",
     "score": null
   }
 }
