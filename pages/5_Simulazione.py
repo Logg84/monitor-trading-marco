@@ -10,8 +10,6 @@ import plotly.graph_objects as go
 from pathlib import Path
 import yfinance as yf
 
-st.set_page_config(page_title="Simulazione Trading", page_icon="🎮", layout="wide")
-
 CSV_PATH = Path("data/simulazione_trades.csv")
 
 
