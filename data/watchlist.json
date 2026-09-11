@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-11T14:38:40.428336+00:00",
+  "updated": "2026-09-11T18:02:21.528872+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -360,20 +360,6 @@
       "sub": "software"
     },
     {
-      "ticker": "KMB",
-      "origin": "auto",
-      "created": "2026-08-25T15:19:23.470393+00:00",
-      "last_reviewed": "2026-08-25T15:19:23.470399+00:00",
-      "poc": 106.0923,
-      "poc_origin": "auto",
-      "vwap": 106.9166,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "prodotti_persona"
-    },
-    {
       "ticker": "IBM",
       "origin": "auto",
       "created": "2026-08-25T15:19:23.495835+00:00",
@@ -442,20 +428,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "auto_componenti"
-    },
-    {
-      "ticker": "DPZ",
-      "origin": "auto",
-      "created": "2026-08-27T17:51:58.416114+00:00",
-      "last_reviewed": "2026-08-27T17:51:58.416121+00:00",
-      "poc": 365.8864,
-      "poc_origin": "auto",
-      "vwap": 328.1984,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "tempo_libero"
     },
     {
       "ticker": "BRBY.L",
@@ -980,20 +952,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "KKR",
-      "origin": "auto",
-      "created": "2026-09-03T18:01:19.681025+00:00",
-      "last_reviewed": "2026-09-03T18:01:19.681032+00:00",
-      "poc": 100.3332,
-      "poc_origin": "auto",
-      "vwap": 101.7965,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
     },
     {
       "ticker": "LII",
@@ -1878,20 +1836,6 @@
       "sub": null
     },
     {
-      "ticker": "LMT",
-      "origin": "auto",
-      "created": "2026-09-10T18:02:57.834707+00:00",
-      "last_reviewed": "2026-09-10T18:02:57.834713+00:00",
-      "poc": 429.8532,
-      "poc_origin": "auto",
-      "vwap": 543.7563,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "aero_difesa"
-    },
-    {
       "ticker": "A2A.MI",
       "origin": "manual",
       "created": "2026-09-11T09:12:00.023346+00:00",
@@ -1996,20 +1940,6 @@
       "target_date": null,
       "sector": "sanita",
       "sub": "dispositivi"
-    },
-    {
-      "ticker": "GSK.L",
-      "origin": "auto",
-      "created": "2026-09-11T11:44:30.712141+00:00",
-      "last_reviewed": "2026-09-11T11:44:30.712146+00:00",
-      "poc": 1407.797,
-      "poc_origin": "auto",
-      "vwap": 1928.1666,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "farmaci"
     },
     {
       "ticker": "XYZ",
@@ -2262,6 +2192,48 @@
       "target_date": null,
       "sector": "tech",
       "sub": "hardware"
+    },
+    {
+      "ticker": "GDDY",
+      "origin": "auto",
+      "created": "2026-09-11T17:59:34.246510+00:00",
+      "last_reviewed": "2026-09-11T17:59:34.246520+00:00",
+      "poc": 74.2267,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "tech",
+      "sub": "software"
+    },
+    {
+      "ticker": "NOW",
+      "origin": "auto",
+      "created": "2026-09-11T17:59:34.254812+00:00",
+      "last_reviewed": "2026-09-11T17:59:34.254818+00:00",
+      "poc": 98.5616,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "tech",
+      "sub": "software"
+    },
+    {
+      "ticker": "CAT",
+      "origin": "auto",
+      "created": "2026-09-11T17:59:34.257528+00:00",
+      "last_reviewed": "2026-09-11T17:59:34.257535+00:00",
+      "poc": 200.8342,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "capital_goods"
     }
   ]
 }
