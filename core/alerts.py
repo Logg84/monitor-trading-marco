@@ -19,6 +19,8 @@ import streamlit as st
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SENT_ALERTS_FILE = DATA_DIR / "sent_alerts.json"
 SIMULAZIONE_CSV = DATA_DIR / "simulazione_trades.csv"
+REGIME_STATE_FILE = DATA_DIR / "regime_state.json"
+REGIME_CONFIRM_RUNS = 2  # run consecutivi di alert_checker.py (ogni 2h) prima di notificare
 
 
 # ── INVIO MESSAGGIO TELEGRAM ───────────────────────────────
@@ -127,6 +129,88 @@ def load_alert_state() -> dict:
 
 def save_alert_state(state: dict) -> None:
     _save_sent_alerts(state)
+
+
+# ── CAMBIO REGIME (dedup a stato, NON il day_lock a 5gg dei ticker) ────────
+# Il Regime è globale (non per ticker) e va notificato solo quando cambia
+# stato, non ad ogni run. Serve inoltre un minimo di isteresi: alcuni "attori"
+# di compute_regime() usano prezzi live, quindi vicino alle soglie ±15 il
+# composito potrebbe oscillare avanti e indietro nell'arco della giornata.
+# Richiediamo REGIME_CONFIRM_RUNS run consecutivi con lo stesso nuovo regime
+# prima di considerarlo "confermato" e generare il candidato di alert.
+def _load_regime_state() -> dict:
+    if not REGIME_STATE_FILE.exists():
+        return {"last_notified": None, "pending": None, "pending_count": 0}
+    try:
+        return json.loads(REGIME_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"last_notified": None, "pending": None, "pending_count": 0}
+
+
+def _save_regime_state(state: dict) -> None:
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        REGIME_STATE_FILE.write_text(
+            json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
+def check_regime_change(regime_result: dict) -> dict | None:
+    """
+    Da chiamare ad ogni run con l'output di compute_regime(). Aggiorna sempre
+    il bookkeeping (pending/pending_count) su disco; ritorna un candidato di
+    alert SOLO quando il nuovo regime è confermato per REGIME_CONFIRM_RUNS run
+    consecutivi ed è diverso dall'ultimo notificato.
+    NON marca last_notified: quello lo fa register_regime_notified(), da
+    chiamare solo a invio Telegram riuscito — stesso principio del day_lock
+    a 5gg già usato per gli alert per ticker.
+    """
+    current = regime_result.get("regime")
+    if not current:
+        return None
+    state = _load_regime_state()
+    candidate = None
+
+    if current == state.get("last_notified"):
+        state["pending"], state["pending_count"] = None, 0
+    else:
+        if current == state.get("pending"):
+            state["pending_count"] = int(state.get("pending_count", 0)) + 1
+        else:
+            state["pending"], state["pending_count"] = current, 1
+
+        if state["pending_count"] >= REGIME_CONFIRM_RUNS:
+            prev = state.get("last_notified") or "n/d"
+            composite = regime_result.get("composite", 0.0)
+            messaggio = (
+                f"🧭 *CAMBIO REGIME DI MERCATO* 🧭\n\n"
+                f"La bussola è passata da *{prev}* a *{current}*.\n"
+                f"▪️ *Punteggio composito:* {composite:+.1f}\n\n"
+                f"ℹ️ _Il Regime modula la size delle posizioni, non è un "
+                f"filtro di ingresso: non apre né chiude trade in "
+                f"Simulazione automaticamente._"
+            )
+            candidate = {
+                "ticker": None,
+                "text": messaggio,
+                "type": "REGIME_CHANGE",
+                "price": None,
+                "score": None,
+                "regime": current,
+            }
+
+    _save_regime_state(state)
+    return candidate
+
+
+def register_regime_notified(regime: str) -> None:
+    """Da chiamare solo dopo invio Telegram riuscito del cambio regime."""
+    state = _load_regime_state()
+    state["last_notified"] = regime
+    state["pending"], state["pending_count"] = None, 0
+    _save_regime_state(state)
 
 
 # ── Helper punteggio ──
