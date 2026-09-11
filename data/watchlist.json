@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-11T09:12:00.028272+00:00",
+  "updated": "2026-09-11T09:12:58.759283+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -660,7 +660,11 @@
       "poc": 69.3706,
       "poc_origin": "auto",
       "vwap": 66.5109,
-      "levels": {},
+      "levels": {
+        "L1": 81.0,
+        "L2": 60.0,
+        "L3": 30.0
+      },
       "notes": "",
       "target_date": null,
       "sector": "tech",
@@ -2102,7 +2106,7 @@
       "last_reviewed": "2026-09-11T09:12:00.023361+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 2.3039,
       "levels": {
         "L1": 2.35,
         "L2": 2.27,
