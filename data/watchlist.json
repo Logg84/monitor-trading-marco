@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-11T18:58:05.380495+00:00",
+  "updated": "2026-09-11T23:32:10.550622+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1696,20 +1696,6 @@
       "sub": "aero_difesa"
     },
     {
-      "ticker": "AON",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.418651+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.418661+00:00",
-      "poc": 352.208,
-      "poc_origin": "auto",
-      "vwap": 341.5148,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "assicurazioni"
-    },
-    {
       "ticker": "ORLY",
       "origin": "auto",
       "created": "2026-09-10T17:35:54.426631+00:00",
@@ -2124,20 +2110,6 @@
       "sub": "REIT"
     },
     {
-      "ticker": "MGM",
-      "origin": "auto",
-      "created": "2026-09-11T14:38:18.397562+00:00",
-      "last_reviewed": "2026-09-11T14:38:18.397571+00:00",
-      "poc": 37.2909,
-      "poc_origin": "auto",
-      "vwap": 45.3965,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": null
-    },
-    {
       "ticker": "DASH",
       "origin": "auto",
       "created": "2026-09-11T14:38:18.403098+00:00",
@@ -2173,20 +2145,6 @@
       "poc": 74.2267,
       "poc_origin": "auto",
       "vwap": 89.8096,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
-      "ticker": "NOW",
-      "origin": "auto",
-      "created": "2026-09-11T17:59:34.254812+00:00",
-      "last_reviewed": "2026-09-11T17:59:34.254818+00:00",
-      "poc": 98.5616,
-      "poc_origin": "auto",
-      "vwap": 112.8071,
       "levels": {},
       "notes": "",
       "target_date": null,
