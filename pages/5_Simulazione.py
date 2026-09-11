@@ -9,18 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from pathlib import Path
 
-st.set_page_config(page_title="Simulazione Trading", page_icon="🎮", layout="wide",
-                   initial_sidebar_state="collapsed")
-
-from ui.theme import inject_css
-from ui.nav import render_navbar, sidebar_nav
-
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True
-
-inject_css(dark=st.session_state.dark_mode)
-render_navbar(title="Simulazione")
-sidebar_nav()
+st.set_page_config(page_title="Simulazione Trading", page_icon="🎮", layout="wide")
 
 CSV_PATH = Path("data/simulazione_trades.csv")
 
@@ -133,13 +122,47 @@ st.divider()
 # ── Trade Aperti ──────────────────────────────────────────────
 st.markdown("### 🟢 Trade Aperti")
 if not trade_aperti.empty:
-    cols_to_show = ['Ticker', 'Prezzo_Ingresso', 'SL_Attuale', 'TP1_Prezzo', 'TP2_Prezzo',
-                    'TP3_Prezzo', 'TP4_Prezzo', 'Quantita_Residua_%',
-                    'PnL_Realizzato_%', 'PnL_Latente_%', 'Max_Drawdown_%', 'Score_Alert', 'Note']
-    cols_to_show = [c for c in cols_to_show if c in trade_aperti.columns]
+    # Calcola prezzo corrente per ogni trade
+    import yfinance as yf
+    
+    trade_aperti_display = trade_aperti.copy()
+    prezzi_correnti = []
+    
+    for idx, row in trade_aperti_display.iterrows():
+        ticker = row['Ticker']
+        try:
+            tk = yf.Ticker(ticker)
+            hist = tk.history(period="1d")
+            if not hist.empty:
+                prezzo_corrente = float(hist['Close'].iloc[-1])
+                prezzi_correnti.append(prezzo_corrente)
+            else:
+                prezzi_correnti.append(None)
+        except Exception:
+            prezzi_correnti.append(None)
+    
+    trade_aperti_display['Prezzo_Corrente'] = prezzi_correnti
+    
+    # Semplifica la colonna Note: mostra solo l'emoji del reversal
+    def get_reversal_emoji(note):
+        if 'REVERSAL_GREEN' in str(note):
+            return '🟢'
+        elif 'REVERSAL_YELLOW' in str(note):
+            return '🟡'
+        return '—'
+    
+    trade_aperti_display['Segnale'] = trade_aperti_display['Note'].apply(get_reversal_emoji)
+    
+    cols_to_show = ['Ticker', 'Prezzo_Ingresso', 'Prezzo_Corrente', 'SL_Attuale', 
+                    'TP1_Prezzo', 'TP2_Prezzo', 'TP3_Prezzo', 'TP4_Prezzo', 
+                    'Quantita_Residua_%', 'PnL_Realizzato_%', 'PnL_Latente_%', 
+                    'Max_Drawdown_%', 'Score_Alert', 'Segnale']
+    cols_to_show = [c for c in cols_to_show if c in trade_aperti_display.columns]
+    
     st.dataframe(
-        trade_aperti[cols_to_show].style.format({
+        trade_aperti_display[cols_to_show].style.format({
             'Prezzo_Ingresso': '{:.2f}',
+            'Prezzo_Corrente': '{:.2f}',
             'SL_Attuale': '{:.2f}',
             'TP1_Prezzo': '{:.2f}',
             'TP2_Prezzo': '{:.2f}',
@@ -266,8 +289,3 @@ TP2_CLOSE_PCT = 20.0        # TP2 chiude 20%
 TP3_CLOSE_PCT = 30.0        # TP3 chiude 30%
 TP4_CLOSE_PCT = 30.0        # TP4 chiude 30%
 MIN_SCORE_FOR_TRADE = 4     # Score minimo
-```
-
-**Nota**: questa è una simulazione didattica. Non tiene conto di slippage,
-commissioni, o liquidità reale. I risultati passati non garantiscono performance future.
-""")
