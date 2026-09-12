@@ -341,9 +341,10 @@ def confluence_score(z1: dict | None, z2: dict | None, vwaps: list, atr20: float
         total += w * np.exp(-dist / tol)
     return int(round(100 * min(1.0, total)))
 
-TOTAL_BONUS_CAP = 18  # tetto sulla SOMMA bonus_sector + bonus_confluence in Priorità
-# (sotto la somma dei due massimi individuali, 15+10=25: forza una compressione
-# quando entrambi i bonus sono alti insieme, invece di sommarsi senza limite)
+TOTAL_BONUS_CAP = 18  # tetto sulla SOMMA bonus_sector + bonus_confluence + bonus_sifrediana in Priorità
+# (sotto la somma dei tre massimi individuali, 15+10+8=33: forza una
+# compressione quando più bonus sono alti insieme, invece di sommarsi senza
+# limite)
 
 def bonus_confluence(score: int | None, max_bonus: int = 10) -> int:
     """
@@ -357,6 +358,23 @@ def bonus_confluence(score: int | None, max_bonus: int = 10) -> int:
     if not score:
         return 0
     return int(round(np.clip(score, 0, 100) / 100 * max_bonus))
+
+def bonus_sifrediana(sifrediana_today: bool, drawdown: float | None,
+                      max_bonus: int = 8, dd_threshold: float = -20.0) -> int:
+    """
+    Bonus di Priorità, SOLO positivo e SOLO binario (max_bonus o 0): una
+    Sifrediana oggi vale un peso extra in ordinamento, ma unicamente se il
+    titolo è già in forte sconto (drawdown <= dd_threshold). La scansione
+    Sifrediana resta universe-wide (non solo Watchlist) per continuare a
+    scoprire titoli nuovi con interesse istituzionale — questa condizione
+    non tocca lo scan, solo il peso che gli diamo dopo: una Sifrediana su un
+    titolo vicino ai massimi (rottura, non mean-reversion) non prende bonus.
+    Cap volutamente più basso di Confluenza (8 vs 10): stessa logica, nessun
+    backtest dietro ancora.
+    """
+    if not sifrediana_today or drawdown is None or drawdown > dd_threshold:
+        return 0
+    return max_bonus
 
 # ── Health Check ───────────────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -775,15 +793,16 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                     sub_score = _sub.get("score")
                     sub_delta = _sub.get("d63")
                 if bs["score"] is not None:
-                    # Cap complessivo TOTAL_BONUS_CAP sulla SOMMA dei due bonus,
-                    # non sui singoli: preso da solo ognuno arriva rispettivamente
-                    # a ±15 (settore) e 0..+10 (confluenza), ma sommati senza un
-                    # tetto comune un titolo con entrambi alti salirebbe in
-                    # Priorità più di uno con Bottom Score migliore ma senza
-                    # bonus — un'interazione che nessuno dei due limiti singoli,
-                    # pensati in isolamento, teneva conto.
+                    # Cap complessivo TOTAL_BONUS_CAP sulla SOMMA dei tre bonus,
+                    # non sui singoli: presi da soli arrivano rispettivamente a
+                    # ±15 (settore), 0..+10 (confluenza) e 0/+8 (sifrediana), ma
+                    # sommati senza un tetto comune un titolo con più bonus alti
+                    # insieme salirebbe in Priorità più di uno con Bottom Score
+                    # migliore ma senza bonus — un'interazione che nessuno dei
+                    # limiti singoli, pensati in isolamento, teneva conto.
                     combined_bonus = int(np.clip(
-                        bonus_sector(sec_score) + bonus_confluence(conf_val),
+                        bonus_sector(sec_score) + bonus_confluence(conf_val)
+                        + bonus_sifrediana(rev.get("sifrediana_today", False), bs["drawdown"]),
                         -TOTAL_BONUS_CAP, TOTAL_BONUS_CAP))
                     sec_prio = int(round(bs["score"] + combined_bonus))
             except Exception:
