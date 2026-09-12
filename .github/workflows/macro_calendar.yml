@@ -1,0 +1,40 @@
+name: macro-calendar-monthly
+
+on:
+  schedule:
+    # Ore 07:00 UTC del giorno 1 di ogni mese
+    - cron: "0 7 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Aggiorna calendario macro (NFP/CPI da BLS, FOMC da Fed)
+        run: python scripts/update_macro_calendar.py
+
+      - name: Commit calendario macro
+        run: |
+          git config user.name "argo-bot"
+          git config user.email "argo-bot@users.noreply.github.com"
+          git add data/macro_events.json
+          git diff --cached --quiet || git commit -m "chore: aggiornamento mensile calendario macro"
+          for i in 1 2 3 4 5; do
+            git push && break
+            echo "Push rifiutato (tentativo $i/5): remoto avanzato, rebase e ritento..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; }
+            sleep $((i * 5))
+          done
