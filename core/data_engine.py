@@ -12,7 +12,7 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 from core.wyckoff import wyckoff_analysis
-from core.sectors import (priorita, sector_cell, sector_label, sector_of, sector_rows, sub_of, sub_rows, vento)
+from core.sectors import (bonus_sector, sector_cell, sector_label, sector_of, sector_rows, sub_of, sub_rows, vento)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INDICES_DIR = DATA_DIR / "indices"
@@ -340,6 +340,10 @@ def confluence_score(z1: dict | None, z2: dict | None, vwaps: list, atr20: float
         dist = abs(val - ref)
         total += w * np.exp(-dist / tol)
     return int(round(100 * min(1.0, total)))
+
+TOTAL_BONUS_CAP = 18  # tetto sulla SOMMA bonus_sector + bonus_confluence in Priorità
+# (sotto la somma dei due massimi individuali, 15+10=25: forza una compressione
+# quando entrambi i bonus sono alti insieme, invece di sommarsi senza limite)
 
 def bonus_confluence(score: int | None, max_bonus: int = 10) -> int:
     """
@@ -770,9 +774,18 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                     sub_lbl = _sub["label"]
                     sub_score = _sub.get("score")
                     sub_delta = _sub.get("d63")
-                sec_prio = priorita(bs["score"], sec_score)
-                if sec_prio is not None:
-                    sec_prio += bonus_confluence(conf_val)
+                if bs["score"] is not None:
+                    # Cap complessivo TOTAL_BONUS_CAP sulla SOMMA dei due bonus,
+                    # non sui singoli: preso da solo ognuno arriva rispettivamente
+                    # a ±15 (settore) e 0..+10 (confluenza), ma sommati senza un
+                    # tetto comune un titolo con entrambi alti salirebbe in
+                    # Priorità più di uno con Bottom Score migliore ma senza
+                    # bonus — un'interazione che nessuno dei due limiti singoli,
+                    # pensati in isolamento, teneva conto.
+                    combined_bonus = int(np.clip(
+                        bonus_sector(sec_score) + bonus_confluence(conf_val),
+                        -TOTAL_BONUS_CAP, TOTAL_BONUS_CAP))
+                    sec_prio = int(round(bs["score"] + combined_bonus))
             except Exception:
                 pass
             rows.append({
