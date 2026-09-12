@@ -11,18 +11,33 @@ CORREZIONI APPLICATE (Settembre 2026):
 """
 from __future__ import annotations
 
+import datetime as _dt
+import json
+import time
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 import yfinance as yf
 
+ACTOR_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "regime_actor_cache.json"
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _close(ticker: str, period: str = "3y") -> pd.Series:
-    try:
-        df = yf.Ticker(ticker).history(period=period, auto_adjust=True)
-    except Exception:
-        return pd.Series(dtype=float)
-    return df["Close"].dropna() if not df.empty else pd.Series(dtype=float)
+    """Fino a 3 tentativi ravvicinati per assorbire un blip transitorio di
+    yfinance nello stesso run, prima di arrendersi (il fallback vero, su dato
+    dell'ultimo run riuscito, è gestito a livello di attore da _with_fallback)."""
+    for attempt in range(3):
+        try:
+            df = yf.Ticker(ticker).history(period=period, auto_adjust=True)
+            if not df.empty:
+                return df["Close"].dropna()
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(2)
+    return pd.Series(dtype=float)
 
 # ── PUT/CALL RATIO: Multi-source fallback ────────────────────
 # CBOE ha smesso di pubblicare i feed gratuiti storici nel 2019.
@@ -209,11 +224,59 @@ def compute_regime(cot: dict | None = None) -> dict:
         return _compute_regime_impl(cot)
     return _compute_regime_cached()
 
+def _load_actor_cache() -> dict:
+    if not ACTOR_CACHE_FILE.exists():
+        return {}
+    try:
+        return json.loads(ACTOR_CACHE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def _save_actor_cache(cache: dict) -> None:
+    try:
+        ACTOR_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ACTOR_CACHE_FILE.write_text(
+            json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+def _with_fallback(actor: dict, cache: dict) -> dict:
+    """
+    Priorità: avere sempre un dato, anche se leggermente vecchio, piuttosto
+    che far sparire l'attore dal composito per un singolo run sfortunato di
+    yfinance. Se l'attore ha dati freschi, aggiorna la cache su disco per la
+    prossima volta. Se non li ha ("no data"), usa l'ultimo valore noto salvato
+    (marcato come fallback e con l'età in giorni, visibile nel dettaglio attore
+    sulla pagina Regime). Solo se non c'è NESSUN dato pregresso l'attore resta
+    "no data" e viene escluso dalla media pesata, come già faceva il codice.
+    Non si applica agli attori COT (gestiti a parte, con la propria cadenza
+    settimanale in data/cot/cot_data.json).
+    """
+    name = actor["name"]
+    if actor["source"] != "no data":
+        cache[name] = {**actor, "cached_at": _dt.date.today().isoformat()}
+        return actor
+    cached = cache.get(name)
+    if not cached:
+        return actor
+    try:
+        stale_days = (_dt.date.today() - _dt.date.fromisoformat(cached["cached_at"])).days
+    except Exception:
+        return actor
+    return {
+        **cached,
+        "detail": f"{cached['detail']} (fallback, dato di {stale_days}gg fa)",
+    }
+
 def _compute_regime_impl(cot: dict | None) -> dict:
-    actors = [
-        actor_institutions(), actor_risk_managers(), actor_vol_vol(),
-        actor_retail(), actor_managed_money(cot), actor_producers(cot),
+    cache = _load_actor_cache()
+    actors_prezzo = [
+        actor_institutions(), actor_risk_managers(), actor_vol_vol(), actor_retail(),
     ]
+    actors_prezzo = [_with_fallback(a, cache) for a in actors_prezzo]
+    _save_actor_cache(cache)
+    actors = actors_prezzo + [actor_managed_money(cot), actor_producers(cot)]
     usable = [a for a in actors if a["source"] not in ("no data", "COT assente")]
     den = sum(WEIGHTS[a["name"]] for a in usable)
     composite = (sum(a["score"] * WEIGHTS[a["name"]] for a in usable) / den) if den else 0.0
