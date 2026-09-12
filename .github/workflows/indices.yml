@@ -41,5 +41,11 @@ jobs:
             echo "Nessuna modifica da commitare"
           else
             git commit -m "Aggiornamento mensile costituenti indici"
-            git push
+            for i in 1 2 3 4 5; do
+              git push && break
+              echo "Push rifiutato (tentativo $i/5): remoto avanzato, rebase e ritento..."
+              git fetch origin main
+              git rebase origin/main || { git rebase --abort; }
+              sleep $((i * 5))
+            done
           fi
