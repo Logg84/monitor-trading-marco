@@ -27,4 +27,10 @@ jobs:
           # transitorio sul runner); git add su path inesistente farebbe fallire il job
           git add data/sectors_latest.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore: screening daily"
-          git push
+          for i in 1 2 3 4 5; do
+            git push && break
+            echo "Push rifiutato (tentativo $i/5): remoto avanzato, rebase e ritento..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; }
+            sleep $((i * 5))
+          done
