@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-11T23:32:10.550622+00:00",
+  "updated": "2026-09-12T06:15:43.105159+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1260,20 +1260,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "semiconduttori"
-    },
-    {
-      "ticker": "TXT",
-      "origin": "auto",
-      "created": "2026-09-08T18:06:21.128367+00:00",
-      "last_reviewed": "2026-09-08T18:06:21.128373+00:00",
-      "poc": 86.8114,
-      "poc_origin": "auto",
-      "vwap": 87.4514,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "aero_difesa"
     },
     {
       "ticker": "IDXX",
