@@ -166,7 +166,7 @@ if not trade_aperti.empty:
     cols_to_show = ['Ticker', 'Prezzo_Ingresso', 'Prezzo_Corrente', 'SL_Attuale', 
                     'TP1_Prezzo', 'TP2_Prezzo', 'TP3_Prezzo', 'TP4_Prezzo', 
                     'Quantita_Residua_%', 'PnL_Realizzato_%', 'PnL_Latente_%', 
-                    'Max_Drawdown_%', 'Score_Alert', 'Segnale']
+                    'Max_Drawdown_%', 'Score_Alert', 'Segnale', 'Origine_Segnale']
     cols_to_show = [c for c in cols_to_show if c in trade_aperti_display.columns]
     
     st.dataframe(
@@ -193,7 +193,7 @@ else:
 st.markdown("### 🔴 Trade Chiusi")
 if not trade_chiusi.empty:
     cols_to_show = ['Data_Ingresso', 'Ticker', 'Prezzo_Ingresso', 'Prezzo_Uscita',
-                    'PnL_Realizzato_%', 'Max_Drawdown_%', 'Score_Alert',
+                    'PnL_Realizzato_%', 'Max_Drawdown_%', 'Score_Alert', 'Origine_Segnale',
                     'Motivo_Uscita', 'Data_Uscita', 'Note']
     cols_to_show = [c for c in cols_to_show if c in trade_chiusi.columns]
 
