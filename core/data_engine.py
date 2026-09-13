@@ -511,7 +511,7 @@ def _d12(df: pd.DataFrame, i: int) -> tuple[bool, bool]:
 def reversal_state(df: pd.DataFrame, wdf: pd.DataFrame, zones: list[dict], anchors: list[dict], hc_score: int, es_positive: bool | None = None) -> dict:
     close = df["Close"]
     if len(close) < 30:
-        return {"dd": 0.0, "points": 0, "kind": None, "flags": {"B": False, "C": False, "G": False, "D": False, "E": False}, "sifrediana_today": False, "sif_details": {}}
+        return {"dd": 0.0, "points": 0, "kind": None, "origine_segnale": None, "flags": {"B": False, "C": False, "G": False, "D": False, "E": False}, "sifrediana_today": False, "sif_details": {}}
     price = float(close.iloc[-1])
     dd = (price / float(close.max()) - 1) * 100
     roc = close.pct_change(10) * 100
@@ -551,22 +551,38 @@ def reversal_state(df: pd.DataFrame, wdf: pd.DataFrame, zones: list[dict], ancho
     points = int(B) + int(C) + 2 * int(G) + int(D) + int(E)
     
     kind = None
+    # origine_segnale: distingue il percorso che ha prodotto kind, per poter
+    # segmentare le performance in Simulazione. NOTA: il bypass "sifrediana_today"
+    # qui sotto non genera mai un alert REVERSAL (compile_alerts lo intercetta
+    # prima, come CANDELONA) quindi non apre mai un trade — è tracciato solo
+    # per completezza/debug. Il percorso che conta davvero per i trade è
+    # "classico" (punti>=5 e D) vs "sifrediana_assistita" (soglia abbassata a
+    # punti>=4 grazie a una Sifrediana recente negli ultimi 3gg).
+    origine_segnale = None
     # Sifrediana SPECIFICAMENTE sulla candela corrente di oggi (ultimo elemento)
     today_sif, today_sif_details = check_sifrediana(df, len(close) - 1)
     
     if today_sif:
         kind = "🟢"  # Sblocca l'avviso immediato bypassando completamente il drawdown e i punti
+        origine_segnale = "sifrediana_bypass"
     elif dd <= -20:
         # Con Sifrediana recente, diamo la sufficienza per il segnale verde 🟢 a 4/6 punti (anziché 5/6)
-        if (points >= 5 and D) or (points >= 4 and any_sif):
+        classico_ok = points >= 5 and D
+        assistito_ok = points >= 4 and any_sif
+        if classico_ok or assistito_ok:
             kind = "🟢"
+            # Se il punteggio classico bastava comunque, resta "classico" anche
+            # se c'era anche una Sifrediana recente: l'assist non ha determinato l'esito.
+            origine_segnale = "classico" if classico_ok else "sifrediana_assistita"
         elif points >= 2:
             kind = "🟡"
+            origine_segnale = "classico"
             
     return {
         "dd": dd, 
         "points": points, 
         "kind": kind, 
+        "origine_segnale": origine_segnale,
         "flags": {"B": B, "C": C, "G": G, "D": D, "E": E},
         "sifrediana_today": today_sif,
         "sif_details": today_sif_details if today_sif else {}
@@ -822,6 +838,7 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                 "Z1c": round(z1["center"], 4) if z1 else None,
                 "In zona": in_lbl,
                 "Segnale": f"{rev['kind']} {rev['points']}/6" if rev["kind"] else "—",
+                "Origine_Segnale": rev.get("origine_segnale"),
                 "Sifrediana_Today": rev.get("sifrediana_today", False),
                 "Sif_Details": rev.get("sif_details", {}),
                 "Health": hc["score"],
