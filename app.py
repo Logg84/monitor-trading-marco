@@ -29,6 +29,7 @@ from core.watchlist_io import (
     update_target_date, is_stale, reconcile,
 )
 from core.alerts import load_alert_state
+from core.ai_explain import explain_watchlist_row, DISCLAIMER as AI_DISCLAIMER
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -454,6 +455,46 @@ else:
                     st.caption(sec_note)
             if sotto_note:
                 st.caption(sotto_note)
+
+            with st.expander("🤖 Spiega questa riga (AI)"):
+                from datetime import date as _ai_date
+                cache_key = f"ai_wl_{sel}_{_ai_date.today().isoformat()}"
+                if st.button("Genera spiegazione", key="ai_wl_btn"):
+                    ctx = {
+                        "ticker": sel,
+                        "nome": company_name(sel),
+                        "prezzo": round(price, 2),
+                        "drawdown_da_massimo_%": round(bs["drawdown"], 1),
+                        "rsi": round(bs["rsi"], 0) if bs.get("rsi") is not None else None,
+                        "bottom_score_su_100": bs["score"],
+                        "segnale": a["rev"]["kind"],
+                        "segnale_punti_su_6": a["rev"]["points"],
+                        "origine_segnale": a["rev"].get("origine_segnale"),
+                        "flag_wyckoff_volumetrici_BCGDE": {
+                            k: bool(v) for k, v in a["rev"]["flags"].items()
+                        },
+                        "wyckoff_score_su_10": wyk["score_10"] if wyk["n_events"] >= 2 else None,
+                        "wyckoff_eventi": wyk.get("events"),
+                        "vwap60": round(vwap60, 2),
+                        "zone_volumetriche_poc": [
+                            {"range": f"{z['lo']:.2f}-{z['hi']:.2f}", "score": z["score"]}
+                            for z in a["zones"][:2]
+                        ],
+                        "livelli_manuali": {k: v for k, v in levels.items() if v},
+                        "trimestrale_ultima_positiva": es["positive"],
+                        "settore_nota": sec_note or None,
+                        "sottosettore_nota": sotto_note or None,
+                    }
+                    with st.spinner("Genero la spiegazione…"):
+                        result = explain_watchlist_row(ctx)
+                    st.session_state[cache_key] = result
+                cached = st.session_state.get(cache_key)
+                if cached:
+                    if cached["ok"]:
+                        st.write(cached["text"])
+                        st.caption(AI_DISCLAIMER)
+                    else:
+                        st.error(cached["text"])
 
             with st.expander("🏭 Contesto di settore (ETF cap-w + equal-w)"):
                 sec_k_det = a.get("sector") or valid_key(sel_entry.get("sector"))
