@@ -19,7 +19,6 @@ from core.data_engine import earnings_dates_list
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SENT_ALERTS_FILE = DATA_DIR / "sent_alerts.json"
-SIMULAZIONE_CSV = DATA_DIR / "simulazione_trades.csv"
 REGIME_STATE_FILE = DATA_DIR / "regime_state.json"
 REGIME_CONFIRM_RUNS = 2  # run consecutivi di alert_checker.py (ogni 2h) prima di notificare
 
@@ -101,6 +100,7 @@ def _register_sent_alert(
     alert_type: str,
     price: float | None = None,
     score: int | None = None,
+    origine_segnale: str | None = None,
 ) -> None:
     state = _load_sent_alerts()
     now = _dt.datetime.now()
@@ -110,6 +110,7 @@ def _register_sent_alert(
         "type": alert_type,
         "timestamp": now.isoformat(),
         "score": score,
+        "origine_segnale": origine_segnale,
     }
     hist = state.get("history", [])
     hist.append({
@@ -118,6 +119,7 @@ def _register_sent_alert(
         "kind": alert_type,
         "price": price,
         "score": score,
+        "origine_segnale": origine_segnale,
     })
     state["history"] = hist[-200:]
     _save_sent_alerts(state)
@@ -311,12 +313,19 @@ def compile_alerts(df_screening: pd.DataFrame) -> list[dict]:
                 f"📈 Visualizza su TradingView"
             )
             score = _parse_segale_score(segnale)
+            # origine_segnale calcolato in reversal_state() e propagato fin qui
+            # nella colonna Origine_Segnale: "classico" (punti>=5) vs
+            # "sifrediana_assistita" (soglia abbassata a punti>=4 grazie a una
+            # Sifrediana recente). Il bypass "sifrediana_today" non arriva mai
+            # qui: quel caso viene intercettato sopra come CANDELONA.
+            origine_segnale = row.get("Origine_Segnale")
             alerts.append({
                 "ticker": ticker,
                 "text": messaggio,
                 "type": alert_type,
                 "price": float(prezzo) if pd.notna(prezzo) else None,
                 "score": score,
+                "origine_segnale": origine_segnale,
             })
     return alerts
 
@@ -410,47 +419,16 @@ def _earnings_alert_candidates(entries: list[dict], states: dict, warn_days: int
     return out
 
 
-# ── SIMULAZIONE CSV ────────────────────────────────────────
-def _aggiungi_trade_simulazione(alert: dict) -> None:
-    score = alert.get("score")
-    if score is None or score < 4:
-        return
-
-    ticker = alert["ticker"]
-    price = alert.get("price")
-    if not price:
-        return
-
-    row = {
-        "Data_Ingresso": pd.Timestamp.now().normalize().strftime("%Y-%m-%d"),
-        "Ticker": ticker,
-        "Prezzo_Ingresso": float(price),
-        "SL_Attuale": float(price) * 0.92,
-        "TP1_Prezzo": float(price) * 1.15,
-        "Quantita_Residua_%": 100.0,
-        "PnL_Realizzato_%": 0.0,
-        "PnL_Latente_%": 0.0,
-        "Max_Drawdown_%": 0.0,
-        "Stato": "Aperto",
-        "Score_Alert": int(score),
-        "Note": alert.get("type", ""),
-    }
-
-    if SIMULAZIONE_CSV.exists():
-        df = pd.read_csv(SIMULAZIONE_CSV)
-    else:
-        df = pd.DataFrame(columns=row.keys())
-
-    if not df.empty and "Ticker" in df.columns:
-        aperti = df[df["Stato"] == "Aperto"]
-        if ticker in aperti["Ticker"].values:
-            return
-
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    df.to_csv(SIMULAZIONE_CSV, index=False)
-
-
 # ── ENTRY POINT PRINCIPALE ─────────────────────────────────
+# NOTA: l'apertura trade di Simulazione è gestita ESCLUSIVAMENTE da
+# core/simulazione_engine.py (run_simulation → open_trade), che calcola SL
+# sul minimo settimanale reale e TP1-4 scalati. In precedenza esisteva qui
+# una _aggiungi_trade_simulazione() con SL/TP fissi (-8%/+15%) chiamata da
+# scripts/alert_checker.py PRIMA di simulazione_engine.py nello stesso
+# workflow: apriva il trade con quei valori semplificati, dopodiché
+# simulazione_engine.py trovava il ticker già "Aperto" e saltava — quindi
+# i trade reali nascevano tutti dal percorso rozzo, mai da quello corretto.
+# Rimossa il 12/09/2026 insieme alla sua chiamata in alert_checker.py.
 def check_alerts(
     entries: list[dict] | None = None,
     states: dict | None = None,
@@ -475,6 +453,7 @@ def check_alerts(
                 "Segnale": s.get("segnale", "—"),
                 "Wyckoff": s.get("wyckoff", "—"),
                 "Sifrediana_Today": s.get("sifrediana_today", False),
+                "Origine_Segnale": s.get("origine_segnale"),
                 "SectorScore": s.get("sector_score"),
                 "Vento": s.get("vento", "nd"),
                 "Settore": s.get("settore", "—"),
