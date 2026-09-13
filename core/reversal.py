@@ -58,13 +58,22 @@ def analyze_ticker(ticker: str) -> dict | None:
     return {"df": df, "wdf": wdf, "zones": zones, "anchors": anchors, "hc": hc, "es": es, "rev": rev, "wyckoff": wyk, "sector": sector, "sub": sub}
 
 def auto_populate(rows) -> list[str]:
-    """Aggiunge in watchlist (🤖) i ticker 🟡/🟢 assenti. Ritorna i ticker aggiunti."""
+    """Aggiunge in watchlist (🤖) i ticker 🟡/🟢 assenti. Ritorna i ticker aggiunti.
+    NOTA: esclude il 🟢 da bypass Sifrediana puro (Origine_Segnale ==
+    "sifrediana_bypass"): quel bypass non richiede alcun drawdown minimo, e
+    farlo entrare in Watchlist romperebbe la premessa "entry significativamente
+    lontane dall'ATH". La candela viene comunque segnalata via alert CANDELONA
+    (che scansiona tutto l'universo, non solo la Watchlist), solo non fa
+    scattare l'ingresso automatico.
+    """
     entries = load_watchlist()
     have = {e["ticker"] for e in entries}
     added = []
     for r in rows:
         sig = str(r.get("Segnale", ""))
         t = r["Ticker"]
+        if r.get("Origine_Segnale") == "sifrediana_bypass":
+            continue
         if sig.startswith(("🟡", "🟢")) and t not in have:
             try:
                 add_entry(t, origin="auto", poc=r.get("Z1c"))
