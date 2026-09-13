@@ -86,7 +86,7 @@ def _empty_trades_df() -> pd.DataFrame:
         'SL_Prezzo', 'SL_Attuale',
         'TP1_Prezzo', 'TP2_Prezzo', 'TP3_Prezzo', 'TP4_Prezzo',
         'Quantita_Residua_%', 'PnL_Realizzato_%', 'PnL_Latente_%',
-        'Max_Drawdown_%', 'Score_Alert', 'Stato',
+        'Max_Drawdown_%', 'Score_Alert', 'Origine_Segnale', 'Stato',
         'Data_Uscita', 'Prezzo_Uscita', 'Motivo_Uscita', 'Note',
     ])
 
@@ -236,13 +236,15 @@ def find_new_trades_to_open(alerts_state: dict, existing_trades: pd.DataFrame) -
             "alert_price": alert.get("price"),
             "score": alert["score"],
             "kind": alert["kind"],
+            "origine_segnale": alert.get("origine_segnale"),
         })
 
     return new_trades
 
 
 def open_trade(ticker: str, entry_price: float, score: int,
-               alert_ts: str, kind: str) -> Optional[dict]:
+               alert_ts: str, kind: str,
+               origine_segnale: Optional[str] = None) -> Optional[dict]:
     """
     Crea un nuovo trade LONG con:
     - SL sull'ultimo minimo settimanale (ultime 4 settimane)
@@ -277,11 +279,12 @@ def open_trade(ticker: str, entry_price: float, score: int,
         "PnL_Latente_%": 0.0,
         "Max_Drawdown_%": 0.0,
         "Score_Alert": score,
+        "Origine_Segnale": origine_segnale,
         "Stato": "Aperto",
         "Data_Uscita": None,
         "Prezzo_Uscita": None,
         "Motivo_Uscita": None,
-        "Note": f"{kind} · {alert_ts[:10]} · SL={sl_price:.2f}",
+        "Note": f"{kind} · {origine_segnale or 'n/d'} · {alert_ts[:10]} · SL={sl_price:.2f}",
     }
 
 
@@ -459,6 +462,7 @@ def run_simulation() -> tuple[int, int]:
             score=info["score"],
             alert_ts=info["alert_ts"],
             kind=info["kind"],
+            origine_segnale=info.get("origine_segnale"),
         )
         if trade:
             new_trades.append(trade)
