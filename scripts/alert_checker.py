@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pandas as pd
 from core.reversal import analyze_ticker
 from core.watchlist_io import load_watchlist
 from core.data_engine import (
@@ -25,7 +24,6 @@ from core.alerts import (
     register_regime_notified,
     send_telegram,
     _register_sent_alert,
-    _aggiungi_trade_simulazione,
 )
 
 
@@ -48,6 +46,7 @@ def _build_state(e: dict, a: dict, srows: dict) -> dict:
         "segnale": f"{rev['kind']} {rev['points']}/6" if rev["kind"] else "—",
         "wyckoff": f"{wyk['score_10']}/10" if wyk["n_events"] >= 2 else "—",
         "sifrediana_today": bool(rev.get("sifrediana_today", False)),
+        "origine_segnale": rev.get("origine_segnale"),
         "sector_score": (sec_row or {}).get("score"),
         "vento": vento_sector(sec_key, srows) if sec_key else "nd",
         "settore": sector_label(sec_key) if sec_key else "—",
@@ -103,9 +102,12 @@ def main() -> None:
                 register_regime_notified(a["regime"])
             else:
                 _register_sent_alert(
-                    a["ticker"], a["type"], price=a.get("price"), score=a.get("score")
+                    a["ticker"], a["type"], price=a.get("price"), score=a.get("score"),
+                    origine_segnale=a.get("origine_segnale"),
                 )
-                _aggiungi_trade_simulazione(a)
+                # L'apertura trade è gestita da core/simulazione_engine.py
+                # (eseguito subito dopo in questo stesso workflow), che legge
+                # la history appena aggiornata in sent_alerts.json.
             etichetta = a["text"].splitlines()[0][:80]
             print(f"[{a['type']}] {etichetta} → Telegram: ok")
             success_count += 1
