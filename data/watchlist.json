@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T13:33:37.336002+00:00",
+  "updated": "2026-09-14T13:34:13.507393+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2237,7 +2237,7 @@
       "last_reviewed": "2026-09-14T13:33:37.331446+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 45.1793,
       "levels": {
         "L1": 35.0,
         "L2": 25.0,
@@ -2247,6 +2247,24 @@
       "target_date": null,
       "sector": "utilities",
       "sub": "utility_regolate"
+    },
+    {
+      "ticker": "DVN",
+      "origin": "manual",
+      "created": "2026-09-14T13:34:13.502302+00:00",
+      "last_reviewed": "2026-09-14T13:34:13.502317+00:00",
+      "poc": null,
+      "poc_origin": null,
+      "vwap": null,
+      "levels": {
+        "L1": 32.0,
+        "L2": 50.0,
+        "L3": 60.0
+      },
+      "notes": "",
+      "target_date": null,
+      "sector": "energia",
+      "sub": "gas_e_p"
     }
   ]
 }
