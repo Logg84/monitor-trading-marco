@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T13:49:31.566963+00:00",
+  "updated": "2026-09-14T17:14:56.422996+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -97,20 +97,6 @@
       "sector": "industriale"
     },
     {
-      "ticker": "OTIS",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.641294+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.641305+00:00",
-      "poc": 73.5937,
-      "poc_origin": "auto",
-      "vwap": 71.8734,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "capital_goods"
-    },
-    {
       "ticker": "ALNY",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.646713+00:00",
@@ -137,19 +123,6 @@
       "target_date": null,
       "sector": "sanita",
       "sub": "servizi_sanita"
-    },
-    {
-      "ticker": "CRH",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.676572+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.676582+00:00",
-      "poc": 99.0758,
-      "poc_origin": "auto",
-      "vwap": 100.291,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "materiali"
     },
     {
       "ticker": "TPL",
@@ -445,20 +418,6 @@
       "sub": "telecom"
     },
     {
-      "ticker": "PODD",
-      "origin": "auto",
-      "created": "2026-08-31T14:20:32.198915+00:00",
-      "last_reviewed": "2026-08-31T14:20:32.198926+00:00",
-      "poc": 148.1915,
-      "poc_origin": "auto",
-      "vwap": 149.8546,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "dispositivi"
-    },
-    {
       "ticker": "ERIE",
       "origin": "auto",
       "created": "2026-08-31T14:20:32.204391+00:00",
@@ -471,24 +430,6 @@
       "target_date": null,
       "sector": "finanziario",
       "sub": "assicurazioni"
-    },
-    {
-      "ticker": "SWKS",
-      "origin": "auto",
-      "created": "2026-08-31T14:20:32.212140+00:00",
-      "last_reviewed": "2026-08-31T14:20:32.212143+00:00",
-      "poc": 69.3706,
-      "poc_origin": "auto",
-      "vwap": 67.0974,
-      "levels": {
-        "L1": 81.0,
-        "L2": 60.0,
-        "L3": 30.0
-      },
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "semiconduttori"
     },
     {
       "ticker": "DOW",
@@ -517,20 +458,6 @@
       "target_date": null,
       "sector": "materiali",
       "sub": "chimica"
-    },
-    {
-      "ticker": "SNDK",
-      "origin": "auto",
-      "created": "2026-08-31T14:20:32.366016+00:00",
-      "last_reviewed": "2026-08-31T14:20:32.366020+00:00",
-      "poc": 679.3064,
-      "poc_origin": "auto",
-      "vwap": 1579.8155,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "hardware"
     },
     {
       "ticker": "TSLA",
@@ -658,20 +585,6 @@
       "sub": "servizi_sanita"
     },
     {
-      "ticker": "REGN",
-      "origin": "auto",
-      "created": "2026-09-01T17:58:52.747002+00:00",
-      "last_reviewed": "2026-09-01T17:58:52.747009+00:00",
-      "poc": 724.606,
-      "poc_origin": "auto",
-      "vwap": 713.3333,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "biotech"
-    },
-    {
       "ticker": "TTD",
       "origin": "auto",
       "created": "2026-09-02T18:07:05.036273+00:00",
@@ -726,20 +639,6 @@
       "target_date": null,
       "sector": "sanita",
       "sub": "servizi_sanita"
-    },
-    {
-      "ticker": "GPN",
-      "origin": "auto",
-      "created": "2026-09-02T18:07:05.046437+00:00",
-      "last_reviewed": "2026-09-02T18:07:05.046442+00:00",
-      "poc": 75.749,
-      "poc_origin": "auto",
-      "vwap": 81.6343,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": null
     },
     {
       "ticker": "TAK",
@@ -1025,20 +924,6 @@
       "sub": "capital_goods"
     },
     {
-      "ticker": "APTV",
-      "origin": "auto",
-      "created": "2026-09-07T12:55:57.759695+00:00",
-      "last_reviewed": "2026-09-07T12:55:57.759702+00:00",
-      "poc": 68.4243,
-      "poc_origin": "auto",
-      "vwap": 51.6691,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "auto_componenti"
-    },
-    {
       "ticker": "GLW",
       "origin": "auto",
       "created": "2026-09-07T12:55:57.761850+00:00",
@@ -1207,20 +1092,6 @@
       "sub": "semiconduttori"
     },
     {
-      "ticker": "IDXX",
-      "origin": "auto",
-      "created": "2026-09-08T18:06:21.130507+00:00",
-      "last_reviewed": "2026-09-08T18:06:21.130514+00:00",
-      "poc": 480.1263,
-      "poc_origin": "auto",
-      "vwap": 556.9148,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "biotech"
-    },
-    {
       "ticker": "AZO",
       "origin": "auto",
       "created": "2026-09-08T18:06:21.132660+00:00",
@@ -1261,20 +1132,6 @@
       "target_date": null,
       "sector": "consumi_staples",
       "sub": "cibo_bevande"
-    },
-    {
-      "ticker": "MSTR",
-      "origin": "auto",
-      "created": "2026-09-08T18:06:21.141343+00:00",
-      "last_reviewed": "2026-09-08T18:06:21.141349+00:00",
-      "poc": 132.7862,
-      "poc_origin": "auto",
-      "vwap": 107.0104,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
     },
     {
       "ticker": "KLAC",
@@ -1913,20 +1770,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "semiconduttori"
-    },
-    {
-      "ticker": "MKC",
-      "origin": "auto",
-      "created": "2026-09-11T14:38:18.367982+00:00",
-      "last_reviewed": "2026-09-11T14:38:18.367993+00:00",
-      "poc": 66.8069,
-      "poc_origin": "auto",
-      "vwap": 51.1094,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
     },
     {
       "ticker": "GNRC",
