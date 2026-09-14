@@ -19,6 +19,7 @@ from core.data_engine import (
     load_screening_cache,
     get_prices, get_prices_long, atr, vwap_anchored,
     volume_zones, structural_anchors, bottom_score,
+    SHORT_FLOAT_SQUEEZE_TH,
 )
 from core import bg_screening as bg
 from core.macro_calendar import get_macro_badges
@@ -172,6 +173,8 @@ st.caption(
     "Settore: stato 0-100 del paniere ETF di settore (cap-weighted) con divergenza "
     "Δ EW−CW a 3 mesi; Priorità = Bottom + bonus settore (±10), serve a ordinare, "
     "non a decidere. Dettaglio numerico e grafico nel pannello 🏭 Settori. "
+    "⚡ SQUEEZE POTENZIALE: Short Float ≥8% + Sifrediana oggi — lettura di "
+    "attenzione, non un segnale operativo. "
     "Clicca una riga in una delle tre tabelle per aprire l'analisi di decelerazione. Lettura, mai ordine."
 )
 
@@ -183,7 +186,8 @@ st.caption(
 _SECT_COLS = {"Settore": "—", "SettoreKey": "", "Sector": "—", "SectorETF": "—",
               "SectorScore": None, "Δ EW−CW": None, "Vento": "nd",
               "Sotto-settore": "—", "SottoKey": "", "SottoScore": None,
-              "SottoΔ": None, "Priorità": None}
+              "SottoΔ": None, "Priorità": None,
+              "Short_Float_%": None, "Squeeze": False}
 _missing = [c for c in _SECT_COLS if c not in df.columns]
 df = df.copy()
 if _missing:
@@ -191,11 +195,14 @@ if _missing:
         df[c] = _SECT_COLS[c]
     st.info("Cache screening senza contesto settori (scansione precedente): "
             "riesegui lo screening per averlo.")
-for c in ("SectorScore", "Δ EW−CW", "SottoScore", "SottoΔ", "Priorità"):
+for c in ("SectorScore", "Δ EW−CW", "SottoScore", "SottoΔ", "Priorità", "Short_Float_%"):
     df[c] = pd.to_numeric(df[c], errors="coerce")
 df["SectorScore"] = df["SectorScore"].astype("Int64")
 df["Δ EW−CW"] = df["Δ EW−CW"].round(1)
 df["Priorità"] = df["Priorità"].astype("Int64")
+
+df["Squeeze"] = df["Squeeze"].fillna(False).astype(bool)
+df["⚡"] = df["Squeeze"].map(lambda b: "⚡ SQUEEZE POTENZIALE" if b else "—")
 
 srows, ssrc = sector_rows()
 _sig = df[df["Segnale"].astype(str).str.startswith(("🟡", "🟢"))]
@@ -217,6 +224,16 @@ if len(_favore):
                     for _, r in _favore.head(8).iterrows())
         + ("…" if len(_favore) > 8 else "")
         + " — vento a favore (Δ e stato nel pannello 🏭 Settori)."
+    )
+_squeeze = df[df["Squeeze"]]
+if len(_squeeze):
+    st.warning(
+        f"⚡ {len(_squeeze)} SQUEEZE POTENZIALE — Short Float ≥{SHORT_FLOAT_SQUEEZE_TH:.0f}% "
+        "e Sifrediana oggi: "
+        + ", ".join(f"{r['Ticker']} (SF {r['Short_Float_%']:.1f}%)"
+                    for _, r in _squeeze.head(8).iterrows())
+        + ("…" if len(_squeeze) > 8 else "")
+        + " — lettura di attenzione su un possibile short squeeze, non un segnale operativo."
     )
 _top = sorted(((k, v) for k, v in srows.items() if v.get("score") is not None),
               key=lambda kv: -kv[1]["score"])
@@ -241,7 +258,7 @@ sort_col = sc1.selectbox(
     "Ordina per",
     ["Bottom", "Priorità", "Confluenza", "DD%", "RSI", "Health", "Prezzo",
      "VWAP60", "VWA1", "Wyckoff", "SectorScore", "Δ EW−CW", "SottoScore",
-     "SottoΔ", "Settore", "Sotto-settore", "Nome", "Ticker"],
+     "SottoΔ", "Short_Float_%", "Settore", "Sotto-settore", "Nome", "Ticker"],
     index=0,
 )
 sort_dir = sc2.radio("Direzione", ["Discendente", "Ascendente"], horizontal=True)
@@ -291,6 +308,15 @@ _sec_cfg = {
         help="0-100: quanto la zona secondaria (Z2) e gli VWAP ancorati "
              "(VWA1-3) coincidono col centro della zona primaria (Z1, POC "
              "Maestro). Metrica di contesto, NON entra nel punteggio Segnale."),
+    "Short_Float_%": st.column_config.NumberColumn(
+        "Short Float %", format="%.1f%%",
+        help="% del flottante venduta allo scoperto (da yfinance, non "
+             f"disponibile per tutti i mercati). Soglia badge ⚡: "
+             f"≥{SHORT_FLOAT_SQUEEZE_TH:.0f}%."),
+    "⚡": st.column_config.TextColumn(
+        "⚡", help="SQUEEZE POTENZIALE: Short Float ≥"
+                   f"{SHORT_FLOAT_SQUEEZE_TH:.0f}% + Sifrediana oggi. "
+                   "Lettura di attenzione, non un segnale operativo."),
 }
 with tab1:
     ev_all = st.dataframe(df_sorted, use_container_width=True, hide_index=True,
