@@ -1139,6 +1139,22 @@
       "price": 2568.0,
       "score": 2,
       "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T11:10:36.656951",
+      "ticker": "SY1.DE",
+      "kind": "REVERSAL_YELLOW",
+      "price": 89.5999984741211,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T11:10:56.596850",
+      "ticker": "STMPA.PA",
+      "kind": "REVERSAL_YELLOW",
+      "price": 41.900001525878906,
+      "score": 2,
+      "origine_segnale": "classico"
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1396,10 +1412,12 @@
     "origine_segnale": "classico"
   },
   "STMPA.PA:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-14",
     "ticker": "STMPA.PA",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124480"
+    "timestamp": "2026-09-14T11:10:56.596850",
+    "score": 2,
+    "origine_segnale": "classico"
   },
   "WDC:REVERSAL_YELLOW": {
     "date": "2026-09-09",
@@ -1626,10 +1644,12 @@
     "origine_segnale": "classico"
   },
   "SY1.DE:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-14",
     "ticker": "SY1.DE",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T22:08:23.649132"
+    "timestamp": "2026-09-14T11:10:36.656951",
+    "score": 2,
+    "origine_segnale": "classico"
   },
   "VOW3.DE:SIFREDIANA": {
     "date": "2026-09-09",
