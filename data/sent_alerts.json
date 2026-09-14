@@ -1155,6 +1155,222 @@
       "price": 41.900001525878906,
       "score": 2,
       "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:12:35.958029",
+      "ticker": "FISV",
+      "kind": "REVERSAL_GREEN",
+      "price": 52.595001220703125,
+      "score": 5,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:12:43.391296",
+      "ticker": "DOW",
+      "kind": "REVERSAL_YELLOW",
+      "price": 28.795000076293945,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:12:49.430060",
+      "ticker": "FIS",
+      "kind": "REVERSAL_YELLOW",
+      "price": 39.849998474121094,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:12:50.953123",
+      "ticker": "RELX",
+      "kind": "REVERSAL_YELLOW",
+      "price": 35.6599006652832,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:12:52.548408",
+      "ticker": "CE",
+      "kind": "REVERSAL_YELLOW",
+      "price": 45.08000183105469,
+      "score": 4,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:05.942656",
+      "ticker": "ON",
+      "kind": "REVERSAL_YELLOW",
+      "price": 72.69000244140625,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:11.887364",
+      "ticker": "ISRG",
+      "kind": "REVERSAL_GREEN",
+      "price": 375.4849853515625,
+      "score": 4,
+      "origine_segnale": "sifrediana_assistita"
+    },
+    {
+      "ts": "2026-09-14T17:13:25.253849",
+      "ticker": "CSGP",
+      "kind": "REVERSAL_GREEN",
+      "price": 31.614999771118164,
+      "score": 5,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:29.739194",
+      "ticker": "GDDY",
+      "kind": "REVERSAL_GREEN",
+      "price": 104.30000305175781,
+      "score": 6,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:38.647212",
+      "ticker": "ZTS",
+      "kind": "REVERSAL_YELLOW",
+      "price": 73.86000061035156,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:43.062558",
+      "ticker": "BRO",
+      "kind": "REVERSAL_YELLOW",
+      "price": 68.04499816894531,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:46.133606",
+      "ticker": "PDD",
+      "kind": "REVERSAL_YELLOW",
+      "price": 80.31999969482422,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:47.639635",
+      "ticker": "CAP.PA",
+      "kind": "REVERSAL_YELLOW",
+      "price": 109.69999694824219,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:49.109113",
+      "ticker": "UBER",
+      "kind": "REVERSAL_YELLOW",
+      "price": 72.44999694824219,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:55.116104",
+      "ticker": "VICI",
+      "kind": "REVERSAL_YELLOW",
+      "price": 25.040000915527344,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:56.633914",
+      "ticker": "GEHC",
+      "kind": "REVERSAL_YELLOW",
+      "price": 64.14720153808594,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:13:58.166894",
+      "ticker": "AZN.L",
+      "kind": "SIFREDIANA",
+      "price": 12154.0,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T17:14:02.721418",
+      "ticker": "CTSH",
+      "kind": "REVERSAL_YELLOW",
+      "price": 64.08000183105469,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:14:05.691377",
+      "ticker": "WDAY",
+      "kind": "REVERSAL_GREEN",
+      "price": 194.88999938964844,
+      "score": 5,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:14:08.729685",
+      "ticker": "SHOP",
+      "kind": "REVERSAL_YELLOW",
+      "price": 134.13499450683594,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:14:10.243006",
+      "ticker": "NOW",
+      "kind": "REVERSAL_YELLOW",
+      "price": 142.27999877929688,
+      "score": 4,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:14:11.739178",
+      "ticker": "SAP.DE",
+      "kind": "REVERSAL_YELLOW",
+      "price": 186.25999450683594,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T17:14:14.757904",
+      "ticker": "SWKS",
+      "kind": "LIVELLO_L1",
+      "price": 80.70999908447266,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T17:14:16.283982",
+      "ticker": "A2A.MI",
+      "kind": "LIVELLO_L1",
+      "price": 2.318000078201294,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T17:14:17.779699",
+      "ticker": "RFIL",
+      "kind": "TRIMESTRALE_IMMINENTE",
+      "price": 8.619999885559082,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T17:14:19.264542",
+      "ticker": "HPE",
+      "kind": "SIFREDIANA",
+      "price": 62.09,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T17:14:20.798865",
+      "ticker": "DELL",
+      "kind": "SIFREDIANA",
+      "price": 567.29,
+      "score": null,
+      "origine_segnale": null
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1236,10 +1452,12 @@
     "timestamp": "2026-09-09T18:37:16.124384"
   },
   "DOW:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-14",
     "ticker": "DOW",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124387"
+    "timestamp": "2026-09-14T17:12:43.391296",
+    "score": 3,
+    "origine_segnale": "classico"
   },
   "LYB:REVERSAL_GREEN": {
     "date": "2026-09-09",
@@ -1316,10 +1534,12 @@
     "timestamp": "2026-09-09T18:37:16.124432"
   },
   "CE:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-14",
     "ticker": "CE",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124435"
+    "timestamp": "2026-09-14T17:12:52.548408",
+    "score": 4,
+    "origine_segnale": "classico"
   },
   "SPCX:REVERSAL_YELLOW": {
     "date": "2026-09-09",
@@ -1452,10 +1672,12 @@
     "timestamp": "2026-09-09T18:37:16.124501"
   },
   "ON:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-14",
     "ticker": "ON",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124504"
+    "timestamp": "2026-09-14T17:13:05.942656",
+    "score": 3,
+    "origine_segnale": "classico"
   },
   "MCHP:REVERSAL_YELLOW": {
     "date": "2026-09-14",
@@ -2168,5 +2390,197 @@
     "timestamp": "2026-09-14T08:49:43.537035",
     "score": 2,
     "origine_segnale": "classico"
+  },
+  "FISV:REVERSAL_GREEN": {
+    "date": "2026-09-14",
+    "ticker": "FISV",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-14T17:12:35.958029",
+    "score": 5,
+    "origine_segnale": "classico"
+  },
+  "FIS:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "FIS",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:12:49.430060",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "RELX:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "RELX",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:12:50.953123",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "ISRG:REVERSAL_GREEN": {
+    "date": "2026-09-14",
+    "ticker": "ISRG",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-14T17:13:11.887364",
+    "score": 4,
+    "origine_segnale": "sifrediana_assistita"
+  },
+  "CSGP:REVERSAL_GREEN": {
+    "date": "2026-09-14",
+    "ticker": "CSGP",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-14T17:13:25.253849",
+    "score": 5,
+    "origine_segnale": "classico"
+  },
+  "GDDY:REVERSAL_GREEN": {
+    "date": "2026-09-14",
+    "ticker": "GDDY",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-14T17:13:29.739194",
+    "score": 6,
+    "origine_segnale": "classico"
+  },
+  "ZTS:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "ZTS",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:38.647212",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "BRO:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "BRO",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:43.062558",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "PDD:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "PDD",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:46.133606",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "CAP.PA:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "CAP.PA",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:47.639635",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "UBER:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "UBER",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:49.109113",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "VICI:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "VICI",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:55.116104",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "GEHC:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "GEHC",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:13:56.633914",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "AZN.L:SIFREDIANA": {
+    "date": "2026-09-14",
+    "ticker": "AZN.L",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-14T17:13:58.166894",
+    "score": null,
+    "origine_segnale": null
+  },
+  "CTSH:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "CTSH",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:14:02.721418",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "WDAY:REVERSAL_GREEN": {
+    "date": "2026-09-14",
+    "ticker": "WDAY",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-14T17:14:05.691377",
+    "score": 5,
+    "origine_segnale": "classico"
+  },
+  "SHOP:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "SHOP",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:14:08.729685",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "NOW:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "NOW",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:14:10.243006",
+    "score": 4,
+    "origine_segnale": "classico"
+  },
+  "SAP.DE:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "SAP.DE",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T17:14:11.739178",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "SWKS:LIVELLO_L1": {
+    "date": "2026-09-14",
+    "ticker": "SWKS",
+    "type": "LIVELLO_L1",
+    "timestamp": "2026-09-14T17:14:14.757904",
+    "score": null,
+    "origine_segnale": null
+  },
+  "A2A.MI:LIVELLO_L1": {
+    "date": "2026-09-14",
+    "ticker": "A2A.MI",
+    "type": "LIVELLO_L1",
+    "timestamp": "2026-09-14T17:14:16.283982",
+    "score": null,
+    "origine_segnale": null
+  },
+  "RFIL:TRIMESTRALE_IMMINENTE": {
+    "date": "2026-09-14",
+    "ticker": "RFIL",
+    "type": "TRIMESTRALE_IMMINENTE",
+    "timestamp": "2026-09-14T17:14:17.779699",
+    "score": null,
+    "origine_segnale": null
+  },
+  "HPE:SIFREDIANA": {
+    "date": "2026-09-14",
+    "ticker": "HPE",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-14T17:14:19.264542",
+    "score": null,
+    "origine_segnale": null
+  },
+  "DELL:SIFREDIANA": {
+    "date": "2026-09-14",
+    "ticker": "DELL",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-14T17:14:20.798865",
+    "score": null,
+    "origine_segnale": null
   }
 }
