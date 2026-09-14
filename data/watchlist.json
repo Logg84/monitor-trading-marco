@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T08:10:46.084066+00:00",
+  "updated": "2026-09-14T08:11:00.030767+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2153,39 +2153,11 @@
       "sub": "software"
     },
     {
-      "ticker": "ALGN",
-      "origin": "auto",
-      "created": "2026-09-14T08:10:46.051908+00:00",
-      "last_reviewed": "2026-09-14T08:10:46.051918+00:00",
-      "poc": 174.1219,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "dispositivi"
-    },
-    {
       "ticker": "PTC",
       "origin": "auto",
       "created": "2026-09-14T08:10:46.057669+00:00",
       "last_reviewed": "2026-09-14T08:10:46.057681+00:00",
       "poc": 136.1027,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
-      "ticker": "IT",
-      "origin": "auto",
-      "created": "2026-09-14T08:10:46.063314+00:00",
-      "last_reviewed": "2026-09-14T08:10:46.063328+00:00",
-      "poc": 156.0879,
       "poc_origin": "auto",
       "vwap": null,
       "levels": {},
