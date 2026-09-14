@@ -45,7 +45,7 @@ def _get_secret(name: str, default=None):
         return default
 
 
-def _call_gemini(system_prompt: str, user_prompt: str) -> dict:
+def _call_gemini(system_prompt: str, user_prompt: str, max_tokens: int = 500) -> dict:
     """Ritorna sempre {"ok": bool, "text": str}, mai un'eccezione non gestita."""
     api_key = _get_secret("GEMINI_API_KEY")
     if not api_key:
@@ -56,7 +56,7 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> dict:
     payload = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": max_tokens},
     }
     try:
         resp = requests.post(url, params={"key": api_key}, json=payload, timeout=_TIMEOUT)
@@ -102,6 +102,34 @@ def explain_watchlist_row(ctx: dict) -> dict:
         "imminente, nota di settore se presente)."
     )
     return _call_gemini(_BASE_SYSTEM_PROMPT, user_prompt)
+
+
+# ────────────────────────────────────────────────────────────────
+# Watchlist — riassunto aggregato (invece della singola riga)
+# ────────────────────────────────────────────────────────────────
+_WATCHLIST_DIGEST_SYSTEM_PROMPT = _BASE_SYSTEM_PROMPT + """
+
+Regole aggiuntive per il riassunto aggregato di più titoli in Watchlist:
+6. Riceverai una LISTA di titoli, ciascuno con gli stessi dati già descritti sopra. Il tuo compito è trovare pattern, raggruppamenti e cose degne di nota TRA i titoli, non ripetere una spiegazione per ognuno.
+7. Non stilare una classifica tua e non insinuare quale titolo sia "il migliore" o "da guardare per primo": l'ordine di priorità è già deciso dal punteggio Bottom/Priorità calcolato dal portale, tu lo citi se utile ma non lo rifai.
+8. Struttura la risposta in 3-4 brevi paragrafi separati da una riga vuota (niente elenchi puntati, niente titoli/markdown): (a) quadro generale — quanti titoli, quanti con un Segnale attivo oggi e di che origine; (b) eventuali cluster ricorrenti (stesso settore/sotto-settore, stessa nota settoriale, flag Wyckoff comuni); (c) titoli con qualcosa di particolare da segnalare (badge Squeeze, trimestrale imminente, Sifrediana odierna, livelli manuali vicini); (d) se rilevante, dati mancanti o incoerenti che limitano la lettura.
+9. Se la lista è vuota o ha un solo titolo, dillo in una frase sola invece di forzare una sintesi."""
+
+
+def explain_watchlist_digest(entries: list[dict]) -> dict:
+    """
+    entries: lista di dict, uno per titolo in Watchlist, con la stessa forma
+    usata da explain_watchlist_row (vedi build in app.py). Restituisce un
+    'unico riassunto per l'intera lista, non una spiegazione per riga.
+    """
+    if not entries:
+        return {"ok": True, "text": "Nessun titolo in Watchlist al momento."}
+    user_prompt = (
+        f"Riassumi questi {len(entries)} titoli della mia Watchlist personale. "
+        "Dati già calcolati dal portale, uno per titolo (JSON):\n\n"
+        f"{json.dumps(entries, ensure_ascii=False, indent=2, default=str)}"
+    )
+    return _call_gemini(_WATCHLIST_DIGEST_SYSTEM_PROMPT, user_prompt, max_tokens=900)
 
 
 # ────────────────────────────────────────────────────────────────
