@@ -7,48 +7,6 @@
   },
   "history": [
     {
-      "ts": "2026-09-09T18:37:16.124338",
-      "ticker": "ZAL.DE",
-      "kind": "REVERSAL_YELLOW",
-      "price": 22.940000534057617
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124348",
-      "ticker": "SMCI",
-      "kind": "REVERSAL_YELLOW",
-      "price": 39.197601318359375
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124353",
-      "ticker": "CHRW",
-      "kind": "REVERSAL_YELLOW",
-      "price": 151.7050018310547
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124356",
-      "ticker": "DVA",
-      "kind": "REVERSAL_GREEN",
-      "price": 184.41000366210938
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124359",
-      "ticker": "TPL",
-      "kind": "REVERSAL_YELLOW",
-      "price": 377.0450134277344
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124362",
-      "ticker": "MOS",
-      "kind": "REVERSAL_YELLOW",
-      "price": 26.2450008392334
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124365",
-      "ticker": "CEG",
-      "kind": "REVERSAL_YELLOW",
-      "price": 294.17999267578125
-    },
-    {
       "ts": "2026-09-09T18:37:16.124368",
       "ticker": "IBM",
       "kind": "REVERSAL_GREEN",
@@ -1371,6 +1329,70 @@
       "price": 567.29,
       "score": null,
       "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T21:12:05.522059",
+      "ticker": "WDAY",
+      "kind": "REVERSAL_YELLOW",
+      "price": 194.2100067138672,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T21:12:12.108465",
+      "ticker": "IT",
+      "kind": "REVERSAL_YELLOW",
+      "price": 197.07000732421875,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-14T21:12:14.715788",
+      "ticker": "CE",
+      "kind": "LIVELLO_L2",
+      "price": 44.779998779296875,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T21:12:16.179265",
+      "ticker": "SPCX",
+      "kind": "LIVELLO_L1",
+      "price": 148.14999389648438,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T21:12:17.495690",
+      "ticker": "DVN",
+      "kind": "LIVELLO_L2",
+      "price": 49.72999954223633,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T21:12:18.874406",
+      "ticker": "BATS.L",
+      "kind": "SIFREDIANA",
+      "price": 4250.0,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T21:12:20.214639",
+      "ticker": "PANW",
+      "kind": "SIFREDIANA",
+      "price": 376.47,
+      "score": null,
+      "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-14T21:12:21.558332",
+      "ticker": "CRWD",
+      "kind": "SIFREDIANA",
+      "price": 236.5,
+      "score": null,
+      "origine_segnale": null
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1846,10 +1868,12 @@
     "origine_segnale": "classico"
   },
   "SPCX:LIVELLO_L1": {
-    "date": "2026-09-09",
+    "date": "2026-09-14",
     "ticker": "SPCX",
     "type": "LIVELLO_L1",
-    "timestamp": "2026-09-09T18:37:16.124587"
+    "timestamp": "2026-09-14T21:12:16.179265",
+    "score": null,
+    "origine_segnale": null
   },
   "FICO:SIFREDIANA": {
     "date": "2026-09-09",
@@ -2580,6 +2604,62 @@
     "ticker": "DELL",
     "type": "SIFREDIANA",
     "timestamp": "2026-09-14T17:14:20.798865",
+    "score": null,
+    "origine_segnale": null
+  },
+  "WDAY:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "WDAY",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T21:12:05.522059",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "IT:REVERSAL_YELLOW": {
+    "date": "2026-09-14",
+    "ticker": "IT",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-14T21:12:12.108465",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "CE:LIVELLO_L2": {
+    "date": "2026-09-14",
+    "ticker": "CE",
+    "type": "LIVELLO_L2",
+    "timestamp": "2026-09-14T21:12:14.715788",
+    "score": null,
+    "origine_segnale": null
+  },
+  "DVN:LIVELLO_L2": {
+    "date": "2026-09-14",
+    "ticker": "DVN",
+    "type": "LIVELLO_L2",
+    "timestamp": "2026-09-14T21:12:17.495690",
+    "score": null,
+    "origine_segnale": null
+  },
+  "BATS.L:SIFREDIANA": {
+    "date": "2026-09-14",
+    "ticker": "BATS.L",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-14T21:12:18.874406",
+    "score": null,
+    "origine_segnale": null
+  },
+  "PANW:SIFREDIANA": {
+    "date": "2026-09-14",
+    "ticker": "PANW",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-14T21:12:20.214639",
+    "score": null,
+    "origine_segnale": null
+  },
+  "CRWD:SIFREDIANA": {
+    "date": "2026-09-14",
+    "ticker": "CRWD",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-14T21:12:21.558332",
     "score": null,
     "origine_segnale": null
   }
