@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T13:49:11.678184+00:00",
+  "updated": "2026-09-14T13:49:31.566963+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2377,20 +2377,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "distribuzione"
-    },
-    {
-      "ticker": "IT",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.580846+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.580860+00:00",
-      "poc": 156.0879,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
     },
     {
       "ticker": "CAP.PA",
