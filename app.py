@@ -8,6 +8,7 @@ Lettura, mai ordine — non è consulenza.
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
+from datetime import date as _date
 
 st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide",
                    initial_sidebar_state="collapsed")
@@ -218,6 +219,7 @@ if not entries:
     st.info("Watchlist vuota. Aggiungi un titolo o promuovilo dallo Screening.")
 else:
     rows = []
+    ai_ctx_by_ticker = {}
     for e in entries:
         a = analyses.get(e["ticker"])
         if a is None:
@@ -249,15 +251,41 @@ else:
         td_fmt = "—"
         if td_raw:
             try:
-                from datetime import date as _date
                 td_fmt = _date.fromisoformat(td_raw).strftime("%d/%m/%y")
             except Exception:
                 td_fmt = td_raw
+        sec_note = note_for(sec_key, srows) if sec_key else ""
+        sotto_note = sub_note(sub_key, subrows) if sub_key else ""
+        vwap60_val = vwap_anchored(dfx)
+        ai_ctx_by_ticker[e["ticker"]] = {
+            "ticker": e["ticker"],
+            "nome": cname(e["ticker"]),
+            "prezzo": round(price, 2),
+            "drawdown_da_massimo_%": round(bs["drawdown"], 1),
+            "rsi": round(bs["rsi"], 0) if bs.get("rsi") is not None else None,
+            "bottom_score_su_100": bs["score"],
+            "segnale": rev["kind"],
+            "segnale_punti_su_6": rev["points"],
+            "origine_segnale": rev.get("origine_segnale"),
+            "flag_wyckoff_volumetrici_BCGDE": {k: bool(v) for k, v in rev["flags"].items()},
+            "wyckoff_score_su_10": wyk["score_10"] if wyk["n_events"] >= 2 else None,
+            "wyckoff_eventi": wyk.get("events"),
+            "vwap60": round(vwap60_val, 2),
+            "zone_volumetriche_poc": [
+                {"range": f"{z['lo']:.2f}-{z['hi']:.2f}", "score": z["score"]}
+                for z in a["zones"][:2]
+            ],
+            "livelli_manuali": {k: v for k, v in levels_e.items() if v},
+            "trimestrale_ultima_positiva": es["positive"],
+            "settore_nota": sec_note or None,
+            "sottosettore_nota": sotto_note or None,
+        }
         rows.append({
             "Orig.": "👤" if e["origin"] == "manual" else "🤖",
             "Ticker": e["ticker"],
             "TV": tradingview_url(e["ticker"]),
             "Nome": cname(e["ticker"]),
+            "🤖": False,
             "Settore": sec_lbl,
             "Sotto": sub_label_str(sub_key),
             "SottoΔ": ((subrows.get(sub_key) or {}).get("d63") if sub_key else None),
@@ -299,6 +327,13 @@ else:
         ).reset_index(drop=True)
 
         column_config = {
+            "🤖": st.column_config.CheckboxColumn(
+                "🤖",
+                help="Spunta per generare/mostrare la spiegazione AI di questa "
+                     "riga (compare subito sotto la tabella).",
+                width="small",
+                default=False,
+            ),
             "TV": st.column_config.LinkColumn(
                 "TV",
                 help="Apri il grafico su TradingView (nuova scheda)",
@@ -335,26 +370,49 @@ else:
                 help="⚠️ = entry manuale non revisionata da più di 4 mesi"),
         }
 
-        ev_w = st.dataframe(df_w, use_container_width=True, hide_index=True,
-                            column_config=column_config,
-                            on_select="rerun", selection_mode="single-row",
-                            key="tbl_watchlist")
+        disabled_cols = [c for c in df_w.columns if c != "🤖"]
+        edited_df = st.data_editor(
+            df_w, use_container_width=True, hide_index=True,
+            column_config=column_config,
+            disabled=disabled_cols,
+            num_rows="fixed",
+            key="tbl_watchlist",
+        )
         st.caption(
-            "👁️ Da rivedere: compare solo sulle entry 👤 manuali non "
+            "🤖: spunta per farti spiegare la riga dall'AI (risposta subito "
+            "sotto). 👁️ Da rivedere: compare solo sulle entry 👤 manuali non "
             "revisionate (pulsante ✅ sotto) da più di 4 mesi. "
             "🎯 Alert: data target che, se raggiunta, invia un alert Telegram."
         )
 
-        rows_sel = list(ev_w.selection["rows"]) if ev_w is not None and ev_w.selection else []
-        prev = st.session_state.get("prevsel_wl")
-        if rows_sel != prev:
-            st.session_state["prevsel_wl"] = rows_sel
-            if rows_sel and rows_sel[0] < len(df_w):
-                st.session_state["wl_sel"] = df_w.iloc[rows_sel[0]]["Ticker"]
+        checked_tickers = edited_df.loc[edited_df["🤖"] == True, "Ticker"].tolist()  # noqa: E712
+        for t in checked_tickers:
+            ctx = ai_ctx_by_ticker.get(t)
+            if ctx is None:
+                continue
+            cache_key = f"ai_wl_{t}_{_date.today().isoformat()}"
+            if cache_key not in st.session_state:
+                with st.spinner(f"Genero la spiegazione per {t}…"):
+                    st.session_state[cache_key] = explain_watchlist_row(ctx)
+            result = st.session_state[cache_key]
+            with st.container(border=True):
+                st.markdown(f"**🤖 {t} — {ctx['nome']}**")
+                if result["ok"]:
+                    st.write(result["text"])
+                    st.caption(AI_DISCLAIMER)
+                else:
+                    st.error(result["text"])
 
     entry_tickers = [e["ticker"] for e in entries]
     stored = st.session_state.get("wl_sel")
-    sel = stored if stored in entry_tickers else (entry_tickers[0] if entry_tickers else None)
+    default_idx = entry_tickers.index(stored) if stored in entry_tickers else 0
+    sel = st.selectbox(
+        "Titolo da analizzare (grafico e dettaglio sotto)",
+        entry_tickers, index=default_idx if entry_tickers else 0,
+        format_func=lambda t: f"{t} — {cname(t)}",
+        key="wl_sel_box",
+    ) if entry_tickers else None
+    st.session_state["wl_sel"] = sel
     sel_entry = next((e for e in entries if e["ticker"] == sel), None)
 
     if sel_entry is not None:
@@ -455,46 +513,6 @@ else:
                     st.caption(sec_note)
             if sotto_note:
                 st.caption(sotto_note)
-
-            with st.expander("🤖 Spiega questa riga (AI)"):
-                from datetime import date as _ai_date
-                cache_key = f"ai_wl_{sel}_{_ai_date.today().isoformat()}"
-                if st.button("Genera spiegazione", key="ai_wl_btn"):
-                    ctx = {
-                        "ticker": sel,
-                        "nome": company_name(sel),
-                        "prezzo": round(price, 2),
-                        "drawdown_da_massimo_%": round(bs["drawdown"], 1),
-                        "rsi": round(bs["rsi"], 0) if bs.get("rsi") is not None else None,
-                        "bottom_score_su_100": bs["score"],
-                        "segnale": a["rev"]["kind"],
-                        "segnale_punti_su_6": a["rev"]["points"],
-                        "origine_segnale": a["rev"].get("origine_segnale"),
-                        "flag_wyckoff_volumetrici_BCGDE": {
-                            k: bool(v) for k, v in a["rev"]["flags"].items()
-                        },
-                        "wyckoff_score_su_10": wyk["score_10"] if wyk["n_events"] >= 2 else None,
-                        "wyckoff_eventi": wyk.get("events"),
-                        "vwap60": round(vwap60, 2),
-                        "zone_volumetriche_poc": [
-                            {"range": f"{z['lo']:.2f}-{z['hi']:.2f}", "score": z["score"]}
-                            for z in a["zones"][:2]
-                        ],
-                        "livelli_manuali": {k: v for k, v in levels.items() if v},
-                        "trimestrale_ultima_positiva": es["positive"],
-                        "settore_nota": sec_note or None,
-                        "sottosettore_nota": sotto_note or None,
-                    }
-                    with st.spinner("Genero la spiegazione…"):
-                        result = explain_watchlist_row(ctx)
-                    st.session_state[cache_key] = result
-                cached = st.session_state.get(cache_key)
-                if cached:
-                    if cached["ok"]:
-                        st.write(cached["text"])
-                        st.caption(AI_DISCLAIMER)
-                    else:
-                        st.error(cached["text"])
 
             with st.expander("🏭 Contesto di settore (ETF cap-w + equal-w)"):
                 sec_k_det = a.get("sector") or valid_key(sel_entry.get("sector"))
