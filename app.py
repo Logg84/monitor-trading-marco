@@ -8,6 +8,7 @@ Lettura, mai ordine — non è consulenza.
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
+import hashlib
 from datetime import date as _date
 
 st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide",
@@ -30,7 +31,7 @@ from core.watchlist_io import (
     update_target_date, is_stale, reconcile,
 )
 from core.alerts import load_alert_state
-from core.ai_explain import explain_watchlist_row, DISCLAIMER as AI_DISCLAIMER
+from core.ai_explain import explain_watchlist_row, explain_watchlist_digest, DISCLAIMER as AI_DISCLAIMER
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -326,6 +327,32 @@ else:
             sort_col, ascending=(sort_dir == "Ascendente")
         ).reset_index(drop=True)
 
+        _tickers_key = hashlib.md5(
+            ",".join(sorted(ai_ctx_by_ticker.keys())).encode()
+        ).hexdigest()[:10]
+        digest_cache_key = f"ai_wl_digest_{_date.today().isoformat()}_{_tickers_key}"
+        with st.container(border=True):
+            dc1, dc2 = st.columns([3, 1])
+            dc1.markdown("**🤖 Riassunto AI della Watchlist**")
+            if dc2.button("Genera/aggiorna", key="ai_wl_digest_btn", use_container_width=True):
+                with st.spinner(f"Riassumo {len(ai_ctx_by_ticker)} titoli…"):
+                    st.session_state[digest_cache_key] = explain_watchlist_digest(
+                        list(ai_ctx_by_ticker.values())
+                    )
+            digest_result = st.session_state.get(digest_cache_key)
+            if digest_result:
+                if digest_result["ok"]:
+                    st.write(digest_result["text"])
+                    st.caption(AI_DISCLAIMER)
+                else:
+                    st.error(digest_result["text"])
+            else:
+                st.caption(
+                    "Genera una sintesi discorsiva di tutta la Watchlist "
+                    "(pattern e cose da notare), invece di leggere ogni riga "
+                    "della tabella qui sotto."
+                )
+
         column_config = {
             "🤖": st.column_config.CheckboxColumn(
                 "🤖",
@@ -370,9 +397,13 @@ else:
                 help="⚠️ = entry manuale non revisionata da più di 4 mesi"),
         }
 
-        disabled_cols = [c for c in df_w.columns if c != "🤖"]
+        PRINCIPAL_COLS = ["🤖", "Orig.", "Ticker", "TV", "Nome", "Settore", "Prezzo",
+                          "DD%", "Segnale", "Bottom", "Priorità", "🎯 Alert", "👁️ Da rivedere"]
+        df_w_main = df_w[PRINCIPAL_COLS]
+
+        disabled_cols = [c for c in df_w_main.columns if c != "🤖"]
         edited_df = st.data_editor(
-            df_w, use_container_width=True, hide_index=True,
+            df_w_main, use_container_width=True, hide_index=True,
             column_config=column_config,
             disabled=disabled_cols,
             num_rows="fixed",
@@ -382,8 +413,16 @@ else:
             "🤖: spunta per farti spiegare la riga dall'AI (risposta subito "
             "sotto). 👁️ Da rivedere: compare solo sulle entry 👤 manuali non "
             "revisionate (pulsante ✅ sotto) da più di 4 mesi. "
-            "🎯 Alert: data target che, se raggiunta, invia un alert Telegram."
+            "🎯 Alert: data target che, se raggiunta, invia un alert Telegram. "
+            "Tutti gli altri dati (settore/sotto-settore, VWAP, zone, "
+            "Wyckoff, livelli manuali…) sono nella tabella completa qui sotto."
         )
+
+        with st.expander("📋 Tabella completa (tutti i dati per ticker)"):
+            st.dataframe(
+                df_w.drop(columns=["🤖"]), use_container_width=True, hide_index=True,
+                column_config=column_config,
+            )
 
         checked_tickers = edited_df.loc[edited_df["🤖"] == True, "Ticker"].tolist()  # noqa: E712
         for t in checked_tickers:
