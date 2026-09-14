@@ -4,14 +4,16 @@ allo score, gauge composite, SPX con flip-line e ±2σ, termometro VIX/VVIX.
 """
 import streamlit as st
 import plotly.graph_objects as go
+import datetime
 
 st.set_page_config(page_title="Regime", page_icon="🧭", layout="wide",
                    initial_sidebar_state="collapsed")
 
 from ui.theme import inject_css, COLORS, FONT_MONO, style_fig
 from ui.nav import render_navbar, sidebar_nav
-from core.regime import compute_regime
+from core.regime import compute_regime, WEIGHTS
 from core.data_engine import get_prices
+from core import ai_explain
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -117,6 +119,39 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+with st.expander("🤖 Spiega il regime (AI)"):
+    cache_key_reg = f"ai_regime_{datetime.date.today().isoformat()}"
+    if st.button("Genera spiegazione", key="ai_regime_btn"):
+        actors_ctx = []
+        for a in reg["actors"]:
+            usable = a["source"] not in ("no data", "COT assente")
+            peso = WEIGHTS.get(a["name"], 0.0)
+            actors_ctx.append({
+                "nome": a["name"],
+                "score": round(a["score"], 1),
+                "fonte": a["source"],
+                "dettaglio": a["detail"],
+                "usato_nel_calcolo": usable,
+                "peso": peso if usable else None,
+                "contributo_ponderato": round(a["score"] * peso, 1) if usable else None,
+            })
+        ctx_reg = {
+            "composite": round(reg["composite"], 1),
+            "regime": reg["regime"],
+            "soglie": "LONG se composite > 15, SHORT se < -15, altrimenti NEUTRO",
+            "attori": actors_ctx,
+        }
+        with st.spinner("Genero la spiegazione…"):
+            result_reg = ai_explain.explain_regime(ctx_reg)
+        st.session_state[cache_key_reg] = result_reg
+    cached_reg = st.session_state.get(cache_key_reg)
+    if cached_reg:
+        if cached_reg["ok"]:
+            st.write(cached_reg["text"])
+            st.caption(ai_explain.DISCLAIMER)
+        else:
+            st.error(cached_reg["text"])
 
 # ── SPX con flip-line e ±2σ ────────────────────────────────
 st.markdown("### SPX — flip-line e barriere ±2σ")
