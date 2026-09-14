@@ -102,3 +102,58 @@ def explain_watchlist_row(ctx: dict) -> dict:
         "imminente, nota di settore se presente)."
     )
     return _call_gemini(_BASE_SYSTEM_PROMPT, user_prompt)
+
+
+# ────────────────────────────────────────────────────────────────
+# COT — regole aggiuntive da docs/COT-LETTURE.md, obbligatorie per
+# evitare le letture sbagliate ma intuitive (segno grezzo, "commercials
+# = smart money", swap dealer come opinione anziché flusso meccanico).
+# ────────────────────────────────────────────────────────────────
+_COT_SYSTEM_PROMPT = _BASE_SYSTEM_PROMPT + """
+
+Regole aggiuntive obbligatorie per i dati COT (Commitments of Traders):
+6. Il segno grezzo del net Producer/Merchant NON è una previsione: conta solo il percentile storico di quel mercato specifico e la direzione del cambiamento (già forniti nei dati come "pP"/"dP" o "pBase"/"pQuote"). Non dedurre mai "producer long = si copre da un ribasso": è quasi sempre il contrario (chi deve comprare fisico blocca i costi, o chi era coperto sta ricoprendo).
+7. Lo Swap Dealer non esprime mai una view di mercato: il suo netto è la conseguenza meccanica del book clienti OTC. Non trattarlo mai come "opinione" o "previsione" — solo come flusso (afflusso/deflusso), e solo il cambiamento conta, non il livello assoluto.
+8. "Commercials = smart money" è un mito esplicitamente sbagliato: non riprodurlo mai, nemmeno come sfumatura.
+9. I campi che nei dati forniti contengono già un testo interpretativo (chiavi come "txt", "incentivo", "conferma") sono letture GIÀ corrette prodotte dal portale secondo le regole CFTC ufficiali: usale come base per la sintesi, non proporre una lettura diversa o in contraddizione con esse.
+10. Le divergenze (tipi COP-/COP+/CARB-/CARB+, se presenti nei dati) hanno una definizione tecnica precisa: descrivile così come sono etichettate, senza reinterpretarle liberamente."""
+
+
+def explain_cot_market(ctx: dict) -> dict:
+    """
+    ctx: dati già calcolati per un singolo mercato commodity (percentili,
+    derivate, output di comm_state/producer_lettura/swap_lettura/divergenze).
+    """
+    user_prompt = (
+        "Spiega la situazione COT di questo mercato materie prime. Dati già "
+        "calcolati dal portale, incluse le letture corrette di Producer e "
+        "Swap Dealer (JSON):\n\n"
+        f"{json.dumps(ctx, ensure_ascii=False, indent=2, default=str)}\n\n"
+        "Sintetizza in un unico paragrafo discorsivo: cosa dice insieme il "
+        "posizionamento di Producer/Merchant, Managed Money e Swap Dealer "
+        "(stato complessivo), quanto è marcato o estremo rispetto alla "
+        "storia di questo mercato, ed eventuali zone di divergenza recenti "
+        "tra prezzo e posizionamento se presenti nei dati. Nessuna previsione "
+        "di prezzo, nessun consiglio operativo."
+    )
+    return _call_gemini(_COT_SYSTEM_PROMPT, user_prompt)
+
+
+def explain_cot_fx(ctx: dict) -> dict:
+    """
+    ctx: quadro forex già calcolato (squilibri estremi, coppie affollate,
+    coppie allineate, primi segnali di divergenza traiettorie).
+    """
+    user_prompt = (
+        "Spiega il quadro COT forex di oggi. Dati già calcolati dal portale "
+        "(JSON):\n\n"
+        f"{json.dumps(ctx, ensure_ascii=False, indent=2, default=str)}\n\n"
+        "Sintetizza in un unico paragrafo discorsivo: quali coppie mostrano "
+        "lo squilibrio di posizionamento più marcato e in che verso, quali "
+        "coppie sono 'affollate' (entrambe le gambe estreme nella stessa "
+        "direzione, quindi il segnale sulla coppia si annulla anche se dice "
+        "molto sulle singole valute), e se ci sono primi segnali di "
+        "divergenza di traiettoria da monitorare. Nessuna previsione di "
+        "prezzo, nessun consiglio operativo."
+    )
+    return _call_gemini(_COT_SYSTEM_PROMPT, user_prompt)
