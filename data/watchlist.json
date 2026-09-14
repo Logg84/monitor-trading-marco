@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T17:14:56.422996+00:00",
+  "updated": "2026-09-14T18:55:33.797549+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -599,20 +599,6 @@
       "sub": "media_intratten"
     },
     {
-      "ticker": "FIS",
-      "origin": "auto",
-      "created": "2026-09-02T18:07:05.037826+00:00",
-      "last_reviewed": "2026-09-02T18:07:05.037832+00:00",
-      "poc": 47.3575,
-      "poc_origin": "auto",
-      "vwap": 40.9968,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
       "ticker": "VST",
       "origin": "auto",
       "created": "2026-09-02T18:07:05.040677+00:00",
@@ -1176,20 +1162,6 @@
       "sub": "hardware"
     },
     {
-      "ticker": "AVGO",
-      "origin": "auto",
-      "created": "2026-09-08T18:06:21.178386+00:00",
-      "last_reviewed": "2026-09-08T18:06:21.178393+00:00",
-      "poc": 15.8021,
-      "poc_origin": "auto",
-      "vwap": 380.8713,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "semiconduttori"
-    },
-    {
       "ticker": "LRCX",
       "origin": "auto",
       "created": "2026-09-08T18:06:21.193110+00:00",
@@ -1482,20 +1454,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "auto_componenti"
-    },
-    {
-      "ticker": "CDNS",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.430960+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.430968+00:00",
-      "poc": 307.7595,
-      "poc_origin": "auto",
-      "vwap": 341.7302,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
     },
     {
       "ticker": "CIEN",
@@ -1954,20 +1912,6 @@
       "sub": "mercati_capitali"
     },
     {
-      "ticker": "AKAM",
-      "origin": "auto",
-      "created": "2026-09-14T08:10:46.043334+00:00",
-      "last_reviewed": "2026-09-14T08:10:46.043343+00:00",
-      "poc": 90.4016,
-      "poc_origin": "auto",
-      "vwap": 116.7876,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
       "ticker": "ACN",
       "origin": "auto",
       "created": "2026-09-14T08:10:46.047702+00:00",
@@ -2180,20 +2124,6 @@
       "sub": null
     },
     {
-      "ticker": "BRO",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.569516+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.569524+00:00",
-      "poc": 67.1049,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "assicurazioni"
-    },
-    {
       "ticker": "FDS",
       "origin": "auto",
       "created": "2026-09-14T13:49:11.573049+00:00",
@@ -2264,20 +2194,6 @@
       "sub": "software"
     },
     {
-      "ticker": "ARES",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.596898+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.596910+00:00",
-      "poc": 125.6581,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
-    },
-    {
       "ticker": "RKT.L",
       "origin": "auto",
       "created": "2026-09-14T13:49:11.601806+00:00",
@@ -2318,20 +2234,6 @@
       "target_date": null,
       "sector": "immobiliare",
       "sub": "REIT"
-    },
-    {
-      "ticker": "EXE",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.617134+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.617146+00:00",
-      "poc": 103.6208,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "energia",
-      "sub": "gas_e_p"
     },
     {
       "ticker": "GEHC",
