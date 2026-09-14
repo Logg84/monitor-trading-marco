@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T21:13:09.963182+00:00",
+  "updated": "2026-09-14T23:58:51.752182+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1870,20 +1870,6 @@
       "sub": "cibo_bevande"
     },
     {
-      "ticker": "RI.PA",
-      "origin": "auto",
-      "created": "2026-09-14T08:10:46.030425+00:00",
-      "last_reviewed": "2026-09-14T08:10:46.030439+00:00",
-      "poc": 62.5388,
-      "poc_origin": "auto",
-      "vwap": 64.4142,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
-    },
-    {
       "ticker": "ARE",
       "origin": "auto",
       "created": "2026-09-14T08:10:46.034559+00:00",
@@ -1938,20 +1924,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "REL.L",
-      "origin": "auto",
-      "created": "2026-09-14T08:10:46.074537+00:00",
-      "last_reviewed": "2026-09-14T08:10:46.074549+00:00",
-      "poc": 2365.9116,
-      "poc_origin": "auto",
-      "vwap": 2537.3131,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": null
     },
     {
       "ticker": "CCI",
@@ -2068,20 +2040,6 @@
       "sub": "farmaci"
     },
     {
-      "ticker": "DGE.L",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.552590+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.552598+00:00",
-      "poc": 1607.9666,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
-    },
-    {
       "ticker": "KKR",
       "origin": "auto",
       "created": "2026-09-14T13:49:11.556613+00:00",
@@ -2150,20 +2108,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "distribuzione"
-    },
-    {
-      "ticker": "CAP.PA",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.584651+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.584660+00:00",
-      "poc": 98.0038,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
     },
     {
       "ticker": "AJG",
@@ -2250,20 +2194,6 @@
       "sub": "dispositivi"
     },
     {
-      "ticker": "AZN.L",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.626157+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.626166+00:00",
-      "poc": 10554.9077,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "farmaci"
-    },
-    {
       "ticker": "CMG",
       "origin": "auto",
       "created": "2026-09-14T13:49:11.630708+00:00",
@@ -2304,20 +2234,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "IMB.L",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.650215+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.650227+00:00",
-      "poc": 1814.1745,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
     },
     {
       "ticker": "WDAY",
