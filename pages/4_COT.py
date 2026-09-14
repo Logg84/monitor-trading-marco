@@ -16,6 +16,7 @@ st.set_page_config(page_title="COT", page_icon="🛢️", layout="wide")
 from ui.theme import inject_css, COLORS
 from ui.nav import render_navbar, sidebar_nav
 from core import cot as C
+from core import ai_explain
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -306,6 +307,50 @@ with tab_fx:
                     if p.get("avviso_inversione"):
                         st.caption(f"　　⚠️ {p['avviso_inversione']} — un solo tick, "
                                   f"non ancora un'inversione confermata, ma da monitorare.")
+
+        with st.expander("🤖 Spiega il quadro Forex (AI)"):
+            cache_key_fx = f"ai_cot_fx_{datetime.date.today().isoformat()}"
+            if st.button("Genera spiegazione", key="ai_cot_fx_btn"):
+                squilibri = []
+                for a2 in syms:
+                    for b2 in syms:
+                        if a2 == b2:
+                            continue
+                        diff2 = P[a2] - P[b2]
+                        if abs(diff2) >= 80:
+                            squilibri.append({
+                                "coppia": f"{a2}/{b2}", "verso": "LONG" if diff2 > 0 else "SHORT",
+                                "delta_percentile": round(diff2, 1),
+                            })
+                ctx_fx = {
+                    "squilibri_estremi_80piu": squilibri,
+                    "coppie_affollate": [
+                        {"coppia": p["pair"], "base": p["base"], "quote": p["quote"],
+                         "percentile_base": round(p["pBase"], 1), "percentile_quote": round(p["pQuote"], 1)}
+                        for p in crowded
+                    ],
+                    "coppie_allineate": [
+                        {"coppia": p["pair"],
+                         "verso": "rialzista" if p["key"] == "bull_aligned" else "ribassista",
+                         "percentile_base": round(p["pBase"], 1), "percentile_quote": round(p["pQuote"], 1),
+                         "divergenza": round(p["divergenza"], 1),
+                         "avviso_inversione": p.get("avviso_inversione")}
+                        for p in aligned
+                    ],
+                    "primi_segnali_traiettorie": [
+                        {"coppia": p["pair"], "direzione": p["direzione_traiettorie"]} for p in early
+                    ],
+                }
+                with st.spinner("Genero la spiegazione…"):
+                    result_fx = ai_explain.explain_cot_fx(ctx_fx)
+                st.session_state[cache_key_fx] = result_fx
+            cached_fx = st.session_state.get(cache_key_fx)
+            if cached_fx:
+                if cached_fx["ok"]:
+                    st.write(cached_fx["text"])
+                    st.caption(ai_explain.DISCLAIMER)
+                else:
+                    st.error(cached_fx["text"])
 
         # ── Dettaglio valuta (una o più, anche tutte) ───────────
         st.markdown("### Dettaglio valuta")
@@ -608,6 +653,38 @@ with tab_cm:
                 st.info(f"**NESSUNA LETTURA DOMINANTE** · producer {pP:.0f}° · "
                         f"Managed {pM:.0f}° · swap {pS:.0f}°. Contesto pulito: "
                         "nessuna posizione estrema da monitorare.")
+
+            with st.expander(f"🤖 Spiega questo mercato — {opts[sym]} (AI)"):
+                cache_key_comm = f"ai_cot_comm_{sym}_{datetime.date.today().isoformat()}"
+                if st.button("Genera spiegazione", key="ai_cot_comm_btn"):
+                    ctx_comm = {
+                        "mercato": opts[sym],
+                        "simbolo": sym,
+                        "stato_complessivo": S["key"],
+                        "producer_percentile": round(pP, 1),
+                        "managed_money_percentile": round(pM, 1),
+                        "swap_dealer_percentile": round(pS, 1),
+                        "producer_delta_2sett": round(dP, 1),
+                        "managed_money_delta_2sett": round(dM, 1),
+                        "producer_ha_invertito_2sett": revP,
+                        "lettura_producer": pr,
+                        "lettura_swap_dealer": sw,
+                        "zone_divergenza_recenti": [
+                            {"tipo": z["tipo"], "settimane": z["settimane"],
+                             "esito_%": z.get("esito")}
+                            for z in zone[-3:]
+                        ] if zone else [],
+                    }
+                    with st.spinner("Genero la spiegazione…"):
+                        result_comm = ai_explain.explain_cot_market(ctx_comm)
+                    st.session_state[cache_key_comm] = result_comm
+                cached_comm = st.session_state.get(cache_key_comm)
+                if cached_comm:
+                    if cached_comm["ok"]:
+                        st.write(cached_comm["text"])
+                        st.caption(ai_explain.DISCLAIMER)
+                    else:
+                        st.error(cached_comm["text"])
 
         with g2:
             with st.expander("🧭 cornice di lettura (e come cambiarla)"):
