@@ -1,14 +1,14 @@
 """
 Watchlist — home. Pruning automatico (🤖 e 👤), tabella cliccabile con Nome,
 link TradingView, zone volumetriche, VWAP ancorati, Segnale 🟡/🟢, trimestrali,
-Wyckoff, data target con alert Telegram.
+Wyckoff, data target con alert Telegram. Spiegazione AI per singolo titolo
+selezionato (mai un riassunto generico su tutta la lista).
 Write-through GitHub + autoguarigione dal repo + guard anti-svuotamento.
 Lettura, mai ordine — non è consulenza.
 """
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
-import hashlib
 from datetime import date as _date
 
 st.set_page_config(page_title="Watchlist", page_icon="📊", layout="wide",
@@ -31,7 +31,7 @@ from core.watchlist_io import (
     update_target_date, is_stale, reconcile,
 )
 from core.alerts import load_alert_state
-from core.ai_explain import explain_watchlist_row, explain_watchlist_digest, DISCLAIMER as AI_DISCLAIMER
+from core.ai_explain import explain_watchlist_row, DISCLAIMER as AI_DISCLAIMER
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -327,40 +327,7 @@ else:
             sort_col, ascending=(sort_dir == "Ascendente")
         ).reset_index(drop=True)
 
-        _tickers_key = hashlib.md5(
-            ",".join(sorted(ai_ctx_by_ticker.keys())).encode()
-        ).hexdigest()[:10]
-        digest_cache_key = f"ai_wl_digest_{_date.today().isoformat()}_{_tickers_key}"
-        with st.container(border=True):
-            dc1, dc2 = st.columns([3, 1])
-            dc1.markdown("**🤖 Riassunto AI della Watchlist**")
-            if dc2.button("Genera/aggiorna", key="ai_wl_digest_btn", use_container_width=True):
-                with st.spinner(f"Riassumo {len(ai_ctx_by_ticker)} titoli…"):
-                    st.session_state[digest_cache_key] = explain_watchlist_digest(
-                        list(ai_ctx_by_ticker.values())
-                    )
-            digest_result = st.session_state.get(digest_cache_key)
-            if digest_result:
-                if digest_result["ok"]:
-                    st.write(digest_result["text"])
-                    st.caption(AI_DISCLAIMER)
-                else:
-                    st.error(digest_result["text"])
-            else:
-                st.caption(
-                    "Genera una sintesi discorsiva di tutta la Watchlist "
-                    "(pattern e cose da notare), invece di leggere ogni riga "
-                    "della tabella qui sotto."
-                )
-
         column_config = {
-            "🤖": st.column_config.CheckboxColumn(
-                "🤖",
-                help="Spunta per generare/mostrare la spiegazione AI di questa "
-                     "riga (compare subito sotto la tabella).",
-                width="small",
-                default=False,
-            ),
             "TV": st.column_config.LinkColumn(
                 "TV",
                 help="Apri il grafico su TradingView (nuova scheda)",
@@ -397,50 +364,28 @@ else:
                 help="⚠️ = entry manuale non revisionata da più di 4 mesi"),
         }
 
-        PRINCIPAL_COLS = ["🤖", "Orig.", "Ticker", "TV", "Nome", "Settore", "Prezzo",
-                          "DD%", "Segnale", "Bottom", "Priorità", "🎯 Alert", "👁️ Da rivedere"]
-        df_w_main = df_w[PRINCIPAL_COLS]
-
-        disabled_cols = [c for c in df_w_main.columns if c != "🤖"]
-        edited_df = st.data_editor(
-            df_w_main, use_container_width=True, hide_index=True,
+        MAIN_COLS = ["Orig.", "Ticker", "TV", "Nome", "Settore", "Sector", "Prezzo",
+                     "DD%", "RSI", "VWAP60", "Segnale", "Wyckoff", "Trim.", "Bottom",
+                     "Priorità", "L1", "L2", "L3", "🎯 Alert", "👁️ Da rivedere"]
+        st.dataframe(
+            df_w[MAIN_COLS], use_container_width=True, hide_index=True,
             column_config=column_config,
-            disabled=disabled_cols,
-            num_rows="fixed",
-            key="tbl_watchlist",
         )
         st.caption(
-            "🤖: spunta per farti spiegare la riga dall'AI (risposta subito "
-            "sotto). 👁️ Da rivedere: compare solo sulle entry 👤 manuali non "
+            "👁️ Da rivedere: compare solo sulle entry 👤 manuali non "
             "revisionate (pulsante ✅ sotto) da più di 4 mesi. "
             "🎯 Alert: data target che, se raggiunta, invia un alert Telegram. "
-            "Tutti gli altri dati (settore/sotto-settore, VWAP, zone, "
-            "Wyckoff, livelli manuali…) sono nella tabella completa qui sotto."
+            "La spiegazione AI per singolo titolo è nel dettaglio qui sotto, "
+            "dopo aver scelto il titolo da analizzare."
         )
 
-        with st.expander("📋 Tabella completa (tutti i dati per ticker)"):
+        with st.expander("📋 Altri dati (sotto-settore, VWAP ancorati, zone volumetriche)"):
+            EXTRA_COLS = ["Ticker", "Sotto", "SottoΔ", "VWA1", "VWA2", "VWA3",
+                          "Z1", "Z2", "In zona"]
             st.dataframe(
-                df_w.drop(columns=["🤖"]), use_container_width=True, hide_index=True,
+                df_w[EXTRA_COLS], use_container_width=True, hide_index=True,
                 column_config=column_config,
             )
-
-        checked_tickers = edited_df.loc[edited_df["🤖"] == True, "Ticker"].tolist()  # noqa: E712
-        for t in checked_tickers:
-            ctx = ai_ctx_by_ticker.get(t)
-            if ctx is None:
-                continue
-            cache_key = f"ai_wl_{t}_{_date.today().isoformat()}"
-            if cache_key not in st.session_state:
-                with st.spinner(f"Genero la spiegazione per {t}…"):
-                    st.session_state[cache_key] = explain_watchlist_row(ctx)
-            result = st.session_state[cache_key]
-            with st.container(border=True):
-                st.markdown(f"**🤖 {t} — {ctx['nome']}**")
-                if result["ok"]:
-                    st.write(result["text"])
-                    st.caption(AI_DISCLAIMER)
-                else:
-                    st.error(result["text"])
 
     entry_tickers = [e["ticker"] for e in entries]
     stored = st.session_state.get("wl_sel")
@@ -553,6 +498,31 @@ else:
             if sotto_note:
                 st.caption(sotto_note)
 
+            with st.container(border=True):
+                ac1, ac2 = st.columns([3, 1])
+                ac1.markdown(f"**🤖 Spiegazione AI — {sel}**")
+                ai_cache_key = f"ai_wl_{sel}_{_date.today().isoformat()}"
+                if ac2.button("Genera/aggiorna", key="ai_wl_btn", use_container_width=True):
+                    ctx = ai_ctx_by_ticker.get(sel)
+                    if ctx is None:
+                        st.session_state[ai_cache_key] = {
+                            "ok": False, "text": "Dati non disponibili per questo ticker."}
+                    else:
+                        with st.spinner(f"Genero la spiegazione per {sel}…"):
+                            st.session_state[ai_cache_key] = explain_watchlist_row(ctx)
+                ai_result = st.session_state.get(ai_cache_key)
+                if ai_result:
+                    if ai_result["ok"]:
+                        st.write(ai_result["text"])
+                        st.caption(AI_DISCLAIMER)
+                    else:
+                        st.error(ai_result["text"])
+                else:
+                    st.caption(
+                        "Analisi dettagliata e oggettiva dei dati calcolati per "
+                        f"{sel} (RSI, drawdown, Wyckoff, zone, settore…)."
+                    )
+
             with st.expander("🏭 Contesto di settore (ETF cap-w + equal-w)"):
                 sec_k_det = a.get("sector") or valid_key(sel_entry.get("sector"))
                 sector_detail((srows or {}).get(sec_k_det or ""), sec_k_det)
@@ -609,12 +579,23 @@ else:
             st.dataframe(pd.DataFrame(rows_a), use_container_width=True, hide_index=True)
 
 # ── Analisi singola libera ─────────────────────────────────
+# Serve a esplorare titoli NON ancora in Watchlist (per eventuale promozione).
+# I titoli già in Watchlist sono esclusi qui: il loro grafico è già sopra,
+# nel dettaglio del titolo selezionato — mostrarlo due volte era ridondante.
 st.markdown("### Analisi singola")
-universe = build_universe()
+st.caption(
+    "Per un titolo già in Watchlist usa il selettore \"Titolo da analizzare\" "
+    "più sopra: qui sotto trovi solo titoli non ancora tracciati, utile per "
+    "valutarne la promozione."
+)
+_wl_tickers = {e["ticker"] for e in entries}
+universe = [t for t in build_universe() if t not in _wl_tickers]
 mode = st.radio("Sorgente", ["Da universo", "Ticker libero"], horizontal=True)
 ticker = None
 if mode == "Da universo":
-    ticker = st.selectbox("Titolo", universe)
+    ticker = st.selectbox("Titolo", universe) if universe else None
+    if not universe:
+        st.caption("Tutti i titoli dell'universo sono già in Watchlist.")
 else:
     raw = st.text_input("Ticker", value="CPR").strip().upper()
     if raw:
