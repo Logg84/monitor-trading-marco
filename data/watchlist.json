@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T08:33:09.460650+00:00",
+  "updated": "2026-09-14T13:23:47.972128+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2193,6 +2193,90 @@
       "target_date": null,
       "sector": "comunicazioni",
       "sub": "media_intratten"
+    },
+    {
+      "ticker": "DGE.L",
+      "origin": "auto",
+      "created": "2026-09-14T13:21:03.429222+00:00",
+      "last_reviewed": "2026-09-14T13:21:03.429232+00:00",
+      "poc": 1607.9666,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "consumi_staples",
+      "sub": "cibo_bevande"
+    },
+    {
+      "ticker": "CAP.PA",
+      "origin": "auto",
+      "created": "2026-09-14T13:21:03.434701+00:00",
+      "last_reviewed": "2026-09-14T13:21:03.434707+00:00",
+      "poc": 98.0038,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "tech",
+      "sub": "software"
+    },
+    {
+      "ticker": "RKT.L",
+      "origin": "auto",
+      "created": "2026-09-14T13:21:03.437381+00:00",
+      "last_reviewed": "2026-09-14T13:21:03.437387+00:00",
+      "poc": 6058.0939,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "consumi_staples",
+      "sub": "prodotti_persona"
+    },
+    {
+      "ticker": "AZN.L",
+      "origin": "auto",
+      "created": "2026-09-14T13:21:03.440093+00:00",
+      "last_reviewed": "2026-09-14T13:21:03.440099+00:00",
+      "poc": 10600.2979,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "sanita",
+      "sub": "farmaci"
+    },
+    {
+      "ticker": "IMB.L",
+      "origin": "auto",
+      "created": "2026-09-14T13:21:03.442802+00:00",
+      "last_reviewed": "2026-09-14T13:21:03.442809+00:00",
+      "poc": 1814.1749,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "consumi_staples",
+      "sub": "cibo_bevande"
+    },
+    {
+      "ticker": "SAP.DE",
+      "origin": "auto",
+      "created": "2026-09-14T13:21:03.445500+00:00",
+      "last_reviewed": "2026-09-14T13:21:03.445506+00:00",
+      "poc": 92.2843,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "tech",
+      "sub": "software"
     }
   ]
 }
