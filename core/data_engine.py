@@ -342,6 +342,7 @@ def confluence_score(z1: dict | None, z2: dict | None, vwaps: list, atr20: float
     return int(round(100 * min(1.0, total)))
 
 TOTAL_BONUS_CAP = 18  # tetto sulla SOMMA bonus_sector + bonus_confluence + bonus_sifrediana in Priorità
+SHORT_FLOAT_SQUEEZE_TH = 8.0  # Short Float % minimo per il badge ⚡ SQUEEZE POTENZIALE
 # (sotto la somma dei tre massimi individuali, 15+10+8=33: forza una
 # compressione quando più bonus sono alti insieme, invece di sommarsi senza
 # limite)
@@ -791,6 +792,17 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
             sec_key = sub_key = sec_score = sec_breadth = sec_prio = None
             sub_lbl = sub_score = sub_delta = None
             sec_label, sec_etf, sec_vento = "—", "—", "nd"
+            short_float_pct = None
+            try:
+                sf = get_info(t).get("shortPercentOfFloat")
+                if sf is not None:
+                    short_float_pct = round(float(sf) * 100, 1)
+            except Exception:
+                pass
+            squeeze = bool(
+                short_float_pct is not None and short_float_pct >= SHORT_FLOAT_SQUEEZE_TH
+                and rev.get("sifrediana_today", False)
+            )
             try:
                 sec_key, sub_key = sector_of(t), sub_of(t)
                 _srow = (sec_rows or {}).get(sec_key or "")
@@ -841,6 +853,8 @@ def screening(tickers: list[str], log=None, progress_cb=None) -> tuple[pd.DataFr
                 "Origine_Segnale": rev.get("origine_segnale"),
                 "Sifrediana_Today": rev.get("sifrediana_today", False),
                 "Sif_Details": rev.get("sif_details", {}),
+                "Short_Float_%": short_float_pct,
+                "Squeeze": squeeze,
                 "Health": hc["score"],
                 "Bottom": bs["score"],
                 "Wyckoff": wyk_str,
