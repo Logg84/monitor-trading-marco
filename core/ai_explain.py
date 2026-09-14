@@ -157,3 +157,30 @@ def explain_cot_fx(ctx: dict) -> dict:
         "prezzo, nessun consiglio operativo."
     )
     return _call_gemini(_COT_SYSTEM_PROMPT, user_prompt)
+
+
+# ────────────────────────────────────────────────────────────────
+# Regime (Bussola di mercato)
+# ────────────────────────────────────────────────────────────────
+_REGIME_SYSTEM_PROMPT = _BASE_SYSTEM_PROMPT + """
+
+Regola aggiuntiva per la Bussola di mercato (Regime):
+6. Identifica quali attori pesano di più nella direzione del composite attuale usando il campo "contributo_ponderato" già calcolato nei dati (non ricalcolarlo tu). Se un attore ha "source" uguale a "no data" o "COT assente", è escluso dal calcolo: menzionalo solo se rilevante per capire perché mancano informazioni. Non trasformare mai il regime (LONG/SHORT/NEUTRO) in un consiglio di acquisto/vendita: è solo un moltiplicatore di dimensione di posizione che l'utente applica secondo le proprie regole, non un'indicazione operativa."""
+
+
+def explain_regime(ctx: dict) -> dict:
+    """
+    ctx: composite, regime e lista attori (con score/source/detail/peso/
+    contributo_ponderato già calcolati) da core.regime.compute_regime().
+    """
+    user_prompt = (
+        "Spiega il regime di mercato attuale. Dati già calcolati dal "
+        "portale (JSON):\n\n"
+        f"{json.dumps(ctx, ensure_ascii=False, indent=2, default=str)}\n\n"
+        "Sintetizza in un unico paragrafo discorsivo: cosa dice il "
+        "composite (regime attuale), quali attori pesano di più in quella "
+        "direzione e quali invece vanno in senso opposto o sono neutri, "
+        "e se ci sono attori senza dati che limitano l'affidabilità della "
+        "lettura in questo momento."
+    )
+    return _call_gemini(_REGIME_SYSTEM_PROMPT, user_prompt)
