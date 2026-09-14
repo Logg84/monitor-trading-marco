@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T13:32:59.394269+00:00",
+  "updated": "2026-09-14T13:33:37.336002+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2219,7 +2219,7 @@
       "last_reviewed": "2026-09-14T13:32:59.389010+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 206.6448,
       "levels": {
         "L1": 180.0,
         "L2": 176.0,
@@ -2229,6 +2229,24 @@
       "target_date": null,
       "sector": "industriale",
       "sub": "capital_goods"
+    },
+    {
+      "ticker": "OKLO",
+      "origin": "manual",
+      "created": "2026-09-14T13:33:37.331436+00:00",
+      "last_reviewed": "2026-09-14T13:33:37.331446+00:00",
+      "poc": null,
+      "poc_origin": null,
+      "vwap": null,
+      "levels": {
+        "L1": 35.0,
+        "L2": 25.0,
+        "L3": 23.0
+      },
+      "notes": "",
+      "target_date": null,
+      "sector": "utilities",
+      "sub": "utility_regolate"
     }
   ]
 }
