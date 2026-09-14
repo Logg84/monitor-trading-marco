@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T13:32:02.798762+00:00",
+  "updated": "2026-09-14T13:32:59.394269+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2201,11 +2201,29 @@
       "last_reviewed": "2026-09-14T13:32:02.794227+00:00",
       "poc": null,
       "poc_origin": null,
-      "vwap": null,
+      "vwap": 15.2852,
       "levels": {
         "L1": 8.5,
         "L2": 8.0,
         "L3": 4.0
+      },
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "capital_goods"
+    },
+    {
+      "ticker": "DOV",
+      "origin": "manual",
+      "created": "2026-09-14T13:32:59.388992+00:00",
+      "last_reviewed": "2026-09-14T13:32:59.389010+00:00",
+      "poc": null,
+      "poc_origin": null,
+      "vwap": null,
+      "levels": {
+        "L1": 180.0,
+        "L2": 176.0,
+        "L3": 145.0
       },
       "notes": "",
       "target_date": null,
