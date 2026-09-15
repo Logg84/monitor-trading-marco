@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T08:33:21.716856+00:00",
+  "updated": "2026-09-15T08:36:12.230001+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2096,20 +2096,6 @@
       "sub": "software"
     },
     {
-      "ticker": "RKT.L",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.601806+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.601823+00:00",
-      "poc": 6058.0945,
-      "poc_origin": "auto",
-      "vwap": 5108.9485,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "prodotti_persona"
-    },
-    {
       "ticker": "GEV",
       "origin": "auto",
       "created": "2026-09-14T13:49:11.607915+00:00",
@@ -2390,20 +2376,6 @@
       "sub": "software"
     },
     {
-      "ticker": "GIS",
-      "origin": "auto",
-      "created": "2026-09-15T08:33:21.621929+00:00",
-      "last_reviewed": "2026-09-15T08:33:21.621948+00:00",
-      "poc": 35.7957,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_staples",
-      "sub": "cibo_bevande"
-    },
-    {
       "ticker": "EFX",
       "origin": "auto",
       "created": "2026-09-15T08:33:21.626829+00:00",
@@ -2556,34 +2528,6 @@
       "target_date": null,
       "sector": "sanita",
       "sub": "farmaci"
-    },
-    {
-      "ticker": "SHL.DE",
-      "origin": "auto",
-      "created": "2026-09-15T08:33:21.694182+00:00",
-      "last_reviewed": "2026-09-15T08:33:21.694205+00:00",
-      "poc": 45.7534,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "sanita",
-      "sub": "dispositivi"
-    },
-    {
-      "ticker": "DPZ",
-      "origin": "auto",
-      "created": "2026-09-15T08:33:21.699303+00:00",
-      "last_reviewed": "2026-09-15T08:33:21.699318+00:00",
-      "poc": 399.9638,
-      "poc_origin": "auto",
-      "vwap": null,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "tempo_libero"
     },
     {
       "ticker": "IMB.L",
