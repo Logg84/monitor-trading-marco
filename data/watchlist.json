@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T13:38:21.468421+00:00",
+  "updated": "2026-09-15T15:55:02.719476+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -1316,20 +1316,6 @@
       "sub": "hardware"
     },
     {
-      "ticker": "CASY",
-      "origin": "auto",
-      "created": "2026-09-10T17:35:54.453876+00:00",
-      "last_reviewed": "2026-09-10T17:35:54.453888+00:00",
-      "poc": 201.0833,
-      "poc_origin": "auto",
-      "vwap": 779.2686,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "distribuzione"
-    },
-    {
       "ticker": "WMT",
       "origin": "auto",
       "created": "2026-09-10T17:35:54.459816+00:00",
@@ -1365,20 +1351,6 @@
       "poc": 71.8561,
       "poc_origin": "auto",
       "vwap": 188.9897,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": null
-    },
-    {
-      "ticker": "ROL",
-      "origin": "auto",
-      "created": "2026-09-10T18:02:57.832572+00:00",
-      "last_reviewed": "2026-09-10T18:02:57.832584+00:00",
-      "poc": 35.8809,
-      "poc_origin": "auto",
-      "vwap": 39.3001,
       "levels": {},
       "notes": "",
       "target_date": null,
@@ -2026,20 +1998,6 @@
       "sub": "software"
     },
     {
-      "ticker": "HOOD",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.659138+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.659148+00:00",
-      "poc": 10.7313,
-      "poc_origin": "auto",
-      "vwap": 104.3004,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
-    },
-    {
       "ticker": "SHOP",
       "origin": "auto",
       "created": "2026-09-14T13:49:11.663539+00:00",
@@ -2080,20 +2038,6 @@
       "target_date": null,
       "sector": "tech",
       "sub": "software"
-    },
-    {
-      "ticker": "CBOE",
-      "origin": "auto",
-      "created": "2026-09-14T13:49:11.677954+00:00",
-      "last_reviewed": "2026-09-14T13:49:11.677967+00:00",
-      "poc": 113.5093,
-      "poc_origin": "auto",
-      "vwap": 277.6301,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
     },
     {
       "ticker": "APTV",
@@ -2304,20 +2248,6 @@
       "target_date": null,
       "sector": "industriale",
       "sub": "aero_difesa"
-    },
-    {
-      "ticker": "MC.PA",
-      "origin": "auto",
-      "created": "2026-09-15T08:33:21.680865+00:00",
-      "last_reviewed": "2026-09-15T08:33:21.680881+00:00",
-      "poc": 464.277,
-      "poc_origin": "auto",
-      "vwap": 463.6648,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "moda_lusso"
     },
     {
       "ticker": "AZN.L",
