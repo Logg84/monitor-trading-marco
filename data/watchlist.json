@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T08:36:12.230001+00:00",
+  "updated": "2026-09-15T08:55:48.748884+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -166,20 +166,6 @@
       "sub": "utility_regolate"
     },
     {
-      "ticker": "SY1.DE",
-      "origin": "auto",
-      "created": "2026-08-24T14:04:46.876823+00:00",
-      "last_reviewed": "2026-08-24T14:04:46.876834+00:00",
-      "poc": 93.5219,
-      "poc_origin": "auto",
-      "vwap": 89.4556,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "materiali",
-      "sub": "chimica"
-    },
-    {
       "ticker": "VOW3.DE",
       "origin": "auto",
       "created": "2026-08-24T14:04:46.986838+00:00",
@@ -248,34 +234,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "distribuzione"
-    },
-    {
-      "ticker": "LSEG.L",
-      "origin": "auto",
-      "created": "2026-08-24T14:36:31.342027+00:00",
-      "last_reviewed": "2026-08-24T14:36:31.342034+00:00",
-      "poc": 8782.9739,
-      "poc_origin": "auto",
-      "vwap": 8643.5346,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
-    },
-    {
-      "ticker": "MRO.L",
-      "origin": "auto",
-      "created": "2026-08-25T07:28:56.519468+00:00",
-      "last_reviewed": "2026-08-25T07:28:56.519475+00:00",
-      "poc": 508.5388,
-      "poc_origin": "auto",
-      "vwap": 481.2457,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "capital_goods"
     },
     {
       "ticker": "CDW",
