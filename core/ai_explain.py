@@ -16,7 +16,9 @@ deprecare); override possibile con GEMINI_MODEL in secrets.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
+import pandas as pd
 import requests
 import streamlit as st
 
@@ -24,10 +26,16 @@ _DEFAULT_MODEL = "gemini-flash-lite-latest"
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _TIMEOUT = 25
 
+# Soglia minima di trade chiusi prima di re-iniettare statistiche nel prompt:
+# stessa soglia già decisa per non toccare lo scoring (sessione del 13/09).
+_MIN_CLOSED_FOR_LEARNING = 15
+_SIMULATION_CSV = Path(__file__).resolve().parent.parent / "data" / "simulazione_trades.csv"
+
 DISCLAIMER = (
     "⚠️ Testo generato automaticamente da un modello linguistico a partire "
-    "dai dati già calcolati dal portale. Non è un consiglio di investimento, "
-    "verifica sempre i dati in tabella/grafico."
+    "dai dati già calcolati dal portale. È una lettura tecnica motivata, "
+    "NON un consiglio di investimento né un ordine di acquisto/vendita: "
+    "verifica sempre i dati in tabella/grafico e decidi in autonomia."
 )
 
 _BASE_SYSTEM_PROMPT = """Sei un assistente che spiega in italiano, in prosa semplice e discorsiva, dati di analisi tecnica/quantitativa già calcolati da un portale di monitoraggio personale (metodologia Wyckoff, flussi istituzionali, COT). Regole assolute, da rispettare sempre:
@@ -43,6 +51,60 @@ def _get_secret(name: str, default=None):
         return st.secrets.get(name, default)
     except Exception:
         return default
+
+
+def _closed_trades_learning_note(min_closed: int = _MIN_CLOSED_FOR_LEARNING) -> str | None:
+    """
+    Legge data/simulazione_trades.csv (unica fonte di verità sugli esiti,
+    già scritta da core/simulazione_engine.py — nessun file parallelo).
+    Sotto soglia ritorna None: niente statistiche premature nel prompt,
+    stessa soglia già decisa in sessione (13/09) per non toccare lo scoring.
+    """
+    if not _SIMULATION_CSV.exists():
+        return None
+    try:
+        df = pd.read_csv(_SIMULATION_CSV)
+    except Exception:
+        return None
+    closed = df[df.get("Stato") == "Chiuso"].copy()
+    if len(closed) < min_closed:
+        return None
+
+    closed["_win"] = closed["Motivo_Uscita"].astype(str).str.contains("Take Profit", na=False)
+    n = len(closed)
+    win_rate = round(100 * closed["_win"].mean(), 1)
+
+    factor_lines = []
+    if "Origine_Segnale" in closed.columns:
+        by_origine = closed.groupby("Origine_Segnale")["_win"].agg(["mean", "count"])
+        by_origine = by_origine[by_origine["count"] >= 3]
+        if len(by_origine) >= 2:
+            best = by_origine["mean"].idxmax()
+            worst = by_origine["mean"].idxmin()
+            if best != worst:
+                factor_lines.append(
+                    f"i trade con origine '{best}' hanno un win rate più alto "
+                    f"({round(100 * by_origine.loc[best, 'mean'], 1)}%, "
+                    f"n={int(by_origine.loc[best, 'count'])}) rispetto a "
+                    f"'{worst}' ({round(100 * by_origine.loc[worst, 'mean'], 1)}%, "
+                    f"n={int(by_origine.loc[worst, 'count'])})"
+                )
+    if "Score_Alert" in closed.columns:
+        high = closed[closed["Score_Alert"] >= 5]
+        low = closed[closed["Score_Alert"] < 5]
+        if len(high) >= 3 and len(low) >= 3:
+            wr_high = round(100 * high["_win"].mean(), 1)
+            wr_low = round(100 * low["_win"].mean(), 1)
+            if abs(wr_high - wr_low) >= 10:
+                factor_lines.append(
+                    f"i trade con punteggio alert ≥5 hanno win rate {wr_high}% "
+                    f"contro {wr_low}% per quelli <5"
+                )
+
+    note = f"{n} trade chiusi in simulazione, win rate {win_rate}%."
+    if factor_lines:
+        note += " " + "; ".join(factor_lines) + "."
+    return note
 
 
 def _call_gemini(system_prompt: str, user_prompt: str, max_tokens: int = 500) -> dict:
@@ -83,25 +145,42 @@ def _call_gemini(system_prompt: str, user_prompt: str, max_tokens: int = 500) ->
     return {"ok": True, "text": text}
 
 
+_WATCHLIST_ROW_SYSTEM_PROMPT = """Sei un analista tecnico che dà una lettura di SINTESI assertiva, in italiano, di un singolo titolo della Watchlist di un portale di monitoraggio personale (metodologia Wyckoff, flussi istituzionali, forza di settore, RSI). L'utente ha già tutti i numeri sotto gli occhi in tabella e grafico: il tuo valore aggiunto NON è ripeterli, ma combinarli in un giudizio tecnico chiaro, con un ragionamento esplicito.
+
+Regole assolute, da rispettare sempre:
+1. Usa SOLO i dati forniti nel messaggio utente (inclusi eventuali livelli SL/TP o zone già calcolati dal portale). Non inventare numeri, notizie, eventi o cause, non presumere di avere accesso a fonti esterne o dati più recenti. Se serve citare un livello di prezzo, usa solo quelli già presenti nei dati forniti — non calcolarne di tuoi.
+2. Esprimi una lettura direzionale chiara (es. "il quadro è orientato al rialzo nel breve" oppure "la spinta sembra in esaurimento") con il ragionamento che la sostiene. Non formulare MAI un invito esplicito all'azione ("compra ora", "vendi ora", "entra qui"): la conclusione è una lettura tecnica motivata, non un ordine impartito all'utente.
+3. Accanto alla lettura, dai SEMPRE anche la controprova: cosa la invaliderebbe o la renderebbe meno solida (es. rottura di un livello già nei dati, mancanza di conferma volumetrica, pattern Wyckoff incompleto). Bilancia l'assertività della conclusione con onestà sui suoi limiti — questa è la parte di valore della risposta, non un'aggiunta facoltativa.
+4. Evidenzia le tensioni o le conferme tra segnali (settore, RSI, Wyckoff, zone/livelli, Segnale attivo): es. settore forte + RSI in salita ma Wyckoff basso/pattern non completo → slancio probabilmente di breve respiro con rischio di ritracciamento prima di un movimento più esteso.
+5. Se ricevi una nota di apprendimento storico (statistiche su trade chiusi reali), usala per calibrare quanto essere assertivo — non citarla meccanicamente come una statistica a sé, integrala nel ragionamento.
+6. Se i dati sono insufficienti per una lettura di sintesi, dillo esplicitamente invece di forzarla.
+7. Risposta diretta: 4-6 frasi in un unico paragrafo, tono da analista tecnico esperto che si sbilancia ma argomenta, niente elenchi puntati, niente markdown, niente preamboli tipo "i dati mostrano che" — vai dritto al punto di vista."""
+
+
 def explain_watchlist_row(ctx: dict) -> dict:
     """
     ctx: dati già calcolati per una riga Watchlist (vedi build_watchlist_ai_context
     in app.py per le chiavi esatte). Nessun dato viene ricalcolato o recuperato
-    qui: solo formattato e passato al modello.
+    qui: solo formattato e passato al modello, che ne restituisce una lettura
+    di sintesi assertiva (direzione + ragionamento + controprova), mai una
+    descrizione riga per riga né prezzi/target inventati.
     """
+    system_prompt = _WATCHLIST_ROW_SYSTEM_PROMPT
+    learning_note = _closed_trades_learning_note()
+    if learning_note:
+        system_prompt += (
+            "\n\nNota di apprendimento storico (trade reali chiusi in "
+            f"simulazione, aggiornata automaticamente): {learning_note}"
+        )
     user_prompt = (
-        "Spiega questa riga della mia Watchlist personale. Dati già calcolati "
-        "dal portale (JSON):\n\n"
+        "Dammi una lettura tecnica di sintesi assertiva (non una descrizione "
+        "dato per dato) di questo titolo della mia Watchlist personale, in "
+        "ottica Wyckoff/di portale. Dati già calcolati (JSON):\n\n"
         f"{json.dumps(ctx, ensure_ascii=False, indent=2, default=str)}\n\n"
-        "Copri in un unico paragrafo discorsivo: perché il titolo è in "
-        "Watchlist (drawdown dal massimo + quali conferme Wyckoff/volumetriche "
-        "ci sono), cosa segnala oggi di eventuale nuovo (se Segnale è attivo, "
-        "specifica anche se l'origine è classica o legata a una candela "
-        "Sifrediana recente/odierna, senza però consigliare nulla), e cosa "
-        "tenere d'occhio (zona di prezzo/livelli vicini, eventuale trimestrale "
-        "imminente, nota di settore se presente)."
+        "Dammi: (a) la direzione/fase più probabile secondo i segnali "
+        "disponibili e perché, (b) la controprova — cosa la invaliderebbe."
     )
-    return _call_gemini(_BASE_SYSTEM_PROMPT, user_prompt)
+    return _call_gemini(system_prompt, user_prompt)
 
 
 # ────────────────────────────────────────────────────────────────
