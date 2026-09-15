@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T15:55:02.719476+00:00",
+  "updated": "2026-09-15T18:34:37.483328+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -2040,20 +2040,6 @@
       "sub": "software"
     },
     {
-      "ticker": "APTV",
-      "origin": "auto",
-      "created": "2026-09-14T19:42:09.390057+00:00",
-      "last_reviewed": "2026-09-14T19:42:09.390063+00:00",
-      "poc": 68.4243,
-      "poc_origin": "auto",
-      "vwap": 51.0807,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "consumi_disc",
-      "sub": "auto_componenti"
-    },
-    {
       "ticker": "OTIS",
       "origin": "auto",
       "created": "2026-09-14T19:42:09.394520+00:00",
@@ -2336,6 +2322,76 @@
       "target_date": null,
       "sector": "energia",
       "sub": "gas_e_p"
+    },
+    {
+      "ticker": "EIX",
+      "origin": "auto",
+      "created": "2026-09-15T18:31:48.271412+00:00",
+      "last_reviewed": "2026-09-15T18:31:48.271424+00:00",
+      "poc": 52.8278,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "utilities",
+      "sub": "utility_regolate"
+    },
+    {
+      "ticker": "PCG",
+      "origin": "auto",
+      "created": "2026-09-15T18:31:48.273686+00:00",
+      "last_reviewed": "2026-09-15T18:31:48.273694+00:00",
+      "poc": 16.5291,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "utilities",
+      "sub": "utility_regolate"
+    },
+    {
+      "ticker": "AON",
+      "origin": "auto",
+      "created": "2026-09-15T18:31:48.275772+00:00",
+      "last_reviewed": "2026-09-15T18:31:48.275778+00:00",
+      "poc": 353.475,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "finanziario",
+      "sub": "assicurazioni"
+    },
+    {
+      "ticker": "PRU.L",
+      "origin": "auto",
+      "created": "2026-09-15T18:31:48.277875+00:00",
+      "last_reviewed": "2026-09-15T18:31:48.277882+00:00",
+      "poc": 1102.0729,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "finanziario",
+      "sub": "assicurazioni"
+    },
+    {
+      "ticker": "HWM",
+      "origin": "auto",
+      "created": "2026-09-15T18:31:48.279974+00:00",
+      "last_reviewed": "2026-09-15T18:31:48.279980+00:00",
+      "poc": 18.6431,
+      "poc_origin": "auto",
+      "vwap": null,
+      "levels": {},
+      "notes": "",
+      "target_date": null,
+      "sector": "industriale",
+      "sub": "aero_difesa"
     }
   ]
 }
