@@ -108,6 +108,27 @@ def cname(ticker: str) -> str:
         st.session_state.company_cache[ticker] = company_name(ticker)
     return st.session_state.company_cache[ticker]
 
+
+@st.dialog("🤖 Spiegazione AI")
+def _ai_dialog(ticker: str, ctx: dict | None):
+    st.markdown(f"### {ticker} — {cname(ticker)}")
+    if ctx is None:
+        st.info("Dati non disponibili per questo ticker.")
+        return
+    cache_key = f"ai_wl_{ticker}_{_date.today().isoformat()}"
+    if cache_key not in st.session_state:
+        with st.spinner("Genero la lettura tecnica…"):
+            st.session_state[cache_key] = explain_watchlist_row(ctx)
+    result = st.session_state[cache_key]
+    if result["ok"]:
+        st.write(result["text"])
+        st.caption(AI_DISCLAIMER)
+    else:
+        st.error(result["text"])
+    if st.button("🔄 Rigenera"):
+        st.session_state.pop(cache_key, None)
+        st.rerun()
+
 st.markdown("## Watchlist")
 st.caption(
     "Zone volumetriche su settimanale lungo: score = volume pesato per recency esponenziale (half-life 4y), normalizzato 0-100; "
@@ -364,19 +385,31 @@ else:
                 help="⚠️ = entry manuale non revisionata da più di 4 mesi"),
         }
 
-        MAIN_COLS = ["Orig.", "Ticker", "TV", "Nome", "Settore", "Sector", "Prezzo",
+        MAIN_COLS = ["AI", "Orig.", "Ticker", "TV", "Nome", "Settore", "Sector", "Prezzo",
                      "DD%", "RSI", "VWAP60", "Segnale", "Wyckoff", "Trim.", "Bottom",
                      "Priorità", "L1", "L2", "L3", "🎯 Alert", "👁️ Da rivedere"]
-        st.dataframe(
-            df_w[MAIN_COLS], use_container_width=True, hide_index=True,
+        df_w_display = df_w.copy()
+        df_w_display["AI"] = "🤖"
+        column_config["AI"] = st.column_config.TextColumn(
+            "AI", help="Clicca sulla riga per aprire la lettura AI del titolo",
+            width="small")
+        table_event = st.dataframe(
+            df_w_display[MAIN_COLS], use_container_width=True, hide_index=True,
             column_config=column_config,
+            on_select="rerun", selection_mode="single-row",
+            key="tbl_watchlist_select",
         )
+        sel_rows = (table_event.get("selection", {}) or {}).get("rows", []) \
+            if table_event else []
+        if sel_rows:
+            _clicked_ticker = df_w_display.iloc[sel_rows[0]]["Ticker"]
+            _ai_dialog(_clicked_ticker, ai_ctx_by_ticker.get(_clicked_ticker))
         st.caption(
+            "🤖 AI: clicca su una riga della tabella per aprire la lettura "
+            "tecnica AI di quel titolo in un pop-up. "
             "👁️ Da rivedere: compare solo sulle entry 👤 manuali non "
             "revisionate (pulsante ✅ sotto) da più di 4 mesi. "
-            "🎯 Alert: data target che, se raggiunta, invia un alert Telegram. "
-            "La spiegazione AI per singolo titolo è nel dettaglio qui sotto, "
-            "dopo aver scelto il titolo da analizzare."
+            "🎯 Alert: data target che, se raggiunta, invia un alert Telegram."
         )
 
         with st.expander("📋 Altri dati (sotto-settore, VWAP ancorati, zone volumetriche)"):
@@ -498,30 +531,8 @@ else:
             if sotto_note:
                 st.caption(sotto_note)
 
-            with st.container(border=True):
-                ac1, ac2 = st.columns([3, 1])
-                ac1.markdown(f"**🤖 Spiegazione AI — {sel}**")
-                ai_cache_key = f"ai_wl_{sel}_{_date.today().isoformat()}"
-                if ac2.button("Genera/aggiorna", key="ai_wl_btn", use_container_width=True):
-                    ctx = ai_ctx_by_ticker.get(sel)
-                    if ctx is None:
-                        st.session_state[ai_cache_key] = {
-                            "ok": False, "text": "Dati non disponibili per questo ticker."}
-                    else:
-                        with st.spinner(f"Genero la spiegazione per {sel}…"):
-                            st.session_state[ai_cache_key] = explain_watchlist_row(ctx)
-                ai_result = st.session_state.get(ai_cache_key)
-                if ai_result:
-                    if ai_result["ok"]:
-                        st.write(ai_result["text"])
-                        st.caption(AI_DISCLAIMER)
-                    else:
-                        st.error(ai_result["text"])
-                else:
-                    st.caption(
-                        "Analisi dettagliata e oggettiva dei dati calcolati per "
-                        f"{sel} (RSI, drawdown, Wyckoff, zone, settore…)."
-                    )
+            if st.button("🤖 Spiegazione AI di questo titolo", key="ai_wl_btn_detail"):
+                _ai_dialog(sel, ai_ctx_by_ticker.get(sel))
 
             with st.expander("🏭 Contesto di settore (ETF cap-w + equal-w)"):
                 sec_k_det = a.get("sector") or valid_key(sel_entry.get("sector"))
