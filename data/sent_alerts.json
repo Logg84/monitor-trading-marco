@@ -1,89 +1,13 @@
 {
   "ZAL.DE:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-15",
     "ticker": "ZAL.DE",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124338"
+    "timestamp": "2026-09-15T10:40:16.209967",
+    "score": 3,
+    "origine_segnale": "classico"
   },
   "history": [
-    {
-      "ts": "2026-09-09T18:37:16.124441",
-      "ticker": "ECHO",
-      "kind": "REVERSAL_YELLOW",
-      "price": 92.1500015258789
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124443",
-      "ticker": "AMT",
-      "kind": "REVERSAL_GREEN",
-      "price": 175.39999389648438
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124446",
-      "ticker": "CARR",
-      "kind": "REVERSAL_YELLOW",
-      "price": 58.189998626708984
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124449",
-      "ticker": "ORCL",
-      "kind": "REVERSAL_GREEN",
-      "price": 162.8000030517578
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124452",
-      "ticker": "LII",
-      "kind": "REVERSAL_YELLOW",
-      "price": 376.45001220703125
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124455",
-      "ticker": "APO",
-      "kind": "REVERSAL_YELLOW",
-      "price": 130.75
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124458",
-      "ticker": "CRWV",
-      "kind": "REVERSAL_GREEN",
-      "price": 95.30999755859375
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124462",
-      "ticker": "RKLB",
-      "kind": "REVERSAL_YELLOW",
-      "price": 63.81999969482422
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124464",
-      "ticker": "APP",
-      "kind": "REVERSAL_YELLOW",
-      "price": 306.05499267578125
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124467",
-      "ticker": "HII",
-      "kind": "REVERSAL_YELLOW",
-      "price": 282.2900085449219
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124471",
-      "ticker": "NRG",
-      "kind": "REVERSAL_YELLOW",
-      "price": 115.49500274658203
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124474",
-      "ticker": "GLW",
-      "kind": "REVERSAL_YELLOW",
-      "price": 168.55999755859375
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124477",
-      "ticker": "NXPI",
-      "kind": "REVERSAL_YELLOW",
-      "price": 224.1199951171875
-    },
     {
       "ts": "2026-09-09T18:37:16.124480",
       "ticker": "STMPA.PA",
@@ -1433,6 +1357,110 @@
       "price": 34.72999954223633,
       "score": 3,
       "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:40:16.209967",
+      "ticker": "ZAL.DE",
+      "kind": "REVERSAL_YELLOW",
+      "price": 22.540000915527344,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:40:23.083094",
+      "ticker": "EL.PA",
+      "kind": "REVERSAL_YELLOW",
+      "price": 146.3000030517578,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:40:43.542951",
+      "ticker": "QIA.DE",
+      "kind": "REVERSAL_YELLOW",
+      "price": 36.244998931884766,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:01.227821",
+      "ticker": "CPRT",
+      "kind": "REVERSAL_YELLOW",
+      "price": 31.729999542236328,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:02.639289",
+      "ticker": "TRI",
+      "kind": "REVERSAL_YELLOW",
+      "price": 105.81999969482422,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:05.372213",
+      "ticker": "AJG",
+      "kind": "REVERSAL_YELLOW",
+      "price": 253.3000030517578,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:16.271582",
+      "ticker": "TYL",
+      "kind": "REVERSAL_YELLOW",
+      "price": 359.5400085449219,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:20.364668",
+      "ticker": "AUTO.L",
+      "kind": "REVERSAL_YELLOW",
+      "price": 497.70001220703125,
+      "score": 4,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:24.454774",
+      "ticker": "SAN.PA",
+      "kind": "REVERSAL_YELLOW",
+      "price": 74.7300033569336,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:27.281109",
+      "ticker": "DSY.PA",
+      "kind": "REVERSAL_YELLOW",
+      "price": 20.68000030517578,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:32.700702",
+      "ticker": "AZN.L",
+      "kind": "REVERSAL_GREEN",
+      "price": 12114.0,
+      "score": 4,
+      "origine_segnale": "sifrediana_assistita"
+    },
+    {
+      "ts": "2026-09-15T10:41:35.442292",
+      "ticker": "TXN",
+      "kind": "REVERSAL_YELLOW",
+      "price": 263.4200134277344,
+      "score": 3,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T10:41:36.821997",
+      "ticker": "DDOG",
+      "kind": "REVERSAL_YELLOW",
+      "price": 230.0500030517578,
+      "score": 3,
+      "origine_segnale": "classico"
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -1542,10 +1570,12 @@
     "timestamp": "2026-09-09T18:37:16.124396"
   },
   "EL.PA:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-15",
     "ticker": "EL.PA",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124400"
+    "timestamp": "2026-09-15T10:40:23.083094",
+    "score": 3,
+    "origine_segnale": "classico"
   },
   "KER.PA:REVERSAL_YELLOW": {
     "date": "2026-09-09",
@@ -1888,10 +1918,12 @@
     "timestamp": "2026-09-09T18:37:16.124574"
   },
   "QIA.DE:REVERSAL_YELLOW": {
-    "date": "2026-09-09",
+    "date": "2026-09-15",
     "ticker": "QIA.DE",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-09T18:37:16.124577"
+    "timestamp": "2026-09-15T10:40:43.542951",
+    "score": 3,
+    "origine_segnale": "classico"
   },
   "UHS:REVERSAL_YELLOW": {
     "date": "2026-09-09",
@@ -1976,11 +2008,12 @@
     "timestamp": "2026-09-09T22:08:23.649184"
   },
   "TRI:REVERSAL_YELLOW": {
-    "date": "2026-09-10",
+    "date": "2026-09-15",
     "ticker": "TRI",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-10T15:34:50.330055",
-    "score": 3
+    "timestamp": "2026-09-15T10:41:02.639289",
+    "score": 3,
+    "origine_segnale": "classico"
   },
   "VOW3.DE:REVERSAL_GREEN": {
     "date": "2026-09-10",
@@ -2131,18 +2164,20 @@
     "score": 5
   },
   "CPRT:REVERSAL_YELLOW": {
-    "date": "2026-09-10",
+    "date": "2026-09-15",
     "ticker": "CPRT",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-10T17:52:46.270915",
-    "score": 3
+    "timestamp": "2026-09-15T10:41:01.227821",
+    "score": 2,
+    "origine_segnale": "classico"
   },
   "TYL:REVERSAL_YELLOW": {
-    "date": "2026-09-10",
+    "date": "2026-09-15",
     "ticker": "TYL",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-10T17:52:47.663252",
-    "score": 3
+    "timestamp": "2026-09-15T10:41:16.271582",
+    "score": 2,
+    "origine_segnale": "classico"
   },
   "HSY:REVERSAL_YELLOW": {
     "date": "2026-09-15",
@@ -2177,11 +2212,12 @@
     "origine_segnale": "classico"
   },
   "AJG:REVERSAL_YELLOW": {
-    "date": "2026-09-10",
+    "date": "2026-09-15",
     "ticker": "AJG",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-10T17:52:55.906079",
-    "score": 3
+    "timestamp": "2026-09-15T10:41:05.372213",
+    "score": 2,
+    "origine_segnale": "classico"
   },
   "BR:REVERSAL_YELLOW": {
     "date": "2026-09-15",
@@ -2723,5 +2759,53 @@
     "timestamp": "2026-09-14T21:12:21.558332",
     "score": null,
     "origine_segnale": null
+  },
+  "AUTO.L:REVERSAL_YELLOW": {
+    "date": "2026-09-15",
+    "ticker": "AUTO.L",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-15T10:41:20.364668",
+    "score": 4,
+    "origine_segnale": "classico"
+  },
+  "SAN.PA:REVERSAL_YELLOW": {
+    "date": "2026-09-15",
+    "ticker": "SAN.PA",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-15T10:41:24.454774",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "DSY.PA:REVERSAL_YELLOW": {
+    "date": "2026-09-15",
+    "ticker": "DSY.PA",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-15T10:41:27.281109",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "AZN.L:REVERSAL_GREEN": {
+    "date": "2026-09-15",
+    "ticker": "AZN.L",
+    "type": "REVERSAL_GREEN",
+    "timestamp": "2026-09-15T10:41:32.700702",
+    "score": 4,
+    "origine_segnale": "sifrediana_assistita"
+  },
+  "TXN:REVERSAL_YELLOW": {
+    "date": "2026-09-15",
+    "ticker": "TXN",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-15T10:41:35.442292",
+    "score": 3,
+    "origine_segnale": "classico"
+  },
+  "DDOG:REVERSAL_YELLOW": {
+    "date": "2026-09-15",
+    "ticker": "DDOG",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-15T10:41:36.821997",
+    "score": 3,
+    "origine_segnale": "classico"
   }
 }
