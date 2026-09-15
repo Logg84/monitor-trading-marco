@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T23:58:51.752182+00:00",
+  "updated": "2026-09-15T07:32:11.310828+00:00",
   "entries": [
     {
       "ticker": "ZAL.DE",
@@ -299,20 +299,6 @@
       "poc": 97.7321,
       "poc_origin": "auto",
       "vwap": 235.4461,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "tech",
-      "sub": "software"
-    },
-    {
-      "ticker": "SNPS",
-      "origin": "auto",
-      "created": "2026-08-25T17:48:24.825774+00:00",
-      "last_reviewed": "2026-08-25T17:48:24.825781+00:00",
-      "poc": 446.5718,
-      "poc_origin": "auto",
-      "vwap": 416.9529,
       "levels": {},
       "notes": "",
       "target_date": null,
@@ -1036,20 +1022,6 @@
       "sub": "servizi_sanita"
     },
     {
-      "ticker": "ENR.DE",
-      "origin": "auto",
-      "created": "2026-09-08T11:38:39.497947+00:00",
-      "last_reviewed": "2026-09-08T11:38:39.497953+00:00",
-      "poc": 12.551,
-      "poc_origin": "auto",
-      "vwap": 152.5755,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "industriale",
-      "sub": "capital_goods"
-    },
-    {
       "ticker": "ON",
       "origin": "auto",
       "created": "2026-09-08T18:06:21.121855+00:00",
@@ -1588,20 +1560,6 @@
       "target_date": null,
       "sector": "consumi_disc",
       "sub": "tempo_libero"
-    },
-    {
-      "ticker": "STJ.L",
-      "origin": "auto",
-      "created": "2026-09-11T11:44:30.699843+00:00",
-      "last_reviewed": "2026-09-11T11:44:30.699850+00:00",
-      "poc": 1164.4357,
-      "poc_origin": "auto",
-      "vwap": 1149.2797,
-      "levels": {},
-      "notes": "",
-      "target_date": null,
-      "sector": "finanziario",
-      "sub": "mercati_capitali"
     },
     {
       "ticker": "EXPN.L",
