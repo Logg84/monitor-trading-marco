@@ -9,24 +9,6 @@
   },
   "history": [
     {
-      "ts": "2026-09-09T18:37:16.124507",
-      "ticker": "MCHP",
-      "kind": "REVERSAL_YELLOW",
-      "price": 72.83999633789062
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124510",
-      "ticker": "FSLR",
-      "kind": "REVERSAL_YELLOW",
-      "price": 205.4199981689453
-    },
-    {
-      "ts": "2026-09-09T18:37:16.124513",
-      "ticker": "WYNN",
-      "kind": "REVERSAL_YELLOW",
-      "price": 90.08000183105469
-    },
-    {
       "ts": "2026-09-09T18:37:16.124516",
       "ticker": "BF-B",
       "kind": "REVERSAL_YELLOW",
@@ -1475,6 +1457,30 @@
       "price": 8.21500015258789,
       "score": null,
       "origine_segnale": null
+    },
+    {
+      "ts": "2026-09-15T19:23:37.841413",
+      "ticker": "AON",
+      "kind": "REVERSAL_YELLOW",
+      "price": 306.6499938964844,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T19:23:39.341224",
+      "ticker": "PRU.L",
+      "kind": "REVERSAL_YELLOW",
+      "price": 973.7999877929688,
+      "score": 2,
+      "origine_segnale": "classico"
+    },
+    {
+      "ts": "2026-09-15T19:23:40.939013",
+      "ticker": "BA.L",
+      "kind": "SIFREDIANA",
+      "price": 2006.0,
+      "score": null,
+      "origine_segnale": null
     }
   ],
   "SMCI:REVERSAL_YELLOW": {
@@ -2248,11 +2254,12 @@
     "origine_segnale": "classico"
   },
   "AON:REVERSAL_YELLOW": {
-    "date": "2026-09-10",
+    "date": "2026-09-15",
     "ticker": "AON",
     "type": "REVERSAL_YELLOW",
-    "timestamp": "2026-09-10T17:53:00.155730",
-    "score": 3
+    "timestamp": "2026-09-15T19:23:37.841413",
+    "score": 2,
+    "origine_segnale": "classico"
   },
   "ODFL:REVERSAL_YELLOW": {
     "date": "2026-09-10",
@@ -2857,6 +2864,22 @@
     "ticker": "RFIL",
     "type": "LIVELLO_L1",
     "timestamp": "2026-09-15T15:53:47.579296",
+    "score": null,
+    "origine_segnale": null
+  },
+  "PRU.L:REVERSAL_YELLOW": {
+    "date": "2026-09-15",
+    "ticker": "PRU.L",
+    "type": "REVERSAL_YELLOW",
+    "timestamp": "2026-09-15T19:23:39.341224",
+    "score": 2,
+    "origine_segnale": "classico"
+  },
+  "BA.L:SIFREDIANA": {
+    "date": "2026-09-15",
+    "ticker": "BA.L",
+    "type": "SIFREDIANA",
+    "timestamp": "2026-09-15T19:23:40.939013",
     "score": null,
     "origine_segnale": null
   }
